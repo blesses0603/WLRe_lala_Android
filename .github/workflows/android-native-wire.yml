@@ -8,6 +8,10 @@ on:
       - security/android-phase04-cython-wire-pilot
     paths:
       - '.github/workflows/android-native-wire.yml'
+      - 'tools/android_native_wire_build.sh'
+      - 'tools/android_native_wire.py'
+      - 'tests/test_android_native_wire.py'
+      - 'p4a-recipes/lalawire/**'
   workflow_dispatch:
 
 permissions:
@@ -56,6 +60,22 @@ jobs:
       - name: Stage, NDK-compile and audit native ARM64 trial APK
         run: |
           bash tools/android_native_wire_build.sh /tmp/lalawire-phase04
+      - name: Show experimental APK layout on audit failure
+        if: failure()
+        run: |
+          echo "Phase04 verification failed; listing build artifacts for diagnosis."
+          find /tmp/lalawire-phase04/bin -maxdepth 1 -type f -printf '%f %s bytes\\n' 2>/dev/null || true
+          if [[ -d /tmp/lalawire-phase04/bin ]]; then
+            apk="$(find /tmp/lalawire-phase04/bin -maxdepth 1 -name '*.apk' -print -quit)"
+            if [[ -n "$apk" ]]; then
+              python - "$apk" <<'PY'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              print("libpybundle present:", "lib/arm64-v8a/libpybundle.so" in archive.namelist())
+              print("private.tar present:", "assets/private.tar" in archive.namelist())
+          PY
+            fi
+          fi
       - name: Collect experimental APK plus verification logs
         run: |
           mkdir -p phase04-arm64-proof

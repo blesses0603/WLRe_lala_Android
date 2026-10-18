@@ -47,7 +47,7 @@ class NativeWireTests(unittest.TestCase):
         )
         spec = (output / "buildozer.spec").read_text()
         self.assertIn("requirements = python3,kivy,lalawire", spec)
-        self.assertIn("p4a.local_recipes = p4a-recipes", spec)
+        self.assertIn(f"p4a.local_recipes = {output / 'p4a-recipes'}", spec)
         self.assertIn("source.exclude_dirs = p4a-recipes,docs", spec)
         self.assertIn("android.archs = arm64-v8a", spec)
 

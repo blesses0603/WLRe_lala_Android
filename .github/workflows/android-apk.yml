@@ -57,8 +57,10 @@ jobs:
           python -m pip install "buildozer>=1.5,<2" "cython<3" "kivy==2.3.1" Pillow cryptography pyjnius==1.7.0
       - name: Test Android isolation, IPC, encrypted storage and UI
         run: xvfb-run -a python -m unittest discover -s tests -q
-      - name: Check Python syntax before packaging
-        run: python -m compileall -q main.py android_app wlre
+      - name: Check Python syntax and native startup-screen configuration
+        run: |
+          python -m compileall -q main.py android_app wlre tools
+          python tools/android_presplash.py check-spec
       - uses: actions/cache@v6.1.0
         with:
           path: |
@@ -85,6 +87,7 @@ jobs:
           test -n "$apk_path" || { echo "::error::APK not found"; exit 1; }
           output="WLRe_LaLa-Android-${RELEASE_VERSION}-debug.apk"
           cp "$apk_path" "android-output/$output"
+          python tools/android_presplash.py check-apk "android-output/$output"
           cd android-output
           sha256sum "$output" > SHA256SUMS.txt
           cd ..

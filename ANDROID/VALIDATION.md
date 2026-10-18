@@ -1,3 +1,10 @@
+## v0.0.7：原生啟動畫面客製化
+
+- 使用者手機截圖仍顯示 Kivy 預設黑色 `Loading...`。查明 `buildozer.spec` 原本只有 `icon.filename`，沒有 `presplash.filename`；Kivy 內部 UI 圓角與主題不會影響 SDL2 原生載入畫面。
+- 設定 `presplash.filename = android_app/assets/app.png` 與 `android.presplash_color = #081626`，重用既有 LaLa App ICON。
+- 兩套 Actions 新增原生啟動畫面設定與 APK 資源檢查，驗證圖像像素與來源 ICON 相符，並在 Artifact 內提供 `PRESPLASH_INFO.txt`。
+- 修改前的 [Actions 39107618405](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39107618405) 雖然 API 31～36 啟動測試全部成功，但**沒有測試自訂 presplash 圖像**。須以本次變更後的 Actions 為準，仍需真機確認是否顯示新圖案。
+
 ## v0.0.7：Android 15（API 35）Smoke 診斷補丁
 
 - [Actions 39106328993](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39106328993) 的 API 35 工作：UI、前景服務、Home、鎖屏 30 秒、恢復畫面皆已通過，日誌明確出現 `smoke passed`；但 `tools/android_smoke.py` 最後在 `finally` 讀取 `adb logcat -d -v threadtime` 時發生退出碼 **255**，觸發 `CalledProcessError`，因此工作結果為失敗。其餘 API 31、32、33、34、36 均成功。

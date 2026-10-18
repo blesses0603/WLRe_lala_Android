@@ -8,6 +8,12 @@
 
 ## 操作流程
 
+### Android 原生啟動畫面
+
+手機開啟 APK 時，Kivy 主畫面還沒建立，會先顯示 python-for-android SDL2 的原生 `presplash`。原本 `buildozer.spec` 只有設定 App ICON，沒有設定 `presplash.filename`，因此手機仍顯示 Kivy 預設黑底 `Loading...`。目前已指定與 App 相同的 `android_app/assets/app.png`，並設定深藍背景 `#081626`。
+
+兩套 APK 流程都會在編譯後檢查 APK 內的 `res/drawable*/presplash` 圖片是否與 LaLa ICON 相符，通過後才上傳；Artifact 中另附 `PRESPLASH_INFO.txt`。**此修改只改啟動圖案，並不能修復真正卡在 Loading 的崩潰或初始化失敗**。若新版本停留在啟動畫面超過一分鐘，請提供手機 Logcat 供進一步定位。
+
 ### 1. 安裝及開始登入
 
 1. 在 [Smoke Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-smoke.yml) 的**成功執行紀錄**下載 `Android-arm64-apk`，或於 [Phone APK Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml) 取得指定版本的 ARM64 APK。

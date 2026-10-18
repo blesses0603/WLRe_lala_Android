@@ -108,6 +108,65 @@ def prepare(encoded=None, keystore=None):
     return True
 
 
+def resign_apk(apk, keystore=None, apksigner=None):
+    """Re-sign Buildozer's already-built debug APK with the pinned CI keystore.
+
+    Buildozer/Gradle may sign a debug APK with its own default debug key even
+    when ~/.android/debug.keystore was restored. Verification alone would then
+    (correctly) refuse the download. Sign explicitly, verify against the pin,
+    and atomically replace the APK only after all checks succeed.
+    """
+    if os.environ.get(ENV_MODE) != "persistent":
+        raise RuntimeError("APK re-signing requires persistent signing mode")
+    pin = _configured_pin(required=True)
+    apk = Path(apk)
+    if not apk.is_file() or apk.suffix.lower() != ".apk":
+        raise ValueError("APK to re-sign not found")
+    if keystore is None:
+        keystore = KEYSTORE
+    keystore = Path(keystore)
+    if not keystore.is_file():
+        raise FileNotFoundError("Configured persistent keystore not found")
+    key = subprocess.run(
+        ["keytool", "-list", "-v", "-keystore", str(keystore),
+         "-storepass", PASSWORD, "-alias", ALIAS],
+        capture_output=True, text=True, check=True, timeout=30)
+    if _keytool_fingerprint(key.stdout) != pin:
+        raise ValueError("Signing keystore does not match pinned SHA256")
+
+    if apksigner is None:
+        sdk_tools = Path.home() / ".buildozer/android/platform/android-sdk/build-tools"
+        found = sorted(sdk_tools.glob("*/apksigner"))
+        apksigner = str(found[-1]) if found else shutil.which("apksigner")
+    if not apksigner:
+        raise FileNotFoundError("Android SDK apksigner is required to re-sign APK")
+
+    fd, temp = tempfile.mkstemp(prefix=".lala-signed-", suffix=".apk", dir=apk.parent)
+    os.close(fd)
+    try:
+        subprocess.run([
+            str(apksigner), "sign", "--ks", str(keystore),
+            "--ks-key-alias", ALIAS,
+            "--ks-pass", "pass:" + PASSWORD,
+            "--key-pass", "pass:" + PASSWORD,
+            "--out", temp, str(apk),
+        ], capture_output=True, text=True, check=True, timeout=180)
+        result = subprocess.run(
+            [str(apksigner), "verify", "--print-certs", temp],
+            capture_output=True, text=True, check=True, timeout=30)
+        matches = re.findall(
+            r"certificate SHA-256 digest:\s*([0-9A-Fa-f]+)",
+            result.stdout, re.I)
+        if len(matches) != 1 or _fingerprint(matches[0]) != pin:
+            raise ValueError("Re-signed APK certificate does not match pinned SHA256")
+        os.replace(temp, apk)
+    finally:
+        if os.path.exists(temp):
+            os.unlink(temp)
+    print("APK re-signed and verified using pinned persistent certificate.")
+    return str(apk)
+
+
 def signing_info(output_dir, keystore=None, apksigner=None):
     """Verify the APK signature and publish its public signer fingerprint.
 
@@ -180,5 +239,7 @@ if __name__ == "__main__":
         prepare()
     elif len(sys.argv) == 3 and sys.argv[1] == "report":
         signing_info(sys.argv[2])
+    elif len(sys.argv) == 3 and sys.argv[1] == "resign":
+        resign_apk(sys.argv[2])
     else:
-        raise SystemExit("Usage: android_signing.py prepare | report OUTPUT_DIR")
+        raise SystemExit("Usage: android_signing.py prepare | resign APK | report OUTPUT_DIR")

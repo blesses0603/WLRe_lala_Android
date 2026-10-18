@@ -5,6 +5,7 @@
 ## 實際狀態與發布政策
 
 - **正式提供給手機更新的 main ARM64 APK、Tag／手動版本 APK**：必須提供私有簽章金鑰 **以及**獨立的公開憑證 SHA-256 指紋鎖定；兩者任何一項不存在、無效或不一致就停止建置／上傳，不能退回隨機 Debug 簽章。
+- **Buildozer Debug 特例**：Gradle 有時使用自己的 Debug 簽章，而不是 CI 事先恢復至 `~/.android/debug.keystore` 的金鑰；因此正式可下載 APK 在編譯完成後，會先由 `apksigner sign` 用固定金鑰重新簽署、以公開指紋驗證通過，才產生 `SHA256SUMS.txt`、`SIGNING_INFO.txt` 和上傳。PR 不取得私鑰也不重新簽署。
 - **未合併 PR 的 ARM64 驗證 APK**：使用臨時 Debug 憑證，不取用 Secrets。Artifact 名稱為 `Android-arm64-pr-ephemeral-apk`，**不可當作可持續更新的手機發行版**。
 - 採用原本的 `debug.keystore` 格式、`androiddebugkey` 別名與公認 Debug 密碼只適用於測試包及自行分發。真正公開發行請改用獨立強密碼的 Release 金鑰。
 - 當前未能從 GitHub 讀到 Actions Secrets／Variables 的值；本次修改無法代替使用者設定。**未完成兩項設定前 main 及 Tag 建置會明確失敗**，這是為了避免無意間更換簽章。

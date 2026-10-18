@@ -94,6 +94,11 @@ jobs:
           apk_path="$(find bin -maxdepth 1 -type f -name '*.apk' -print -quit)"
           test -n "$apk_path" || { echo "::error::ARM64 APK not found"; exit 1; }
           cp "$apk_path" phone-output/WLRe_LaLa-Android-arm64-debug.apk
+          # Buildozer's Debug APK may use a distinct Gradle-generated certificate.
+          # Always explicitly re-sign main APKs with the pinned persistent key.
+          if [[ "${GITHUB_EVENT_NAME}" != "pull_request" ]]; then
+            python tools/android_signing.py resign phone-output/WLRe_LaLa-Android-arm64-debug.apk
+          fi
           (cd phone-output && sha256sum WLRe_LaLa-Android-arm64-debug.apk > SHA256SUMS.txt)
           (cd phone-output && sha256sum --check SHA256SUMS.txt)
           python tools/android_presplash.py check-apk phone-output/WLRe_LaLa-Android-arm64-debug.apk

@@ -37,6 +37,11 @@ def prepare(encoded=None, keystore=None):
         keystore = KEYSTORE
     keystore = Path(keystore)
     if not encoded:
+        if os.environ.get("ANDROID_REQUIRE_PERSISTENT_SIGNING") == "1":
+            raise RuntimeError(
+                "Persistent signing is mandatory for tagged/manual phone builds. "
+                "Set ANDROID_DEBUG_KEYSTORE_BASE64 in GitHub Actions Secrets "
+                "and keep the private keystore off GitHub.")
         print("::warning::ANDROID_DEBUG_KEYSTORE_BASE64 is not set. "
               "This run uses a temporary CI debug key; APK signatures "
               "will NOT match across runs. See ANDROID/SIGNING.md.")
@@ -79,6 +84,9 @@ def signing_info(output_dir, keystore=None, apksigner=None):
     restored keystore is present; ephemeral mode reports the APK cert itself.
     """
     mode = os.environ.get(ENV_MODE, "ephemeral")
+    if (os.environ.get("ANDROID_REQUIRE_PERSISTENT_SIGNING") == "1"
+            and mode != "persistent"):
+        raise RuntimeError("Release build refused: persistent signing is required")
     candidates = list(Path(output_dir).glob("*.apk"))
     if len(candidates) != 1:
         raise ValueError("Expected exactly one built Android APK for signature verification")

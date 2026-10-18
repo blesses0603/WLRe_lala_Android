@@ -52,6 +52,7 @@ jobs:
           xvfb-run -a python -m unittest discover -s tests -q
           python -m compileall -q main.py android_app wlre tools
           python tools/android_presplash.py check-spec
+          python tools/android_hardening.py preflight
       - uses: actions/cache@v6.1.0
         with:
           path: |
@@ -79,6 +80,7 @@ jobs:
           (cd emulator-output && sha256sum WLRe_LaLa-Android-emulator-debug.apk > SHA256SUMS.txt)
           python tools/android_presplash.py check-apk emulator-output/WLRe_LaLa-Android-emulator-debug.apk
           python tools/android_signing.py report emulator-output
+          python tools/android_hardening.py report emulator-output/WLRe_LaLa-Android-emulator-debug.apk
       - name: Upload emulator APK and checksum
         uses: actions/upload-artifact@v7.0.2
         with:
@@ -121,6 +123,7 @@ jobs:
           xvfb-run -a python -m unittest discover -s tests -q
           python -m compileall -q main.py android_app wlre tools
           python tools/android_presplash.py check-spec
+          python tools/android_hardening.py preflight
       - uses: actions/cache@v6.1.0
         with:
           path: |
@@ -150,6 +153,7 @@ jobs:
           (cd phone-output && sha256sum --check SHA256SUMS.txt)
           python tools/android_presplash.py check-apk phone-output/WLRe_LaLa-Android-arm64-debug.apk
           python tools/android_signing.py report phone-output
+          python tools/android_hardening.py report phone-output/WLRe_LaLa-Android-arm64-debug.apk
       - name: Upload ARM64 phone test APK and checksum
         uses: actions/upload-artifact@v7.0.2
         with:

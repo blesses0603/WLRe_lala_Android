@@ -77,6 +77,29 @@ class SigningTests(unittest.TestCase):
             self.assertFalse(key.exists())
             self.assertIn("ANDROID_SIGNING_MODE=ephemeral", env_file.read_text())
 
+    def test_tagged_build_rejects_missing_signing_secret(self):
+        with tempfile.TemporaryDirectory() as folder:
+            key = Path(folder) / "debug.keystore"
+            with patch.dict(os.environ, {
+                    "ANDROID_REQUIRE_PERSISTENT_SIGNING": "1",
+                    "ANDROID_DEBUG_KEYSTORE_BASE64": "",
+                    "GITHUB_ENV": str(Path(folder) / "env")}, clear=True):
+                with self.assertRaisesRegex(RuntimeError, "mandatory"):
+                    prepare("", key)
+            self.assertFalse(key.exists())
+
+    def test_tagged_build_cannot_publish_ephemeral_signing_report(self):
+        with tempfile.TemporaryDirectory() as folder:
+            apk = Path(folder) / "test.apk"
+            apk.write_bytes(b"fixture")
+            with patch.dict(os.environ, {
+                    "ANDROID_REQUIRE_PERSISTENT_SIGNING": "1",
+                    "ANDROID_SIGNING_MODE": "ephemeral"}, clear=True):
+                with self.assertRaisesRegex(RuntimeError, "refused"):
+                    signing_info(folder, apk.parent / "debug.keystore",
+                                 apksigner="apksigner")
+            self.assertFalse((Path(folder) / "SIGNING_INFO.txt").exists())
+
     def test_bad_secret_fails_without_ephemeral_fallback(self):
         with tempfile.TemporaryDirectory() as folder:
             key = Path(folder) / "debug.keystore"

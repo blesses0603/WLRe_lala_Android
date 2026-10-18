@@ -6,3 +6,15 @@ bin/
 android-output/
 .kivy/
 android-smoke-*.txt
+
+# Never add the signing identity or any developer secrets to GitHub.
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.pem
+*.p8
+*.key
+.env
+.env.*
+android-app-signing/

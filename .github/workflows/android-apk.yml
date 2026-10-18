@@ -61,6 +61,7 @@ jobs:
         run: |
           python -m compileall -q main.py android_app wlre tools
           python tools/android_presplash.py check-spec
+          python tools/android_hardening.py preflight
       - uses: actions/cache@v6.1.0
         with:
           path: |
@@ -70,9 +71,10 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-wlre-arm64-${{ hashFiles('buildozer.spec') }}
           restore-keys: ${{ runner.os }}-wlre-arm64-
-      - name: Restore persistent debug signing key when configured
+      - name: Require persistent Android signing for version-tag APK
         env:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+          ANDROID_REQUIRE_PERSISTENT_SIGNING: '1'
         run: python tools/android_signing.py prepare
       - name: Build Android debug APK
         run: |
@@ -91,7 +93,8 @@ jobs:
           cd android-output
           sha256sum "$output" > SHA256SUMS.txt
           cd ..
-          python tools/android_signing.py report android-output
+          ANDROID_REQUIRE_PERSISTENT_SIGNING=1 python tools/android_signing.py report android-output
+          python tools/android_hardening.py report "android-output/$output"
       - name: Upload APK (only after successful build)
         uses: actions/upload-artifact@v7.0.2
         with:

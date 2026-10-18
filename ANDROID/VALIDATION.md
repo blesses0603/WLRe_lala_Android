@@ -1,3 +1,10 @@
+## 2026-10-19｜Actions 節省額度政策
+
+- 第 03 項合併基準：`dda171974e5f1b7476aaba65a36c938890096b2c` 的 [完整主分支 Run 39141939393](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39141939393) 為 Success，已通過 Python 回歸、ARM64、固定簽章、SHA256、APK 安全檢查與上傳。
+- 因 GitHub-hosted Actions 額度有限，後續主分支推送與 PR 改用快速測試，包含 Python／設定／預檢；不再預設 Buildozer 編譯或上傳 APK。
+- 需要 APK 時手動於 main 觸發 `android-apk.yml`，或推送符合目前程式版號的 `vX.Y.Z` Tag；只有此流程能報告完整 ARM64、固定簽章及成品安全驗證。
+- 此為 CI 觸發政策調整，沒有修改遊戲程式、Android 最低 API 31、ARM64-only ABI、固定 Secret／Variable 或現有簽章工具。工作流程變更本身若未跑過完整 APK，不可當成新版 APK 已驗證。
+
 ## v0.0.7 桌面 main → Android 增量移植
 
 - 來源固定為桌面 `WLRe_lala/main` 的 `c6bee236f0074f1981f29e957785beffe21f0ed8`；包含核心遠征、夥伴出戰、戰後修理／整理、遠端儲藏 S62 唯讀解碼及正式名稱資料。

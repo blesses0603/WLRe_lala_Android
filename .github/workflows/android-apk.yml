@@ -66,6 +66,7 @@ jobs:
         env:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
           ANDROID_REQUIRE_PERSISTENT_SIGNING: '1'
+          ANDROID_EXPECTED_SIGNER_SHA256: ${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
         run: python tools/android_signing.py prepare
       - name: Build Android debug APK
         run: |
@@ -84,7 +85,7 @@ jobs:
           cd android-output
           sha256sum "$output" > SHA256SUMS.txt
           cd ..
-          ANDROID_REQUIRE_PERSISTENT_SIGNING=1 python tools/android_signing.py report android-output
+          ANDROID_REQUIRE_PERSISTENT_SIGNING=1 ANDROID_EXPECTED_SIGNER_SHA256="${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}" python tools/android_signing.py report android-output
           python tools/android_hardening.py report "android-output/$output"
       - name: Upload APK (only after successful build)
         uses: actions/upload-artifact@v7.0.2

@@ -1,56 +1,80 @@
-# Android APK 固定簽章設定
+# Android ARM64 固定簽章與指紋鎖定（第 02 項）
 
-這裡的「簽章」是 Android 安裝／更新用的**簽名憑證與私鑰**，不是 APK 檔案的 SHA256SUMS.txt。
+> 本機／GitHub 的測試簽章是 Android APK 安裝與升級身份，與帳號的 Android Keystore、APK SHA256SUMS、Python Cython 防逆向是不同機制。
 
-## 目前兩種建置模式
+## 實際狀態與發布政策
 
-- **未設定 GitHub Secret**：只有日常 `android-smoke.yml` 可以繼續使用臨時 Debug keystore 測試；**版本 Tag／手動版本建置會拒絕產出 APK**，避免把無法持續更新的臨時簽章誤當成正式版本。
-- **設定 GitHub Secret**：日常 ARM64 及 Git Tag／手動手機 APK **共用同一把私有 Debug keystore**，未更換 package ID 且版本允許升級時，能使用相同簽章更新。
+- **正式提供給手機更新的 main ARM64 APK、Tag／手動版本 APK**：必須提供私有簽章金鑰 **以及**獨立的公開憑證 SHA-256 指紋鎖定；兩者任何一項不存在、無效或不一致就停止建置／上傳，不能退回隨機 Debug 簽章。
+- **未合併 PR 的 ARM64 驗證 APK**：使用臨時 Debug 憑證，不取用 Secrets。Artifact 名稱為 `Android-arm64-pr-ephemeral-apk`，**不可當作可持續更新的手機發行版**。
+- 採用原本的 `debug.keystore` 格式、`androiddebugkey` 別名與公認 Debug 密碼只適用於測試包及自行分發。真正公開發行請改用獨立強密碼的 Release 金鑰。
+- 當前未能從 GitHub 讀到 Actions Secrets／Variables 的值；本次修改無法代替使用者設定。**未完成兩項設定前 main 及 Tag 建置會明確失敗**，這是為了避免無意間更換簽章。
 
-每份 APK Artifact 都包含 SIGNING_INFO.txt，其 Certificate SHA256 是**公開憑證指紋**，方便確認簽名金鑰相同。SHA256SUMS.txt 是 APK 檔案完整性校驗，原始碼變更後數值通常不同，即使簽章保持一致。
+## 你需要在自己的可信任電腦上設定兩個 GitHub 項目
 
-## 第一次設定（僅需做一次）
+### 1. 產生一次金鑰，永久保管原檔
 
-請在**自己的電腦上**建立並保管金鑰。請勿把金鑰、Base64 內容或密碼貼到聊天、Commit 或 GitHub Issue。
-
-有 JDK 的 Windows PowerShell 或 Linux／macOS 終端機都可以執行以下指令，金鑰有效期設定為約 27 年：
+若已有固定簽章原檔，優先沿用，**不要重新產生**：
 
 ```bash
 keytool -genkeypair -v -keystore WLRe_LaLa.debug.keystore -alias androiddebugkey -keyalg RSA -keysize 3072 -validity 10000 -storepass android -keypass android -dname "CN=WLRe LaLa Debug,O=WLRe,C=TW"
 ```
 
-**Windows PowerShell**：複製 Base64 到剪貼簿（請避免保存到公開檔案）：
+不要把 keystore 原檔、完整 Base64 或私鑰貼在聊天、PR、Commit、Issue，也不要提交至任何 GitHub 分支。
+
+### 2. 設置 GitHub Actions Secret（私有）
+
+在 GitHub 儲存庫 **Settings → Secrets and variables → Actions → Secrets → New repository secret**：
+
+- 名稱：`ANDROID_DEBUG_KEYSTORE_BASE64`
+- 值：keystore 檔案的 Base64（不可有換行）
+
+Windows PowerShell：
 
 ```powershell
 [Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path .\WLRe_LaLa.debug.keystore))) | Set-Clipboard
 ```
 
-**Linux**：
+Linux：
 
 ```bash
 base64 -w 0 WLRe_LaLa.debug.keystore
 ```
 
-**macOS**：
+macOS：
 
 ```bash
 base64 < WLRe_LaLa.debug.keystore | tr -d '\n'
 ```
 
-到 GitHub 儲存庫 **Settings → Secrets and variables → Actions → New repository secret**，建立：
+### 3. 設置 GitHub Actions Variable（公開憑證指紋，**不是金鑰**）
 
-- 名稱：`ANDROID_DEBUG_KEYSTORE_BASE64`
-- 值：上面產生的完整 Base64 文字（不要加引號或換行）。
+請在原始 keystore 的檔案路徑執行：
 
-然後重新執行 Android ARM64 建置 或更新 `main`。在成功 Actions 執行頁下載 `Android-arm64-apk`，ZIP 中開啟 `SIGNING_INFO.txt`，確認 `Mode: persistent`，並比較不同版本的 `Certificate SHA256` 是否相同。
+```bash
+keytool -list -v -keystore WLRe_LaLa.debug.keystore -storepass android -alias androiddebugkey
+```
 
-**這個 Secret 目前無法由連接的 GitHub 讀寫工具替你設定，需要你在 GitHub 網頁完成。**
+尋找輸出中 **SHA256** 的 32 位元組憑證指紋（64 個十六進位字元，允許用冒號隔開）。
+
+在 GitHub **Settings → Secrets and variables → Actions → Variables → New repository variable**：
+
+- 名稱：`ANDROID_EXPECTED_SIGNER_SHA256`
+- 值：剛取得的 **SHA256 憑證指紋**，例如 `AA:BB:...`（請填入實際完整 32 位元組，而非範例）。
+
+這個值是公開身份資訊，可以顯示在報告，不是簽章私鑰。
+
+## 驗收方式
+
+1. 在 `main` 執行一次 [ARM64 Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-smoke.yml)。
+2. 確認 `Android-arm64-apk` Artifact 包含 `SIGNING_INFO.txt`；內容必須有 `Mode: persistent`、`Pinned public signer SHA256: VERIFIED` 與完整 `Certificate SHA256`。
+3. 再觸發第二次 main 建置，比對這兩份 `SIGNING_INFO.txt` 的 SHA256 指紋是否完全相同。
+4. Android 手機實際更新前，確認 App package name／version code／最低 API／簽章都相容；有固定簽章不等於所有舊 APK 都可直接升級。
+
+錯誤 Secret、指紋不一致、缺少 pin、多簽署者、截斷的 SHA256，都會拒絕發布；測試請執行 `python -m unittest tests.test_android_signing -v`。
 
 ## 重要限制
 
-- 使用同一把 Debug 金鑰的是**測試 APK**，不是 Google Play 正式 Release 簽章。不應以公認 Debug 密碼的金鑰作為正式商店發佈簽章。
-- 若手機既有 APK 是先前 CI 的**臨時簽章**，新設定的金鑰不能回頭變成舊簽章。除非持有當時那把私鑰，否則無法直接覆蓋；解除安裝會移除 App 私有帳號設定與 Keystore 資料，請先備份你能備份的設定。
-- 即使簽名一致，若 Android package name 不同、版本降級、APK 架構不相容或 SDK 不支援，依然可能無法直接安裝。
-- 請永久保留自己的 `WLRe_LaLa.debug.keystore` 原檔安全備份。更換或遺失私鑰，日後就無法維持這條升級簽名鏈。
-- GitHub Actions 的 **日常 ARM64 測試 APK** 在沒有設定 Secret 時仍會建置，`SIGNING_INFO.txt` 顯示 `Mode: ephemeral`，不保證簽名一致；**版本 Tag 與手動版本建置則要求 `Mode: persistent`**，未設 Secret 會在建置前失敗。
-- 此處的 `androiddebugkey` 使用公認的 Debug 別名與金鑰密碼，僅適合測試和自行分發；真正公開正式發行應採獨立、具強密碼的 Release 簽署配置。
+- 已安裝在手機上、由舊的臨時簽章簽署的 APK **不能被不同簽章的新版 APK 直接覆蓋**。若沒有舊簽章私鑰，通常只能卸載後安裝；卸載會刪除 App 私有資料及 Android Keystore，請先整理能安全匯出的設定。
+- GitHub PR 不提供私人 Secret，所以 PR Artifact 是臨時簽章；其 CI 成功只能證明簽署程式測試、ARM64 打包可用，**無法證明固定簽章在主分支已生效**。
+- `SIGNING_INFO.txt` 記錄 APK 簽署憑證的公開指紋；`SHA256SUMS.txt` 是 APK 位元檔案校驗，不可互相取代。
+- R8／ProGuard 不保護 Python `.pyc`，固定簽章亦不會阻止逆向或重新打包。

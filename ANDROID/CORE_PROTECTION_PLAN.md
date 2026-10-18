@@ -42,4 +42,4 @@
 
 ## 第 04 項準備（2026-10-19）
 
-已在獨立分支 `security/android-phase04-cython-wire-pilot` 建立 `tools/android_cython_wire.py`（合成封包、主機 Cython/Python 行為對照）、`tests/test_android_cython_wire.py`（純 Python golden vectors）及 [PHASE04_CYTHON_PILOT.md](PHASE04_CYTHON_PILOT.md)（真正 Android ARM64 native 的驗收設計）。目前僅完成準備與主機試驗，**尚未改動 APK 封裝、未啟用 NDK 原生套件，也未進行 ARM64 APK 驗收**。因 GitHub Actions 額度不足，本分支先不建立會觸發雲端快速測試的 PR，亦不合併 main。
+已在獨立分支 `security/android-phase04-cython-wire-pilot` 建立 `tools/android_cython_wire.py`（合成封包、主機 Cython/Python 行為對照）、`tests/test_android_cython_wire.py`（純 Python golden vectors）及 [PHASE04_CYTHON_PILOT.md](PHASE04_CYTHON_PILOT.md)（真正 Android ARM64 native 的驗收設計）。目前已新增 **隔離的 Android 原生建置 staging 工具、p4a CythonRecipe、APK ARM64 ELF 與核心來源殘留檢查**；標準 Buildozer 專案仍未啟用原生替換，尚未以 Android NDK 編譯出新 APK，也未進行 ARM64 APK／真機驗收。因 GitHub Actions 額度不足，本分支先不建立會觸發雲端快速測試的 PR，亦不合併 main。

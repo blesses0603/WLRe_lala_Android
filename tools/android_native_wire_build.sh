@@ -32,21 +32,28 @@ APK="${APK_FILES[0]}"
 # The p4a hostpython is normally created DURING this first build; do not
 # require it before the NDK toolchain has run.
 if [[ -z "${ANDROID_PYC_PYTHON:-}" ]]; then
-  mapfile -t PYTHON_CANDIDATES < <(
-    find "$STAGE/.buildozer" -type f \( -name 'python3.14' -o -name 'python3.14m' \) -perm /111 2>/dev/null | sort
-  )
-  if [[ ${#PYTHON_CANDIDATES[@]} -eq 1 ]]; then
-    ANDROID_PYC_PYTHON="${PYTHON_CANDIDATES[0]}"
+  # Pinned p4a 8ef9d1d installs hostpython under this tree. The old
+  # find-only approach saw multiple python3.14 copies and failed after
+  # successfully building the ARM64 APK.
+  HOSTPY_DIR="$STAGE/.buildozer/android/platform/build-arm64-v8a/build/other_builds/hostpython3/desktop/hostpython3/native-build/root/usr/local/bin"
+  if [[ -x "$HOSTPY_DIR/python3.14" ]]; then
+    ANDROID_PYC_PYTHON="$HOSTPY_DIR/python3.14"
+  elif [[ -x "$HOSTPY_DIR/python" ]]; then
+    ANDROID_PYC_PYTHON="$HOSTPY_DIR/python"
   else
-    echo "Could not uniquely locate pinned p4a hostpython3.14; specify ANDROID_PYC_PYTHON." >&2
-    echo "APK candidate was built but native bytecode verification remains INCOMPLETE: $APK" >&2
+    echo "Cannot locate p4a-installed hostpython3.14: $HOSTPY_DIR" >&2
+    echo "Set ANDROID_PYC_PYTHON explicitly; APK candidate exists but verification is incomplete: $APK" >&2
     exit 1
   fi
 fi
 if ! command -v "$ANDROID_PYC_PYTHON" >/dev/null && [[ ! -x "$ANDROID_PYC_PYTHON" ]]; then
-  echo "Cannot run target-compatible hostpython: $ANDROID_PYC_PYTHON" >&2
+  echo "Cannot execute target-compatible hostpython: $ANDROID_PYC_PYTHON" >&2
   exit 1
 fi
+"$ANDROID_PYC_PYTHON" -I -c 'import sys; assert sys.version_info[:2] == (3, 14), sys.version; print("Verified bytecode hostpython:", sys.version)' || {
+  echo "p4a hostpython is not compatible with pinned Python 3.14 bytecode" >&2
+  exit 1
+}
 echo "== Phase04: ELF, bytecode and native-shim inspection =="
 "$PYTHON" "$ROOT/tools/android_native_wire.py" verify-apk "$APK" --pyc-python "$ANDROID_PYC_PYTHON"
 "$PYTHON" "$ROOT/tools/android_hardening.py" report "$APK"

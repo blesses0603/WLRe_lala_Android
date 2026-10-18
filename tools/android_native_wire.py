@@ -7,12 +7,15 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import importlib.util
 import io
+import marshal
 from pathlib import Path
 import re
 import shutil
 import struct
 import tarfile
+import types
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -113,13 +116,49 @@ def _candidate(member: str) -> bool:
 
 
 def _arm64_elf(blob: bytes) -> bool:
-    return (len(blob) >= 20 and blob[:4] == b"\x7fELF" and blob[4] == 2
-            and blob[5] == 1 and struct.unpack_from("<H", blob, 18)[0] == 183)
+    # This is a strict ELF-header sanity check, not proof of Android loader
+    # compatibility. A live Android import is still mandatory for acceptance.
+    return (len(blob) >= 64 and blob[:4] == b"\x7fELF"
+            and blob[4] == 2 and blob[5] == 1 and blob[6] == 1
+            and struct.unpack_from("<H", blob, 16)[0] == 3  # ET_DYN
+            and struct.unpack_from("<H", blob, 18)[0] == 183  # EM_AARCH64
+            and struct.unpack_from("<I", blob, 20)[0] == 1
+            and struct.unpack_from("<H", blob, 52)[0] == 64)
+
+
+def _is_wire_bytecode(name: str) -> bool:
+    normalized = name.replace("\\", "/")
+    return re.search(
+        r"(?:^|/)wlre/network/(?:__pycache__/)?wire(?:\.cpython-\d+[a-z]*)?\.pyc$",
+        normalized,
+    ) is not None
+
+
+def _is_exact_shim_bytecode(blob: bytes) -> bool:
+    # Fail closed for unknown Python bytecode versions, damaged marshal data,
+    # renamed implementation bytecode, or hand-written alternative shims.
+    # Only examine own local trusted build artifacts, not arbitrary uploads.
+    if len(blob) < 16 or len(blob) > 1048576 or blob[:4] != importlib.util.MAGIC_NUMBER:
+        return False
+    try:
+        code = marshal.loads(blob[16:])
+    except (ValueError, EOFError, TypeError):
+        return False
+    if not isinstance(code, types.CodeType):
+        return False
+    signature = lambda obj: (
+        obj.co_code, obj.co_names, obj.co_consts, obj.co_varnames,
+        obj.co_cellvars, obj.co_freevars,
+    )
+    return any(
+        signature(code) == signature(compile(SHIM, "<shim>", "exec", optimize=level))
+        for level in (0, 1, 2)
+    )
 
 
 def verify_apk(path: Path) -> dict:
     """Validate the actual native payload. Never accept a host Linux .so."""
-    found, suspicious = [], []
+    found, suspicious, shim_count = [], [], 0
     with zipfile.ZipFile(path) as apk:
         members = apk.namelist()
         if not any(name.startswith("lib/arm64-v8a/") for name in members):
@@ -129,8 +168,13 @@ def verify_apk(path: Path) -> dict:
                 if not _arm64_elf(apk.read(name)):
                     raise ValueError(f"Non-ARM64 native wire binary: {name}")
                 found.append(name)
-            if name.endswith(("_wlre_wire_native.py", "_wlre_wire_native.pyc", "_wlre_wire_native.pyx")):
+            if name.endswith(("_wlre_wire_native.py", "_wlre_wire_native.pyc", "_wlre_wire_native.pyx", "wlre/network/wire.py")):
                 suspicious.append(name)
+            if _is_wire_bytecode(name):
+                if _is_exact_shim_bytecode(apk.read(name)):
+                    shim_count += 1
+                else:
+                    suspicious.append(name + " (unverified wire bytecode)")
         if "assets/private.tar" not in members:
             raise ValueError("Missing expected private.tar")
         with tarfile.open(fileobj=io.BytesIO(apk.read("assets/private.tar")), mode="r:*") as bundle:
@@ -150,15 +194,19 @@ def verify_apk(path: Path) -> dict:
                 if name.endswith(("_wlre_wire_native.py", "_wlre_wire_native.pyc",
                                   "_wlre_wire_native.pyx", "wlre/network/wire.py")):
                     suspicious.append(name)
-                if name.endswith("wlre/network/wire.pyc"):
+                if _is_wire_bytecode(name):
                     body = bundle.extractfile(info).read()
-                    if b"Strict packet primitives and the server codec" in body:
-                        suspicious.append(name + " (original implementation bytecode)")
+                    if _is_exact_shim_bytecode(body):
+                        shim_count += 1
+                    else:
+                        suspicious.append(name + " (unverified wire bytecode)")
         if suspicious:
             raise ValueError("Native wire bundle leaks implementation: " + ", ".join(suspicious))
         if not found:
             raise ValueError("Missing Android ARM64 native wire extension")
-    return {"arm64_wire_extensions": found, "source_leaks": 0}
+        if not shim_count:
+            raise ValueError("Missing verified wire import shim bytecode")
+    return {"arm64_wire_extensions": found, "verified_wire_shims": shim_count, "source_leaks": 0}
 
 
 

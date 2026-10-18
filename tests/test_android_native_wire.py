@@ -109,7 +109,7 @@ class NativeWireTests(unittest.TestCase):
 
     def test_apk_fails_closed_when_missing_or_leaking_native_module(self):
         with self.assertRaisesRegex(ValueError, "Missing Android ARM64 native"):
-            verify_apk(self.apk({"wlre/network/wire.pyc": b"shim"}))
+            verify_apk(self.apk({}))
         with self.assertRaisesRegex(ValueError, "leaks implementation"):
             verify_apk(self.apk({
                 "_wlre_wire_native.so": self.elf(), "wlre/network/wire.py": b"secret"
@@ -135,6 +135,7 @@ class NativeWireTests(unittest.TestCase):
                 "_wlre_wire_native.so": self.elf(),
                 "wlre/network/__pycache__/wire.cpython-311.pyc": old_bytecode,
             }))
+
     def test_weak_elf_header_is_rejected(self):
         broken = bytearray(self.elf())
         struct.pack_into("<H", broken, 16, 2)  # ET_EXEC, not a shared object

@@ -1,7 +1,7 @@
 # 第 04 項｜ARM64 Cython 保護試點：準備與驗收計畫
 
 > 2026-10-19，基準 main `1aa458689322368f6124e7189d630fa4a00db765`、Android v0.0.7、min API 31、arm64-v8a。
-> **狀態：已實作隔離原生試驗建置流程，但尚未取得 Android ARM64 APK／真機驗收。**
+> **最新驗收狀態：Android ARM64 原生化試點的 CI 編譯、APK 靜態稽核已通過；使用者已回報實機測試正常。實驗 APK 尚未經固定簽章正式升級驗證，也尚未將原生化設為 main 的預設打包模式。**
 
 ## 與前階段的界線
 
@@ -132,3 +132,19 @@ python tools/android_native_wire.py verify-apk /tmp/lalawire-phase04/bin/<實驗
 - 發現另一個原驗收器的盲點：此版本 python-for-android 的 `assets/private.tar` 保存應用層 Python，而 `lib/arm64-v8a/libpybundle.so` **其實是 gzip TAR**，包含 `_python_bundle/site-packages/_wlre_wire_native.so`。首次建置日誌證實 NDK 用 `aarch64-linux-android31` 編譯並複製原生 extension 至 Python bundle；舊版驗收器未掃描此 TAR 會誤判缺少 native。
 - `tools/android_native_wire.py verify-apk` 已改為檢查兩種 TAR，且要求 `libpybundle.so` 的 site-packages 包含具 ARM64 ELF 標頭的 native extension，並驗證 `private.tar` 的 shim bytecode、拒絕真正 Python 實作殘留。新增模擬封裝測試。
 - **仍需重跑實際 GitHub Actions**，確認修正後的 native bundle 安全驗證、presplash、SHA256 與 artifact 上傳全部成功；真正 Android Activity 與前景 Service 導入仍需要手機驗收。
+
+## 2026-10-19｜第 04 項最新驗收結果（取代上文歷史待辦狀態）
+
+**試點範圍：** `wlre/network/wire.py` Cython 原生化與 Android `arm64-v8a` 實驗 APK。上面歷次「尚未編譯／真機驗收」描述為當時的歷史紀錄，不代表目前的最新狀態。
+
+| 驗收關卡 | 最後結果 | 依據 |
+| --- | --- | --- |
+| CI 全部 Python 回歸 | **通過（250 項）** | [Actions Run #39175568747](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39175568747) |
+| Android NDK／Cython ARM64 編譯 | **通過** | Buildozer Gradle `BUILD SUCCESSFUL`、產出 v0.0.7 arm64-v8a APK |
+| APK 內原生核心、shim 與來源殘留檢查 | **通過** | `_python_bundle/site-packages/_wlre_wire_native.so`，`verified_wire_shims: 1`，`source_leaks: 0` |
+| 原生 APK Artifact | **已上傳** | [Artifact #12154840429](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39175568747/artifacts/12154840429) |
+| Android 真機相容性 | **使用者回報測試正常** | 使用者在 2026-10-19 明確表示「已經實機驗證過了！目前都沒問題」；此為使用者自測回報，未附裝置型號、logcat、測試清單，不能冒充 CI 自動化的實機測試 |
+| 固定簽章正式升級、預設打包整合 | **尚未驗收／尚未啟用** | 試驗 workflow 不使用 Repository Secret 的固定簽章；main 仍使用原版 Buildozer 設定 |
+
+**結論：第 04 項 Android ARM64 Cython `wire.py`「試點」已達到原生編譯、靜態封裝與使用者回報的實機驗證門檻。** 但這不代表整個 App 所有 P0/P1 都已原生化，更不代表已完成固定簽章正式升級。後續正式推送 native 模式時，必須另外使 main 的受信任簽章工作流程使用已通過測試的 staging／recipe，再確認固定憑證 fingerprint、安裝升級及前景服務。
+

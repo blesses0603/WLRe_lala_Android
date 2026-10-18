@@ -23,9 +23,10 @@
 
 - `tests/test_android_cython_wire.py`：使用合成封包固定協定 golden vectors 與錯誤行為；純 Python 測試可列入日常快速回歸。
 - `python tools/android_cython_wire.py`：檢查當前 `wire.py` 基準 API。
+- `python tools/android_native_wire.py host-smoke`：以真實 `_wlre_wire_native` 命名及 `wlre.network.wire` shim，在臨時目錄對比 Python 與 Cython 封包與例外快照（仍非 Android）。
 - `python tools/android_cython_wire.py --host-smoke`：在**系統臨時資料夾**複製純 Python 封包模組、以主機 Cython + C 編譯器產生暫存擴充套件，在兩個相互隔離的程序對比輸出；結束後清除臨時資料。必須另外安裝 Cython、setuptools 和主機編譯器。**預設不自動執行 host-smoke**。
 
-本地預備檢查（Python 環境帶 Cython 3.2.4）：純 Python golden tests 4 項通過、主機臨時 Cython 編譯及等價快測通過。這**不是**專案完整回歸，也不是使用 CI 的 `cython<3` 或 Android NDK 編譯結果。
+本地預備檢查（主機 Cython 3.2.4）：純 Python golden tests 4 項通過；新增 native staging／APK 模擬安全測試 5 項通過；實際原始 wire 模組已編譯成 Linux x86_64 `_wlre_wire_native`，透過正式樣式 shim 執行封包 golden vectors，與純 Python 輸出一致。這**不是**專案完整回歸，也不是使用 CI 的 `cython<3` 或 Android NDK 編譯結果。
 
 ## 實際操作（使用有 Android SDK／NDK 的 Linux）
 
@@ -34,6 +35,7 @@
 ```bash
 python -m unittest tests.test_android_cython_wire tests.test_android_native_wire -v
 python tools/android_cython_wire.py --host-smoke
+python tools/android_native_wire.py host-smoke   # 驗證實際 recipe 的 _wlre_wire_native + shim 等價
 
 # --output 必須在 Git repo 外部；工具不會覆蓋已有資料夾。
 python tools/android_native_wire.py stage --output /tmp/wlre-native-wire-stage

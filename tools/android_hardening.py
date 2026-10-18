@@ -28,6 +28,20 @@ KEY_MATERIAL = re.compile(
 )
 SCANNED_SUFFIXES = {".py", ".java", ".json", ".yml", ".yaml", ".spec", ".properties"}
 MAX_TEXT_SCAN = 2 * 1024 * 1024
+# Phase 03 is an inventory and fail-closed packaging gate. No Cython yet.
+HIGH_RISK_CORE = {
+    "android_app/vault.py": "account encryption boundary",
+    "android_app/runtime.py": "private IPC and authorization boundary",
+    "android_app/sessions.py": "account/session lifecycle",
+    "wlre/network/client.py": "network login and credentials flow",
+    "wlre/network/protocol.py": "game packet commands and login encoding",
+    "wlre/network/wire.py": "game wire framing and codec",
+}
+FOLLOWUP_CORE = {
+    "wlre/services/battle/auto_battle.py": "game automation decisions",
+    "wlre/services/expedition.py": "expedition orchestration",
+}
+APP_SOURCE_PREFIXES = ("android_app/", "wlre/")
 
 
 def _sensitive_filename(name):
@@ -57,6 +71,10 @@ def check_configuration(root=ROOT):
         raise ValueError("Buildozer excludes are missing required development folders")
     if "android_app" in excludes or "wlre" in excludes:
         raise ValueError("App core must remain in source for supported debug builds")
+    if app.get("android.minapi", "").strip() != "31":
+        raise ValueError("Android minimum API must remain 31 (Android 12)")
+    if app.get("android.archs", "").strip() != "arm64-v8a":
+        raise ValueError("Android builds must remain ARM64-only")
     return True
 
 
@@ -84,6 +102,10 @@ def check_files(root=ROOT):
             if KEY_MATERIAL.search(data):
                 raise ValueError("Private credential material in project source: "
                                  + relative)
+    entry = root / "main.py"
+    if entry.is_file() and entry.stat().st_size <= MAX_TEXT_SCAN:
+        if KEY_MATERIAL.search(entry.read_bytes()):
+            raise ValueError("Private credential material in project source: main.py")
     for path in root.iterdir():
         if path.is_file() and _sensitive_filename(path.name):
             raise ValueError("Potential private credential file at project root: "
@@ -101,15 +123,37 @@ def inspect_apk(apk):
     if not apk.is_file():
         raise ValueError("Android APK not found")
     counts = {"python_source": 0, "python_bytecode": 0,
-              "private_tar": False, "native_arm64_libraries": 0}
+              "private_tar": False, "native_arm64_libraries": 0,
+              "app_bytecode": 0, "high_risk_bytecode": 0,
+              "non_arm64_libraries": 0}
     def record(name):
-        if _sensitive_filename(name):
-            raise ValueError("APK contains a possible private credential file: " + name)
-        lower = name.lower()
+        normalized = name.replace("\\", "/")
+        if (normalized.startswith("/") or
+                ".." in normalized.split("/") or
+                not normalized.strip("./")):
+            raise ValueError("Unsafe APK archive member name")
+        normalized = normalized.removeprefix("./")
+        if _sensitive_filename(normalized):
+            raise ValueError("APK contains a possible private credential file: " + normalized)
+        lower = normalized.lower()
+        application_code = (lower.startswith(APP_SOURCE_PREFIXES) or
+                            lower == "main.py" or lower == "main.pyc")
         if lower.endswith(".py"):
             counts["python_source"] += 1
-        elif lower.endswith(".pyc") or lower.endswith(".pyo"):
+            if application_code:
+                raise ValueError("Uncompiled application Python source in APK: " + normalized)
+        elif lower.endswith((".pyc", ".pyo")):
             counts["python_bytecode"] += 1
+            if application_code:
+                counts["app_bytecode"] += 1
+            for source in HIGH_RISK_CORE:
+                module = source[:-3]
+                parent, stem = module.rsplit("/", 1)
+                if (lower in (module + ".pyc", module + ".pyo") or
+                        (lower.startswith(parent + "/__pycache__/" + stem + ".") and
+                         lower.endswith((".pyc", ".pyo")))):
+                    counts["high_risk_bytecode"] += 1
+                    break
 
     with zipfile.ZipFile(apk) as archive:
         for info in archive.infolist():
@@ -118,6 +162,10 @@ def inspect_apk(apk):
             record(info.filename)
             if info.filename.startswith("lib/arm64-v8a/") and info.filename.endswith(".so"):
                 counts["native_arm64_libraries"] += 1
+            elif info.filename.startswith("lib/") and info.filename.endswith(".so"):
+                counts["non_arm64_libraries"] += 1
+        if counts["non_arm64_libraries"]:
+            raise ValueError("APK contains native libraries outside ARM64 ABI")
         if "assets/private.tar" in archive.namelist():
             counts["private_tar"] = True
             with archive.open("assets/private.tar") as payload:
@@ -125,6 +173,8 @@ def inspect_apk(apk):
                     # Streaming mode supports both plain TAR and gzip-compressed TAR.
                     with tarfile.open(fileobj=payload, mode="r|*") as members:
                         for member in members:
+                            if member.issym() or member.islnk():
+                                raise ValueError("Linked members are forbidden in APK private.tar")
                             if member.isfile():
                                 record(member.name)
                 except (tarfile.TarError, EOFError, OSError) as exc:
@@ -147,12 +197,16 @@ def report(apk):
         "Embedded private.tar inspected: " + str(counts["private_tar"]) + "\n"
         "Bundled Python source (.py): " + str(counts["python_source"]) + "\n"
         "Bundled Python bytecode (.pyc/.pyo): " + str(counts["python_bytecode"]) + "\n"
+        "Application Python bytecode still exposed: " + str(counts["app_bytecode"]) + "\n"
+        "High-risk core bytecode still exposed: " + str(counts["high_risk_bytecode"]) + "\n"
+        "Phase 03 application .py source leakage gate: PASSED\n"
         "ARM64 shared libraries (not proof of Cython): " +
             str(counts["native_arm64_libraries"]) + "\n"
         "Python bytecode can be extracted and analyzed; no obfuscation is claimed.\n"
         "Account vault at rest: Android Keystore with AES-GCM\n"
         "Build flavor: DEBUG test APK (NOT a store-ready release)\n"
         "Python code obfuscation/Cython: NOT enabled\n"
+        "High-risk Cython migration: PLANNED, not implemented\n"
         "Anti-tamper runtime protection: NOT enabled\n"
         "APK signature certificate: see SIGNING_INFO.txt\n"
         "Build checksum: see SHA256SUMS.txt\n"

@@ -56,3 +56,14 @@
 ## 第 02 項：固定簽章保護（2026-10-18）
 
 程式與 CI 已加入固定 Keystore 與 **另一個公開憑證指紋 Variable** 的交叉比對。推送 main／版本 Tag 的 APK 一律要求兩者存在並一致；PR 才容許臨時簽章（不使用私有 Secret）。兩次正式 main 建置的指紋一致性與真機覆蓋更新尚須實際設定與驗收，不可宣稱已完成。詳見 [SIGNING.md](SIGNING.md)。
+
+## 第 03 項：核心風險分級與封裝安全門檻（2026-10-18）
+
+此項聚焦 **敏感 Python 模組盤點、Android 12+/ARM64 編譯組態鎖定、APK 應用原始碼洩漏阻擋，以及既有位元碼的曝露紀錄**。詳細的 P0／P1 模組清單與第 04～05 項 Cython 遷移門檻請參閱 [CORE_PROTECTION_PLAN.md](CORE_PROTECTION_PLAN.md)。
+
+- `preflight` 拒絕降低 Android min API、增加非 ARM64 ABI，並額外掃描進入點 `main.py` 的已知私鑰格式。
+- `report` 對 APK 外層與 `assets/private.tar` 內層拒絕 `android_app/`、`wlre/`、`main.py` 的未編譯 `.py`，同時拒絕巢狀 TAR 連結、目錄跳脫及非 ARM64 native libraries。
+- `PROTECTION_INFO.txt` 明列 App 與高風險核心仍曝露的 `.pyc` 數量。**本階段尚未加入 Cython，也無法防止 .pyc 逆向分析。**
+- 沿用第 02 項已驗證的 GitHub Repository Secret `ANDROID_DEBUG_KEYSTORE_BASE64` 與 Variable `ANDROID_EXPECTED_SIGNER_SHA256`，不更換／重生金鑰；只有受信任 main／Tag 建置能使用固定簽章。
+
+第 03 項的通過條件是 Python 回歸、ARM64 APK 編譯與安全稽核全部成功。這是實際阻擋意外暴露的封裝加固，不是完成原生程式防逆向；第 04～05 項仍需真正的 Android NDK／Cython 編譯及真機導入驗證。

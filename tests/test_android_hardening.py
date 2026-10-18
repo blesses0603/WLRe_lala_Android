@@ -18,7 +18,8 @@ def fixture(root, *, backup="False", excludes=None):
     exclude = excludes or ".git,.github,tests,tools,.buildozer,bin"
     (root / "buildozer.spec").write_text(
         "[app]\nandroid.allow_backup = " + backup +
-        "\nsource.dir = .\nsource.exclude_dirs = " + exclude + "\n",
+        "\nsource.dir = .\nsource.exclude_dirs = " + exclude +
+        "\nandroid.minapi = 31\nandroid.archs = arm64-v8a\n",
         encoding="utf-8",
     )
 
@@ -37,6 +38,30 @@ class AndroidHardeningTests(unittest.TestCase):
             fixture(root, excludes=".git,.github,tools,.buildozer,bin")
             with self.assertRaisesRegex(ValueError, "excludes"):
                 check_configuration(root)
+
+    def test_minimum_sdk_and_single_arm64_target_are_pinned(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            fixture(root)
+            spec = root / "buildozer.spec"
+            original = spec.read_text()
+            spec.write_text(original.replace("android.minapi = 31", "android.minapi = 30"))
+            with self.assertRaisesRegex(ValueError, "minimum API"):
+                check_configuration(root)
+            spec.write_text(original.replace("android.archs = arm64-v8a",
+                                             "android.archs = arm64-v8a,armeabi-v7a"))
+            with self.assertRaisesRegex(ValueError, "ARM64-only"):
+                check_configuration(root)
+
+    def test_main_entrypoint_does_not_leak_private_key_material(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            fixture(root)
+            marker = ("-----BEGIN " + "PRIVATE KEY-----")
+            (root / "main.py").write_text("TEST = " + repr(marker))
+            with self.assertRaisesRegex(ValueError, "main.py") as result:
+                check_files(root)
+            self.assertNotIn(marker, str(result.exception))
 
     def test_private_key_file_cannot_enter_build_source(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -105,6 +130,60 @@ class AndroidHardeningTests(unittest.TestCase):
                                 self.private_tar({"android_app/hidden/release.keystore": b"dummy"}))
             with self.assertRaisesRegex(ValueError, "credential file"):
                 check_apk(archive)
+
+    def test_application_source_inside_apk_is_refused(self):
+        with tempfile.TemporaryDirectory() as temp:
+            for path in ("android_app/vault.py", "wlre/network/wire.py", "main.py"):
+                with self.subTest(path=path):
+                    apk = Path(temp) / "demo.apk"
+                    with zipfile.ZipFile(apk, "w") as stream:
+                        stream.writestr("assets/private.tar",
+                                        self.private_tar({path: "not compiled"}))
+                    with self.assertRaisesRegex(ValueError, "Uncompiled application Python"):
+                        check_apk(apk)
+
+    def test_other_abi_libraries_are_not_accepted(self):
+        with tempfile.TemporaryDirectory() as temp:
+            apk = Path(temp) / "demo.apk"
+            with zipfile.ZipFile(apk, "w") as stream:
+                stream.writestr("lib/armeabi-v7a/libpython.so", b"bad target")
+            with self.assertRaisesRegex(ValueError, "outside ARM64"):
+                check_apk(apk)
+
+    def test_embedded_archive_links_and_unsafe_paths_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            apk = Path(temp) / "demo.apk"
+            linked = BytesIO()
+            with tarfile.open(fileobj=linked, mode="w:gz") as archive:
+                item = tarfile.TarInfo("wlre/network/wire.pyc")
+                item.type = tarfile.SYMTYPE
+                item.linkname = "external"
+                archive.addfile(item)
+            with zipfile.ZipFile(apk, "w") as stream:
+                stream.writestr("assets/private.tar", linked.getvalue())
+            with self.assertRaisesRegex(ValueError, "Linked members"):
+                check_apk(apk)
+            with zipfile.ZipFile(apk, "w") as stream:
+                stream.writestr("assets/private.tar",
+                                self.private_tar({"../main.pyc": b"unsafe"}))
+            with self.assertRaisesRegex(ValueError, "Unsafe APK archive"):
+                check_apk(apk)
+
+    def test_report_exposes_high_risk_bytecode_without_claiming_cython(self):
+        with tempfile.TemporaryDirectory() as temp:
+            apk = Path(temp) / "demo.apk"
+            with zipfile.ZipFile(apk, "w") as stream:
+                stream.writestr("assets/private.tar", self.private_tar({
+                    "android_app/vault.pyc": b"cipher logic",
+                    "wlre/network/wire.pyc": b"packet logic",
+                    "main.pyc": b"entry point",
+                }))
+            counts = inspect_apk(apk)
+            self.assertEqual(counts["app_bytecode"], 3)
+            self.assertEqual(counts["high_risk_bytecode"], 2)
+            text = report(apk).read_text()
+            self.assertIn("High-risk core bytecode still exposed: 2", text)
+            self.assertIn("Cython: NOT enabled", text)
 
     def test_broken_embedded_tar_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:

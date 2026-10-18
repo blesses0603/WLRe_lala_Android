@@ -96,10 +96,13 @@ def stage(root: Path, output: Path) -> Path:
         text = text.replace("source.exclude_dirs = ", "source.exclude_dirs = p4a-recipes,", 1)
         if "p4a.local_recipes" in text:
             raise ValueError("Unexpected pre-existing p4a.local_recipes setting")
+        recipe_dir = output / "p4a-recipes"
+        # Buildozer may invoke python-for-android from an internal working
+        # directory; a relative local_recipes path can silently miss recipes.
         text = text.replace("p4a.branch = ",
-                            "p4a.local_recipes = p4a-recipes\np4a.branch = ", 1)
+                            f"p4a.local_recipes = {recipe_dir}\np4a.branch = ", 1)
         enabled = re.search(r"(?m)^requirements = (.+)$", text)
-        if ("p4a.local_recipes = p4a-recipes" not in text
+        if (f"p4a.local_recipes = {recipe_dir}" not in text
                 or enabled is None
                 or "lalawire" not in [p.strip() for p in enabled[1].split(",")]):
             raise ValueError("Could not enable local recipe")

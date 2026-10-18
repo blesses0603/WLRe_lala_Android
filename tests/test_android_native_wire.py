@@ -67,24 +67,32 @@ class NativeWireTests(unittest.TestCase):
             stage(self.repo, self.base / "native")
         self.assertFalse((self.base / "native").exists())
 
-    def apk(self, inner, include_native=True, include_shim=True):
+    def apk(self, inner, include_native=True, include_shim=True, bundle_native=True):
         path = self.base / "app.apk"
-        buffer = io.BytesIO()
         valid_shim = (
             importlib.util.MAGIC_NUMBER + b"\x00" * 12
             + marshal.dumps(compile(SHIM, "wlre/network/wire.py", "exec"))
         )
         contents = ({"wlre/network/wire.pyc": valid_shim} if include_shim else {})
         contents.update(inner)
-        with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
-            for name, payload in contents.items():
-                info = tarfile.TarInfo(name)
-                info.size = len(payload)
-                tar.addfile(info, io.BytesIO(payload))
+
+        def gzip_tar(files):
+            buf = io.BytesIO()
+            with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+                for name, data in files.items():
+                    info = tarfile.TarInfo(name)
+                    info.size = len(data)
+                    tar.addfile(info, io.BytesIO(data))
+            return buf.getvalue()
+
+        python_bundle = ({
+            "_python_bundle/site-packages/_wlre_wire_native.so": self.elf()
+        } if bundle_native else {})
         with zipfile.ZipFile(path, "w") as archive:
             if include_native:
-                archive.writestr("lib/arm64-v8a/libpython3.11.so", b"stub")
-            archive.writestr("assets/private.tar", buffer.getvalue())
+                archive.writestr("lib/arm64-v8a/libpython3.14.so", b"stub")
+            archive.writestr("assets/private.tar", gzip_tar(contents))
+            archive.writestr("lib/arm64-v8a/libpybundle.so", gzip_tar(python_bundle))
         return path
 
     def elf(self, machine=183):
@@ -110,7 +118,7 @@ class NativeWireTests(unittest.TestCase):
 
     def test_apk_fails_closed_when_missing_or_leaking_native_module(self):
         with self.assertRaisesRegex(ValueError, "Missing Android ARM64 native"):
-            verify_apk(self.apk({}))
+            verify_apk(self.apk({}, bundle_native=False))
         with self.assertRaisesRegex(ValueError, "leaks implementation"):
             verify_apk(self.apk({
                 "_wlre_wire_native.so": self.elf(), "wlre/network/wire.py": b"secret"
@@ -122,6 +130,30 @@ class NativeWireTests(unittest.TestCase):
             }))
         with self.assertRaisesRegex(ValueError, "does not contain Android ARM64"):
             verify_apk(self.apk({"_wlre_wire_native.so": self.elf()}, include_native=False))
+
+    def test_p4a_bundle_archive_must_contain_importable_native(self):
+        self.assertEqual(verify_apk(self.apk({}))["verified_wire_shims"], 1)
+        with self.assertRaisesRegex(ValueError, "libpybundle.so site-packages"):
+            verify_apk(self.apk({"_wlre_wire_native.so": self.elf()}, bundle_native=False))
+        bad_elf = bytearray(self.elf())
+        struct.pack_into("<H", bad_elf, 18, 62)
+        # Even if private.tar contains an ARM64 candidate, the actual
+        # site-packages extension must be native ARM64 and importable.
+        data = self.apk({})
+        with zipfile.ZipFile(data) as apk:
+            entries = {name: apk.read(name) for name in apk.namelist()}
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+            payload = bytes(bad_elf)
+            info = tarfile.TarInfo("_python_bundle/site-packages/_wlre_wire_native.so")
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+        entries["lib/arm64-v8a/libpybundle.so"] = buf.getvalue()
+        with zipfile.ZipFile(data, "w") as apk:
+            for name, payload in entries.items():
+                apk.writestr(name, payload)
+        with self.assertRaisesRegex(ValueError, "Non-ARM64"):
+            verify_apk(data)
 
     def test_native_without_exact_shim_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "Missing verified wire import shim"):

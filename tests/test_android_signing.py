@@ -26,7 +26,8 @@ class SigningTests(unittest.TestCase):
                 Mock(stdout="SHA256: " + ":".join(["AA"] * 32) + "\n"),
             ])
             with patch.dict(os.environ, {"GITHUB_ENV": str(github_env),
-                                         "ANDROID_SIGNING_MODE": "persistent"}):
+                                         "ANDROID_SIGNING_MODE": "persistent",
+                                         "ANDROID_EXPECTED_SIGNER_SHA256": FP_A}):
                 with patch("tools.android_signing.subprocess.run", mock):
                     self.assertTrue(prepare(secret, key))
                     self.assertEqual(key.read_bytes(), b"X" * 256)
@@ -48,7 +49,8 @@ class SigningTests(unittest.TestCase):
             key = root / "debug.keystore"
             calls = [Mock(stdout="Signer #1 certificate SHA-256 digest: " + FP_B + "\n"),
                      Mock(stdout="SHA256: " + ":".join(["AA"] * 32) + "\n")]
-            with patch.dict(os.environ, {"ANDROID_SIGNING_MODE": "persistent"}):
+            with patch.dict(os.environ, {"ANDROID_SIGNING_MODE": "persistent",
+                                         "ANDROID_EXPECTED_SIGNER_SHA256": FP_B}):
                 with patch("tools.android_signing.subprocess.run", side_effect=calls):
                     with self.assertRaisesRegex(ValueError, "does not match"):
                         signing_info(root, key, "test-apksigner")

@@ -117,7 +117,7 @@ App 回到前景時會重新建立 Kivy 畫面，恢復帳號／伺服器欄位�
 
 **主要程式**：`main.py`（Kivy 直式入口）；`android_app/`（UI、連線與服務）；`wlre/`（共用遊戲核心與資料）；`buildozer.spec`（Android 套件設定）。Android 使用本地 `wlre/` 副本，桌面專案的更改不會自動同步至手機。
 
-CI 建置環境是 **Ubuntu 22.04、Python 3.11、Java 17、Buildozer**。本地 Linux 測試須具備系統相依套件及可用顯示器（或 Xvfb）：
+日常快速 CI 使用 **Ubuntu 22.04、Python 3.11、Java 17**；只有手動／Tag APK 工作流程額外安裝 Buildozer 與 Android 工具鏈。本地 Linux 測試須具備系統相依套件及可用顯示器（或 Xvfb）：
 
 ```bash
 python -m pip install -r requirements-dev.txt
@@ -131,11 +131,11 @@ python -m compileall -q main.py android_app wlre tools
 buildozer -v android debug
 ```
 
-**修改 Android 版本**時，需同步調整 `buildozer.spec` 的 `version` 與 `android_app/version.py` 的 `ANDROID_VERSION`；一般 `main` 更新會跑 ARM64 建置，但**不會自動觸發版本 APK 流程**。只有準備發布指定版本時才建立 Git Tag。不要把桌面版的 Nuitka、BAT、Tkinter 建置步驟混入 Android 專案。
+**修改 Android 版本**時，需同步調整 `buildozer.spec` 的 `version` 與 `android_app/version.py` 的 `ANDROID_VERSION`；一般 `main` 更新**只執行快速測試，不再編譯 ARM64 APK**。要測試安裝包時從 main 手動執行 `android-apk.yml`；準備發布新版本時才建立相符的 Git Tag。不要把桌面版的 Nuitka、BAT、Tkinter 建置步驟混入 Android 專案。
 
 ## 驗收項目及限制
 
-可從每次 [GitHub Actions](https://github.com/blesses0603/WLRe_lala_Android/actions) 的執行結果確認 ARM64 打包與測試；歷史測試細節收錄於 [VALIDATION.md](VALIDATION.md)。目前**仍須 Android 真機確認**的項目包括：
+請區分快速測試與完整 APK 產物的 GitHub Actions 結果；只有手動／Tag 完整工作流程才能確認 ARM64 打包與固定簽章；歷史測試細節收錄於 [VALIDATION.md](VALIDATION.md)。目前**仍須 Android 真機確認**的項目包括：
 
 - ARM64 手機的安裝、啟動、登入、選角，以及不同伺服器／分流下的狀態同步。
 - 同時多帳號登入；中斷 A 帳號時不影響 B 帳號，網路切換與重新連線狀態是否正確。

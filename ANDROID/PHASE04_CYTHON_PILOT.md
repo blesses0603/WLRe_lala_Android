@@ -75,6 +75,14 @@ p4a 參考：[官方 Recipes／CythonRecipe 文件](https://python-for-android.r
 | 發佈安全 | 固定簽章 + 公開 pin + SHA256 + 安全掃描 | 此階段未產生新 APK |
 | Android 12+ ARM64 真機 | 啟動、登入、分段收包、背景連線、功能回歸 | 未執行 |
 
+## 2026-10-19 程式碼複檢與額外安全修正
+
+- 提高原生 .so 的檢查門檻：確認 ELF 64 位元、little-endian、ELF version、ET_DYN、AArch64 machine 與 ELF header 長度；主機架構命名（例如 x86_64／linux-gnu）必須拒絕。這**仍不是動態連結／Android 載入成功的證明**。
+- wire.pyc 改為解析 CPython 的 code object，只接受由預期原生 shim 編譯出的 bytecode，拒絕失配、同名偽裝、額外附加內容與未知 Python magic。也支援 __pycache__/wire.cpython-*.pyc 路徑。
+- APK 必須實際包含原生擴充模組與至少一份已驗證的 shim bytecode；只存在 native header 但沒有可用匯入介面的 APK 不得通過驗收。
+- 修正原本測試中「缺原生 extension」與「損壞 shim bytecode」的錯誤預期，新增 Linux 偽裝檔名、附加 payload 與 ELF e_type 的反例。
+- 本次透過本機獨立 Python 小型驗證檢查 parser 條件與合成測資通過；**仍未以本分支程式碼跑完完整單元測試，也沒有進行 Android NDK／Buildozer 完整編譯**。Python magic 的嚴格檢查若與 p4a 實際 Python 版本不同，將 fail closed，必須在真實 APK 調整後再驗證。
+
 ## Actions 額度不足時的操作原則
 
 - 第 04 項分支**不修改正常版 `buildozer.spec` 與 `.github/workflows/android-apk.yml`**，不會意外啟用未驗收 native 模組。Recipe 僅在 stage 產生的獨立暫存專案中啟用；也不手動觸發 GitHub 完整 APK。

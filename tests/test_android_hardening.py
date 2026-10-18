@@ -13,7 +13,7 @@ from tools.android_hardening import (
 
 def fixture(root, *, backup="False", excludes=None):
     for directory in ("android_app", "wlre", "tools"):
-        (root / directory).mkdir()
+        (root / directory).mkdir(exist_ok=True)
     exclude = excludes or ".git,.github,tests,tools,.buildozer,bin"
     (root / "buildozer.spec").write_text(
         "[app]\nandroid.allow_backup = " + backup +

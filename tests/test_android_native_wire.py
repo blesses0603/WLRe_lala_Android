@@ -136,6 +136,23 @@ class NativeWireTests(unittest.TestCase):
                 "wlre/network/__pycache__/wire.cpython-311.pyc": old_bytecode,
             }))
 
+    def test_reject_host_binary_tag_even_with_arm64_header(self):
+        with self.assertRaisesRegex(ValueError, "Non-ARM64"):
+            verify_apk(self.apk({
+                "_wlre_wire_native.cpython-311-x86_64-linux-gnu.so": self.elf(),
+            }))
+
+    def test_reject_trailing_payload_hidden_in_shim_bytecode(self):
+        valid = (
+            importlib.util.MAGIC_NUMBER + b"\x00" * 12
+            + marshal.dumps(compile(SHIM, "wire.py", "exec"))
+        )
+        with self.assertRaisesRegex(ValueError, "unverified wire bytecode"):
+            verify_apk(self.apk({
+                "_wlre_wire_native.so": self.elf(),
+                "wlre/network/wire.pyc": valid + b"secret trailing data",
+            }))
+
     def test_weak_elf_header_is_rejected(self):
         broken = bytearray(self.elf())
         struct.pack_into("<H", broken, 16, 2)  # ET_EXEC, not a shared object

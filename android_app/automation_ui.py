@@ -5,6 +5,8 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from wlre.services.battle.auto_battle import summary as battle_summary
 from wlre.services.world.roaming import summary as roaming_summary
+from android_app.widgets import label as mobile_label
+from android_app.theme import MUTED, style_button
 
 
 def attach(app, card, sid):
@@ -12,18 +14,18 @@ def attach(app, card, sid):
     card.automation_buttons = {}
     row = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(6))
     for feature, label in (('battle', '戰鬥'), ('roaming', '徘徊')):
-        button = Button(text='啟動' + label, disabled=True)
+        button = style_button(Button(text='啟動' + label, disabled=True))
         button.bind(on_release=lambda _, f=feature: toggle(app, sid, f))
         card.automation_buttons[feature] = button
         row.add_widget(button)
-    settings = Button(text='AI 設定')
+    settings = style_button(Button(text='AI 設定'))
     settings.bind(on_release=lambda _: edit_settings(app, sid))
     row.add_widget(settings)
     card.settings_button = settings
     card.add_widget(row)
-    card.automation_status = Label(text='登入角色後可啟動自動戰鬥／自動徘徊',
-        size_hint_y=None, height=dp(116), font_size='13sp', halign='left', valign='top')
-    card.automation_status.bind(size=lambda view, size: setattr(view, 'text_size', size))
+    card.automation_status = mobile_label('登入角色後可啟動自動戰鬥／自動徘徊')
+    card.automation_status.font_size = '13sp'
+    card.automation_status.color = MUTED
     card.add_widget(card.automation_status)
 
 

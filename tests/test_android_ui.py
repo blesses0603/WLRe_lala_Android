@@ -36,6 +36,27 @@ class AndroidUI(unittest.TestCase):
         font = ImageFont.truetype(label.options['font_name_r'], 32)
         self.assertNotEqual(bytes(font.getmask('帳')), bytes(font.getmask('號')))
 
+    def test_narrow_phone_uses_one_scroll_and_card_grows_with_text(self):
+        from kivy.clock import Clock
+        from kivy.uix.scrollview import ScrollView
+        self.root.size = (320, 640)
+        for _ in range(8): Clock.tick()
+        self.assertEqual(sum(isinstance(w, ScrollView) for w in self.root.walk()), 1)
+        card = self.app.cards['fixture'][4]
+        original_height = card.height
+        self.status.text = '角色資訊與連線狀態測試 ' * 40
+        for _ in range(8): Clock.tick()
+        self.assertGreater(card.height, original_height)
+        self.assertGreaterEqual(self.status.height, self.status.texture_size[1])
+        for child in card.children:
+            self.assertGreaterEqual(child.x, card.x)
+            self.assertLessEqual(child.right, card.right + 1)
+        self.assertEqual(self.app.empty_state.height, 0)
+        self.session.active = False
+        self.app.remove_card('fixture')
+        for _ in range(4): Clock.tick()
+        self.assertGreater(self.app.empty_state.height, 0)
+
     def test_locked_roles_and_pending_selection_stay_disabled(self):
         self.roles()
         self.assertFalse(self.buttons[1].disabled); self.assertTrue(self.buttons[2].disabled)

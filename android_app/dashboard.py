@@ -5,6 +5,7 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
 from android_app.widgets import button, label, select, column
+from android_app.theme import TEXT, SURFACE, ACCENT, MUTED
 
 PAGES = ('角色概況', '包包與特技', '小地圖', '戰場陣形', '聊天', '組隊', '煉金', '製作', '經驗效率', '事件紀錄', 'AI與補給設定')
 
@@ -17,12 +18,13 @@ class Dashboard:
         self.views = {}
         session = app.manager.sessions[sid]
         base = BoxLayout(orientation='vertical', spacing=dp(6), padding=dp(6))
-        self.status = label('等待服務同步', 50); base.add_widget(self.status)
+        self.status = label('等待服務同步'); self.status.color = MUTED; base.add_widget(self.status)
         nav = column(); self.navigation = select(nav, '功能', PAGES); base.add_widget(nav)
         self.content = BoxLayout(orientation='vertical'); base.add_widget(self.content)
-        self.message = label('', 60); base.add_widget(self.message)
+        self.message = label(); self.message.color = MUTED; base.add_widget(self.message)
         base.add_widget(button('返回帳號列表', self.close))
-        self.popup = Popup(title=session.account+'｜'+session.label, content=base, size_hint=(1, 1))
+        self.popup = Popup(title=session.account+'｜'+session.label, content=base, size_hint=(1, 1),
+                           background='', background_color=SURFACE, title_color=TEXT, separator_color=ACCENT)
         self.popup.bind(on_dismiss=lambda *_: self.dismissed())
         self.navigation.bind(text=lambda _, value: self.show(value))
         if hasattr(app.manager, 'watch'): app.manager.watch(sid)

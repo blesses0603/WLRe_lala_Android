@@ -111,83 +111,90 @@ class LaLaApp(App):
 
 
     def build(self):
+        from android_app.widgets import column, label, button, row
+        from android_app.theme import BACKGROUND, MUTED, ACCENT, surface, style_button, style_input
         self.title = "WLRe_LaLa Android v" + ANDROID_VERSION
         Window.softinput_mode = "below_target"
-        Window.clearcolor = (0.05, 0.09, 0.16, 1)
+        Window.clearcolor = BACKGROUND
 
-        base = BoxLayout(orientation="vertical", padding=dp(12), spacing=dp(8))
-        base.add_widget(Label(text="WLRe_LaLa  Android  v" + ANDROID_VERSION,
-                              size_hint_y=None, height=dp(52), font_size="21sp"))
-        base.add_widget(Label(text="多帳號獨立連線｜背景服務需允許通知",
-                              size_hint_y=None, height=dp(30), font_size="13sp"))
+        base = column()
+        base.padding = [dp(16), dp(20), dp(16), dp(24)]
+        base.spacing = dp(16)
+        title = label('飄流 RE:LaLa', 42)
+        title.font_size = '25sp'; title.color = ACCENT
+        base.add_widget(title)
+        subtitle = label('ANDROID  ·  v' + ANDROID_VERSION + '  /  多帳號管理', 26)
+        subtitle.color = MUTED; subtitle.font_size = '12sp'
+        base.add_widget(subtitle)
 
-        saved_row = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(6))
-        self.saved = Spinner(text='已保存帳號', values=self.saved_names())
+        login = surface(column()); login.padding = dp(16); login.spacing = dp(10)
+        heading = label('登入遊戲', 32); heading.font_size = '19sp'
+        login.add_widget(heading)
+        self.saved = style_button(Spinner(text='已保存帳號', values=self.saved_names()))
         self.saved.bind(text=self.switch_saved)
-        saved_row.add_widget(self.saved)
-        delete = Button(text='刪除帳號', size_hint_x=.45)
-        delete.bind(on_release=self.delete_saved)
-        saved_row.add_widget(delete)
-        base.add_widget(saved_row)
-        # Only bundled official endpoints are selectable, no user-defined host input.
+        delete = button('刪除', self.delete_saved)
+        delete.size_hint_x = None; delete.width = dp(64)
+        login.add_widget(row(self.saved, delete))
         from wlre.storage.server_lines import load
         self.lines = load()
-        self.lookup = {row["name"]: row for row in self.lines}
+        self.lookup = {entry["name"]: entry for entry in self.lines}
         choices = list(self.lookup)
-        self.server = Spinner(text=choices[0] if choices else "沒有伺服器",
-                              values=choices, size_hint_y=None, height=dp(48))
-        base.add_widget(self.server)
-        self.account = TextInput(hint_text="遊戲帳號", multiline=False,
-                                 size_hint_y=None, height=dp(48))
-        base.add_widget(self.account)
-        self.password = TextInput(hint_text="密碼", multiline=False,
-                                  password=True, size_hint_y=None, height=dp(48))
-        base.add_widget(self.password)
-
-        remember_row = BoxLayout(size_hint_y=None, height=dp(36))
-        self.remember = CheckBox(active=False, size_hint_x=None, width=dp(48), disabled=self.vault is None)
-        remember_row.add_widget(self.remember)
-        remember_row.add_widget(Label(text='使用 Keystore 加密保存帳密'))
-        base.add_widget(remember_row)
-        button = Button(text="新增連線並登入", size_hint_y=None, height=dp(52))
-        button.bind(on_release=self.connect_account)
-        base.add_widget(button)
-
-        self.message = Label(text="選擇分流登入後，可開啟各帳號的角色功能。",
-                             size_hint_y=None, height=dp(46))
+        login.add_widget(label('伺服器與分流', 26))
+        self.server = style_button(Spinner(text=choices[0] if choices else '沒有伺服器',
+            values=choices, size_hint_y=None, height=dp(48)))
+        login.add_widget(self.server)
+        login.add_widget(label('帳號', 26))
+        self.account = style_input(TextInput(hint_text='輸入遊戲帳號', multiline=False,
+            size_hint_y=None, height=dp(48), font_size='15sp'))
+        login.add_widget(self.account)
+        login.add_widget(label('密碼', 26))
+        self.password = style_input(TextInput(hint_text='輸入密碼', multiline=False, password=True,
+            size_hint_y=None, height=dp(48), font_size='15sp'))
+        login.add_widget(self.password)
+        self.remember = CheckBox(active=False, color=ACCENT, size_hint_x=None,
+            width=dp(44), disabled=self.vault is None)
+        remember_text = label('加密保存帳密', 48)
+        login.add_widget(row(self.remember, remember_text))
+        connect = button('新增連線並登入', self.connect_account, 52)
+        style_button(connect, primary=True); login.add_widget(connect)
+        self.message = label('選擇分流登入後，即可開啟角色功能。')
+        self.message.color = MUTED
         if self.vault_error: self.message.text = '帳密解密失敗；原資料已保留，請重新輸入登入'
-        base.add_widget(self.message)
-        self.resources = Label(text='資源監控：等待服務取樣', size_hint_y=None, height=dp(84), font_size='12sp')
-        self.resources.bind(size=lambda view, size: setattr(view, 'text_size', (size[0], None)))
-        self.message.bind(size=lambda view, size: setattr(view, 'text_size', (size[0], None)))
-        base.add_widget(self.resources)
-        if platform == 'android':
-            service_row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(6))
-            restart = Button(text='啟動背景服務')
-            restart.bind(on_release=self.initialize_android)
-            stop_service = Button(text='停止全部連線與服務')
-            stop_service.bind(on_release=self.stop_android_service)
-            service_row.add_widget(restart)
-            service_row.add_widget(stop_service)
-            base.add_widget(service_row)
-        base.add_widget(Label(text="帳號連線列表（不限固定數量）",
-                              size_hint_y=None, height=dp(34)))
+        login.add_widget(self.message)
+        base.add_widget(login)
 
-        scroll = ScrollView(do_scroll_x=False)
-        self.list_box = GridLayout(cols=1, spacing=dp(8), padding=dp(4),
-                                   size_hint_y=None)
-        self.list_box.bind(minimum_height=self.list_box.setter("height"))
-        scroll.add_widget(self.list_box)
-        base.add_widget(scroll)
+        base.add_widget(label('帳號連線', 32))
+        self.empty_state = surface(BoxLayout(size_hint_y=None, height=dp(100), padding=dp(14)))
+        empty_text = label('尚未建立連線\n登入後，角色資訊與操作會顯示在這裡。')
+        empty_text.color = MUTED
+        self.empty_state.add_widget(empty_text)
+        base.add_widget(self.empty_state)
+        self.list_box = GridLayout(cols=1, spacing=dp(14), size_hint_y=None)
+        self.list_box.bind(minimum_height=self.list_box.setter('height'))
+        base.add_widget(self.list_box)
+
+        monitor = surface(column()); monitor.padding = dp(14)
+        monitor.add_widget(label('服務與資源', 30))
+        self.resources = label('資源監控：等待服務取樣')
+        self.resources.font_size = '12sp'; self.resources.color = MUTED
+        monitor.add_widget(self.resources)
+        if platform == 'android':
+            monitor.add_widget(label('背景連線需允許通知；可在此管理服務。'))
+            monitor.add_widget(button('啟動背景服務', self.initialize_android))
+            stop = button('停止全部連線與服務', self.stop_android_service)
+            style_button(stop, danger=True); monitor.add_widget(stop)
+        base.add_widget(monitor)
+        self.list_box.bind(children=self.update_empty_state)
         Clock.schedule_interval(self.drain_events, 0.25)
-        # Entire form scrolls on small phones and when the keyboard is visible.
-        base.size_hint_y = None
-        base.bind(minimum_height=base.setter('height'))
-        scroll.size_hint_y = None
-        scroll.height = dp(300)
-        outer = ScrollView(do_scroll_x=False)
+        outer = ScrollView(do_scroll_x=False, bar_width=dp(3))
         outer.add_widget(base)
         return outer
+
+    def update_empty_state(self, *_):
+        empty = not self.list_box.children
+        self.empty_state.opacity = 1 if empty else 0
+        self.empty_state.height = dp(100) if empty else 0
+        self.empty_state.size_hint_y = None
 
     def connect_account(self, *_):
         if platform == 'android' and not getattr(self.manager, 'background', False):
@@ -222,21 +229,23 @@ class LaLaApp(App):
 
     def add_card(self, session):
         account = session.account
-        card = BoxLayout(orientation="vertical", spacing=dp(4), padding=dp(6),
-                         size_hint_y=None, height=dp(230))
-        title = Label(text=account + " | " + session.label,
-                      size_hint_y=None, height=dp(38))
-        status = Label(text="準備連線", size_hint_y=None, height=dp(110))
-        status.bind(size=lambda view, size: setattr(view, "text_size", (size[0], None)))
+        from android_app.widgets import column, label
+        from android_app.theme import MUTED, surface, style_button
+        card = surface(column())
+        card.padding = dp(16); card.spacing = dp(10)
+        title = label(account + "｜" + session.label)
+        title.font_size = '17sp'
+        status = label('準備連線')
+        status.color = MUTED
         controls = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(6))
         choices = {}
         for index in (1, 2):
-            choice = Button(text="角色 " + str(index), disabled=True)
+            choice = style_button(Button(text="角色 " + str(index), disabled=True))
             choice.bind(on_release=lambda _button, sid=session.session_id, n=index:
                         self.choose_role(sid, n))
             controls.add_widget(choice)
             choices[index] = choice
-        stop = Button(text="停止")
+        stop = style_button(Button(text="停止"), danger=True)
         stop._lala_stop_callback = lambda _button, sid=session.session_id: self.manager.stop(sid)
         stop.bind(on_release=stop._lala_stop_callback)
         controls.add_widget(stop)

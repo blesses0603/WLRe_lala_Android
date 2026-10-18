@@ -8,6 +8,7 @@ from kivy.uix.spinner import Spinner
 from kivy.uix.checkbox import CheckBox
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
+from android_app.theme import TEXT, MUTED, ACCENT, SURFACE, style_button, style_input
 
 
 def column():
@@ -17,7 +18,7 @@ def column():
 
 
 def label(text='', height=None):
-    view = Label(text=str(text), size_hint_y=None, halign='left', valign='middle', font_size='14sp')
+    view = Label(text=str(text), color=TEXT, size_hint_y=None, halign='left', valign='middle', font_size='14sp')
     view.bind(width=lambda w, size: setattr(w, 'text_size', (size, None)))
     if height: view.height = dp(height)
     else: view.bind(texture_size=lambda w, size: setattr(w, 'height', max(dp(30), size[1] + dp(10))))
@@ -27,6 +28,7 @@ def label(text='', height=None):
 def button(text, callback, height=48):
     view = Button(text=text, size_hint_y=None, height=dp(height), font_size='14sp', halign='center', valign='middle')
     view.bind(size=lambda w, size: setattr(w, 'text_size', (size[0]-dp(10), size[1])))
+    style_button(view)
     view.bind(on_release=lambda *_: callback())
     return view
 
@@ -41,6 +43,7 @@ def field(box, title, text='', numeric=False):
     box.add_widget(label(title))
     view = TextInput(text=str(text), multiline=False, size_hint_y=None, height=dp(48),
                      input_filter='int' if numeric else None, font_size='15sp')
+    style_input(view)
     box.add_widget(view)
     return view
 
@@ -49,12 +52,13 @@ def select(box, title, values, current=None):
     box.add_widget(label(title))
     view = Spinner(text=current if current is not None else (values[0] if values else '無資料'),
                    values=list(values), size_hint_y=None, height=dp(48), font_size='14sp')
+    style_button(view)
     box.add_widget(view)
     return view
 
 
 def check(box, title, value=False):
-    view = CheckBox(active=bool(value), size_hint_x=None, width=dp(48))
+    view = CheckBox(active=bool(value), color=ACCENT, size_hint_x=None, width=dp(48))
     text = label(title); text.size_hint_y = 1
     box.add_widget(row(view, text))
     return view
@@ -62,7 +66,8 @@ def check(box, title, value=False):
 
 def dialog(title, body, height=.92):
     scroll = ScrollView(do_scroll_x=False); scroll.add_widget(body)
-    popup = Popup(title=title, content=scroll, size_hint=(.97, height))
+    popup = Popup(title=title, content=scroll, size_hint=(.97, height), background='',
+                  background_color=SURFACE, title_color=TEXT, separator_color=ACCENT)
     popup.open(); return popup
 
 

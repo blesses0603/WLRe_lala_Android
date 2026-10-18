@@ -123,3 +123,12 @@ python tools/android_native_wire.py verify-apk /tmp/lalawire-phase04/bin/<實驗
 ## 回退方式
 
 在編譯方案不相容時，取消原生 recipe／來源排除修改，維持目前純 Python `wlre.network.wire`，避免破壞登入、IPC 與遊戲封包處理。若已建立 APK，回退需要完整重新編譯並維持既有固定簽章身份。
+
+## 2026-10-19｜第一次 GitHub Actions ARM64 編譯的失敗原因與修正
+
+- 第一次實際完整 Buildozer 任務：[Run #39172649082](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39172649082)，**Gradle 明確出現 `BUILD SUCCESSFUL`，已生成 `wlrelala-0.0.7-arm64-v8a-debug.apk`**。這代表 ARM64 建置及 APK 包裝階段已成功，但原生模組尚未由檢查工具最終驗收。
+- 工作流程整體失敗的直接原因：`tools/android_native_wire_build.sh` 用 `find` 找到多個 p4a Python 3.14 執行檔，誤判無法唯一取得 hostpython，於 APK 編譯**完成後**中止，造成簽署以外的後續驗收與 artifact 上傳被跳過。
+- 已由當次日誌確認固定 p4a 的 hostpython 路徑位於 `.buildozer/android/platform/build-arm64-v8a/build/other_builds/hostpython3/desktop/hostpython3/native-build/root/usr/local/bin/python3.14`，修正為此版本固定位置優先（若找不到才要求明確指定），並先執行 Python 3.14 版本檢查。
+- 發現另一個原驗收器的盲點：此版本 python-for-android 的 `assets/private.tar` 保存應用層 Python，而 `lib/arm64-v8a/libpybundle.so` **其實是 gzip TAR**，包含 `_python_bundle/site-packages/_wlre_wire_native.so`。首次建置日誌證實 NDK 用 `aarch64-linux-android31` 編譯並複製原生 extension 至 Python bundle；舊版驗收器未掃描此 TAR 會誤判缺少 native。
+- `tools/android_native_wire.py verify-apk` 已改為檢查兩種 TAR，且要求 `libpybundle.so` 的 site-packages 包含具 ARM64 ELF 標頭的 native extension，並驗證 `private.tar` 的 shim bytecode、拒絕真正 Python 實作殘留。新增模擬封裝測試。
+- **仍需重跑實際 GitHub Actions**，確認修正後的 native bundle 安全驗證、presplash、SHA256 與 artifact 上傳全部成功；真正 Android Activity 與前景 Service 導入仍需要手機驗收。

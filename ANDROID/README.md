@@ -48,4 +48,4 @@ buildozer -v android debug
 
 服務入口 `android_app/service.py`；IPC `runtime.py`；密文帳號庫 `vault.py`；Android 通知／超時處理位於 `android_app/java/`。Buildozer 固定 python-for-android revision，並固定 charset-normalizer 3.4.2，避免 Linux 主機 pip 拒收新 Android 專用 wheel 的跨編譯問題。
 
-相容性流程 `android-smoke.yml` 以 API 31–36（Android 12／12L／13／14／15／16）測試啟動、Keystore 加解密及服務；模擬器 APK 不供手機安裝。最低 Android 版本為 12（API 31）。App 圖示由 `wlre/resources/assets/app.ico` 最大 256×256 圖層直接轉成 PNG 使用。
+相容性流程 `android-smoke.yml` 以 API 31–36（Android 12／12L／13／14／15／16）測試啟動、Keystore 加解密及服務。開始編譯前也會核對 `buildozer.spec` 與 `android_app/version.py` 的版本設定一致；不要求 Git Tag，也不把版本號放進 smoke 的工作名稱或產物名稱。模擬器 Artifact 固定為 `Android-emulator-apk`，包含 `WLRe_LaLa-Android-emulator-debug.apk` 與 `SHA256SUMS.txt`，各 API 測試下載後會校驗 SHA256。模擬器 APK 不供手機安裝。最低 Android 版本為 12（API 31）。App 圖示由 `wlre/resources/assets/app.ico` 最大 256×256 圖層直接轉成 PNG 使用。

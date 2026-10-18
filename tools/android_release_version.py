@@ -28,7 +28,8 @@ def read_python_version(path: Path) -> str:
     raise ValueError(f"Missing string ANDROID_VERSION in {path}")
 
 
-def resolve_version(spec_path: Path, python_path: Path, ref: str, event: str) -> str:
+def source_version(spec_path: Path, python_path: Path) -> str:
+    """Validate shared source version without imposing a release tag on CI."""
     config = configparser.ConfigParser(interpolation=None)
     if not config.read(spec_path, encoding="utf-8"):
         raise ValueError(f"Could not read {spec_path}")
@@ -41,7 +42,12 @@ def resolve_version(spec_path: Path, python_path: Path, ref: str, event: str) ->
         )
     if not VERSION_PATTERN.fullmatch(spec_version):
         raise ValueError(f"Expected numeric X.Y.Z version, got {spec_version!r}")
-    tag = f"v{spec_version}"
+    return f"v{spec_version}"
+
+
+def resolve_version(spec_path: Path, python_path: Path, ref: str, event: str) -> str:
+    """Keep strict Git Tag requirements exclusive to phone APK releases."""
+    tag = source_version(spec_path, python_path)
     if event == "push":
         if ref != f"refs/tags/{tag}":
             raise ValueError(f"Git tag {ref!r} does not match Android version {tag}")

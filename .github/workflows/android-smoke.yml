@@ -22,7 +22,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 90
     env:
+      KIVY_HOME: /tmp/wlre-kivy
       KIVY_NO_ARGS: '1'
+      KIVY_NO_CONSOLELOG: '1'
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-python@v7.0.0
@@ -32,10 +34,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Validate Android source version consistency
+        run: |
+          python -c 'from pathlib import Path; from tools.android_release_version import source_version; source_version(Path("buildozer.spec"), Path("android_app/version.py"))'
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y autoconf automake libtool pkg-config cmake libffi-dev libssl-dev libsqlite3-dev zlib1g-dev libncurses5-dev libncursesw5-dev libltdl-dev zip unzip xvfb libmtdev1 libgl1-mesa-dri
+          python -m pip install --upgrade pip
           python -m pip install 'buildozer>=1.5,<2' 'cython<3' 'kivy==2.3.1' Pillow cryptography pyjnius==1.7.0
       - name: Run unit tests and check Python syntax
         env:
@@ -59,11 +65,18 @@ jobs:
           rm -rf .buildozer/android/app bin
           sed -i 's/android.archs = arm64-v8a/android.archs = x86_64/' buildozer.spec
           buildozer -v android debug
-      - name: Upload emulator APK
+      - name: Prepare emulator APK with SHA256 checksum
+        run: |
+          mkdir -p emulator-output
+          apk_path="$(find bin -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          test -n "$apk_path" || { echo "::error::Emulator APK not found"; exit 1; }
+          cp "$apk_path" emulator-output/WLRe_LaLa-Android-emulator-debug.apk
+          (cd emulator-output && sha256sum WLRe_LaLa-Android-emulator-debug.apk > SHA256SUMS.txt)
+      - name: Upload emulator APK and checksum
         uses: actions/upload-artifact@v7.0.2
         with:
           name: Android-emulator-apk
-          path: bin/*.apk
+          path: emulator-output/*
           if-no-files-found: error
           retention-days: 7
   smoke:
@@ -89,6 +102,8 @@ jobs:
         with:
           name: Android-emulator-apk
           path: bin
+      - name: Verify emulator APK checksum
+        run: (cd bin && sha256sum --check SHA256SUMS.txt)
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

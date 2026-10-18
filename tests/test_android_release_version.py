@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.android_release_version import resolve_version
+from tools.android_release_version import resolve_version, source_version
 
 
 class AndroidReleaseVersionTests(unittest.TestCase):
@@ -21,6 +21,19 @@ class AndroidReleaseVersionTests(unittest.TestCase):
 
     def check(self, ref, event="push"):
         return resolve_version(self.spec, self.version, ref, event)
+
+    def test_emulator_source_versions_match_without_git_tag(self):
+        self.assertEqual(source_version(self.spec, self.version), "v0.0.7")
+
+    def test_emulator_source_mismatch_fails(self):
+        self.set_versions("0.0.7", "0.0.8")
+        with self.assertRaisesRegex(ValueError, "Version mismatch"):
+            source_version(self.spec, self.version)
+
+    def test_emulator_source_invalid_version_fails(self):
+        self.set_versions("0.0.7-beta", "0.0.7-beta")
+        with self.assertRaisesRegex(ValueError, "Expected numeric"):
+            source_version(self.spec, self.version)
 
     def test_matching_git_tag(self):
         self.assertEqual(self.check("refs/tags/v0.0.7"), "v0.0.7")

@@ -49,13 +49,13 @@
 - `python tools/android_hardening.py preflight`：掃描建置設定與原始碼敏感檔名／常見特徵。
 - `python tools/android_hardening.py report path/to/app.apk`：檢查 ZIP 與內嵌 `assets/private.tar` 成員名稱，產生 `PROTECTION_INFO.txt`。
 - `python -m unittest tests.test_android_hardening -v`：驗證原始碼邊界、巢狀金鑰與位元碼計數。
-- `xvfb-run -a python -m unittest discover -s tests -q`、ARM64 Actions 全部成功，才可合併修改。
+- 一般 PR：`xvfb-run -a python -m unittest discover -s tests -q` 與 Python／設定安全預檢成功才可合併；PR 快速 CI **不再編譯 APK**。涉及 Android 原生、打包或實際封裝安全的變更，仍須安排手動／Tag 完整 ARM64 APK 驗證，不可把快速測試當成實際 APK 成功。
 
 簽章設定見 [SIGNING.md](SIGNING.md)，Android 功能與實機驗收見 [ACCEPTANCE.md](ACCEPTANCE.md)。
 
 ## 第 02 項：固定簽章保護（2026-10-18）
 
-程式與 CI 已加入固定 Keystore 與 **另一個公開憑證指紋 Variable** 的交叉比對。推送 main／版本 Tag 的 APK 一律要求兩者存在並一致；PR 才容許臨時簽章（不使用私有 Secret）。兩次正式 main 建置的指紋一致性與真機覆蓋更新尚須實際設定與驗收，不可宣稱已完成。詳見 [SIGNING.md](SIGNING.md)。
+程式與 CI 已加入固定 Keystore 與 **另一個公開憑證指紋 Variable** 的交叉比對。**在 main 手動執行或推送版本 Tag 時**的 APK 一律要求兩者存在並一致；PR 日常不再產 APK（不使用私有 Secret）。兩次正式 main 建置的指紋一致性與真機覆蓋更新尚須實際設定與驗收，不可宣稱已完成。詳見 [SIGNING.md](SIGNING.md)。
 
 ## 第 03 項：核心風險分級與封裝安全門檻（2026-10-18）
 
@@ -67,3 +67,7 @@
 - 沿用第 02 項已驗證的 GitHub Repository Secret `ANDROID_DEBUG_KEYSTORE_BASE64` 與 Variable `ANDROID_EXPECTED_SIGNER_SHA256`，不更換／重生金鑰；只有受信任 main／Tag 建置能使用固定簽章。
 
 第 03 項的通過條件是 Python 回歸、ARM64 APK 編譯與安全稽核全部成功。這是實際阻擋意外暴露的封裝加固，不是完成原生程式防逆向；第 04～05 項仍需真正的 Android NDK／Cython 編譯及真機導入驗證。
+
+## 2026-10-19：降低 Actions 消耗，不降低發行安全門檻
+
+`android-smoke.yml` 改為 PR／main Python 回歸、語法及安全預檢；不下載私鑰、不執行 Buildozer、不上傳 APK。`android-apk.yml` 維持僅在 main 手動執行或推送符合程式版號的 `vX.Y.Z` Tag 才完整打包，既有固定簽章指紋鎖定、重簽、SHA256、啟動畫面與 APK 成員稽核維持不變。最新既有的主分支完整成功證據：[Run 39141939393](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39141939393)（commit `dda1719`）。

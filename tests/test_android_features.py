@@ -66,12 +66,26 @@ class MobileFeatures(unittest.TestCase):
             value={'favorites':[sid],'plan':[dict(item_id=sid,count=1000)]}
             self.assertTrue(self.manager.save_preferences(session.session_id,value))
             self.assertTrue(session.commands.empty())
-            self.assertEqual(self.manager.session_detail(session.session_id)['preferences'],value)
+            # Old favorites/plan settings are transparently upgraded to
+            # include safe, disabled-by-default expedition preferences.
+            expected = preferences.validate(value)
+            self.assertEqual(
+                self.manager.session_detail(session.session_id)['preferences'],
+                expected)
+            self.assertEqual(expected['expedition'],
+                             preferences.defaults()['expedition'])
+            self.assertTrue(session.commands.empty())
             value['favorites'].clear()
             self.assertEqual(session.preferences['favorites'],[sid])
             files=list(Path(base).rglob('*.json'));self.assertEqual(len(files),1)
             self.assertNotIn('fixture-user',files[0].read_text())
             self.assertNotIn('fixture-secret',files[0].read_text())
+            from wlre.storage.account_settings import identity
+            loaded = preferences.load(
+                base, identity(session.host, session.port, session.account))
+            self.assertEqual(loaded, expected)
+            self.assertEqual(loaded['favorites'], [sid])
+            self.assertTrue(session.commands.empty())
             with self.assertRaises(ValueError): preferences.validate({'favorites':[0]})
             with self.assertRaises(ValueError): preferences.validate({'plan':[dict(item_id=sid,count=0)]})
 

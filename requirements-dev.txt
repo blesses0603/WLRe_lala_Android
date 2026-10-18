@@ -1,0 +1,4 @@
+kivy==2.3.1
+Pillow
+cryptography
+pyjnius==1.7.0

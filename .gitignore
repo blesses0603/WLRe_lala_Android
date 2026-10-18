@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.buildozer/
+bin/
+.gradle/
+android-output/
+.kivy/
+android-smoke-*.txt

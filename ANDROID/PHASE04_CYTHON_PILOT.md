@@ -83,6 +83,37 @@ p4a 參考：[官方 Recipes／CythonRecipe 文件](https://python-for-android.r
 - 修正原本測試中「缺原生 extension」與「損壞 shim bytecode」的錯誤預期，新增 Linux 偽裝檔名、附加 payload 與 ELF e_type 的反例。
 - 本次透過本機獨立 Python 小型驗證檢查 parser 條件與合成測資通過；**仍未以本分支程式碼跑完完整單元測試，也沒有進行 Android NDK／Buildozer 完整編譯**。Python magic 的嚴格檢查若與 p4a 實際 Python 版本不同，將 fail closed，必須在真實 APK 調整後再驗證。
 
+## 2026-10-19｜實際原生編譯啟動紀錄與阻擋
+
+已在本次可用的 Linux x86_64 工具環境以 Cython **3.2.4** 和 GCC 編譯原始 wire 核心為動態共享模組，並實際執行封包驗證。
+
+- 編譯產物：`_wlre_wire_native.cpython-313-x86_64-linux-gnu.so`（約 827 KiB，**不是 Android ARM64**）。
+- ELF 判定：ELF64、ET_DYN、Machine = x86-64。
+- 實測：`Packet(63,7,...)`、XOR 編碼 `696ba9ad92aaacad`、分段 FrameDecoder、Reader unicode8、Writer 二進位編碼及 ProtocolError 已通過。
+- SHA256：`cae4632445ba49d9add6b8e0fcabd6e35ea1744893fabda0c4c7b622747e7fd8`。此值僅對應 host 實驗產物，不應拿來當成 APK 下載驗證。
+- **Android 原生編譯阻礙**：當前執行環境找不到 Android SDK／NDK／Buildozer，外網 DNS 無法取得 Google NDK，GitHub-hosted Actions 又受剩餘額度限制。因此不能在此輪產出或驗收 ARM64 Android 擴充套件。
+- 已核對專案固定 p4a commit `8ef9d1d`：其中 python3 recipe 預設為 **3.14.2**。舊版檢查器直接用 CI 主機 Python（3.11 或其他版本）解析 APK 的 .pyc，會在版本不一致時錯誤拒絕。本次新增 `--pyc-python` 選項，允許由 matching p4a hostpython 解析；未提供、版本不符時繼續 fail closed。
+- Buildozer 本地 recipes 改為使用 **staging 資料夾絕對路徑**，避免其變更工作目錄造成 local recipe 找不到。
+- 新增 `tools/android_native_wire_build.sh` 專供 Linux 本地 NDK 實驗建置；它先執行新增測試、建立隔離原始碼、進行 Buildozer 編譯，再執行 ARM64／bytecode／啟動畫面與 SHA256 檢查。不修改日常 GitHub Actions，不使用正式私鑰。
+- 新增對應 unit test 驗證絕對 recipe 路徑及 target hostpython 子程序判讀；完整專案測試仍需要有可用完整 Python/Kivy 環境執行。
+
+### 在具備 SDK／NDK 的 Linux 執行原生試驗
+
+```bash
+# 在第 04 項分支根目錄，預先安裝 JDK17、Buildozer、Cython 與 Android SDK/NDK。
+# 可以不設定 ANDROID_PYC_PYTHON；首次建置後工具會嘗試尋找 p4a 的 hostpython3.14。
+bash tools/android_native_wire_build.sh /tmp/lalawire-phase04
+```
+
+若無法唯一找到 p4a 的 hostpython，指定其實際路徑後執行 APK 檢查：
+
+```bash
+python tools/android_native_wire.py verify-apk /tmp/lalawire-phase04/bin/<實驗APK>.apk \
+  --pyc-python /path/to/p4a-hostpython3.14
+```
+
+**驗收界線**：Linux host 成功不代表 ARM64 成功；真實 APK 安全掃描通過也不能取代 Android Activity／Service 的動態 import、封包測試及固定簽章驗收。實驗 APK 不能拿來覆蓋已安裝的固定簽章手機版。
+
 ## Actions 額度不足時的操作原則
 
 - 第 04 項分支**不修改正常版 `buildozer.spec` 與 `.github/workflows/android-apk.yml`**，不會意外啟用未驗收 native 模組。Recipe 僅在 stage 產生的獨立暫存專案中啟用；也不手動觸發 GitHub 完整 APK。

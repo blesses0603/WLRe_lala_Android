@@ -8,8 +8,9 @@ import tarfile
 import tempfile
 import unittest
 import zipfile
+from unittest.mock import patch
 
-from tools.android_native_wire import SHIM, stage, verify_apk
+from tools.android_native_wire import SHIM, _is_exact_shim_bytecode, stage, verify_apk
 
 
 class NativeWireTests(unittest.TestCase):
@@ -152,6 +153,20 @@ class NativeWireTests(unittest.TestCase):
                 "_wlre_wire_native.so": self.elf(),
                 "wlre/network/wire.pyc": valid + b"secret trailing data",
             }))
+
+    def test_native_bytecode_uses_matching_target_hostpython(self):
+        valid = (
+            importlib.util.MAGIC_NUMBER + b"\x00" * 12
+            + marshal.dumps(compile(SHIM, "<shim>", "exec"))
+        )
+        self.assertTrue(_is_exact_shim_bytecode(valid))
+        with patch("tools.android_native_wire.subprocess.run") as runner:
+            runner.return_value.returncode = 0
+            self.assertTrue(_is_exact_shim_bytecode(valid, pyc_python=self.base / "python3.14"))
+            self.assertIn("_verify-pyc", runner.call_args.args[0])
+            runner.return_value.returncode = 1
+            self.assertFalse(_is_exact_shim_bytecode(valid, pyc_python=self.base / "python3.14"))
+        self.assertFalse(_is_exact_shim_bytecode(b"wrong magic"))
 
     def test_weak_elf_header_is_rejected(self):
         broken = bytearray(self.elf())

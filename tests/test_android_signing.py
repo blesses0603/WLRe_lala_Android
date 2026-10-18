@@ -21,7 +21,7 @@ class SigningTests(unittest.TestCase):
             github_env = root / "github-env"
             secret = base64.b64encode(b"X" * 256).decode("ascii")
             mock = Mock(side_effect=[
-                Mock(stdout="alias verified"),
+                Mock(stdout="SHA256: " + ":".join(["AA"] * 32) + "\n"),
                 Mock(stdout="Signer #1 certificate SHA-256 digest: " + FP_A + "\n"),
                 Mock(stdout="SHA256: " + ":".join(["AA"] * 32) + "\n"),
             ])
@@ -87,6 +87,7 @@ class SigningTests(unittest.TestCase):
             with patch.dict(os.environ, {
                     "ANDROID_REQUIRE_PERSISTENT_SIGNING": "1",
                     "ANDROID_DEBUG_KEYSTORE_BASE64": "",
+                    "ANDROID_EXPECTED_SIGNER_SHA256": FP_A,
                     "GITHUB_ENV": str(Path(folder) / "env")}, clear=True):
                 with self.assertRaisesRegex(RuntimeError, "mandatory"):
                     prepare("", key)
@@ -98,6 +99,7 @@ class SigningTests(unittest.TestCase):
             apk.write_bytes(b"fixture")
             with patch.dict(os.environ, {
                     "ANDROID_REQUIRE_PERSISTENT_SIGNING": "1",
+                    "ANDROID_EXPECTED_SIGNER_SHA256": FP_A,
                     "ANDROID_SIGNING_MODE": "ephemeral"}, clear=True):
                 with self.assertRaisesRegex(RuntimeError, "refused"):
                     signing_info(folder, apk.parent / "debug.keystore",

@@ -86,6 +86,9 @@ jobs:
           rm -rf .buildozer/android/app bin
           buildozer -v android debug
       - name: Prepare ARM64 phone APK with SHA256 checksum
+        env:
+          ANDROID_REQUIRE_PERSISTENT_SIGNING: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+          ANDROID_EXPECTED_SIGNER_SHA256: ${{ github.event_name == 'pull_request' && '' || vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
         run: |
           mkdir -p phone-output
           apk_path="$(find bin -maxdepth 1 -type f -name '*.apk' -print -quit)"
@@ -94,7 +97,7 @@ jobs:
           (cd phone-output && sha256sum WLRe_LaLa-Android-arm64-debug.apk > SHA256SUMS.txt)
           (cd phone-output && sha256sum --check SHA256SUMS.txt)
           python tools/android_presplash.py check-apk phone-output/WLRe_LaLa-Android-arm64-debug.apk
-          ANDROID_REQUIRE_PERSISTENT_SIGNING=${{ github.event_name != 'pull_request' && '1' || '0' }} ANDROID_EXPECTED_SIGNER_SHA256="${{ github.event_name != 'pull_request' && vars.ANDROID_EXPECTED_SIGNER_SHA256 || '' }}" python tools/android_signing.py report phone-output
+          python tools/android_signing.py report phone-output
           python tools/android_hardening.py report phone-output/WLRe_LaLa-Android-arm64-debug.apk
       - name: Upload ARM64 phone test APK and checksum
         uses: actions/upload-artifact@v7.0.2

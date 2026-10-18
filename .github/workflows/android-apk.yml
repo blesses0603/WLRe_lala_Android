@@ -75,6 +75,8 @@ jobs:
       - name: Name APK and generate checksum
         env:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          ANDROID_REQUIRE_PERSISTENT_SIGNING: '1'
+          ANDROID_EXPECTED_SIGNER_SHA256: ${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
         run: |
           mkdir -p android-output
           apk_path="$(find bin -maxdepth 1 -name '*.apk' -print -quit)"
@@ -85,7 +87,7 @@ jobs:
           cd android-output
           sha256sum "$output" > SHA256SUMS.txt
           cd ..
-          ANDROID_REQUIRE_PERSISTENT_SIGNING=1 ANDROID_EXPECTED_SIGNER_SHA256="${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}" python tools/android_signing.py report android-output
+          python tools/android_signing.py report android-output
           python tools/android_hardening.py report "android-output/$output"
       - name: Upload APK (only after successful build)
         uses: actions/upload-artifact@v7.0.2

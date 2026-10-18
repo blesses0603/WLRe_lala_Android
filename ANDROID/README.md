@@ -1,51 +1,125 @@
-> **舊版警示：v0.0.2／v0.0.3 已重現 Keystore JNI 啟動崩潰；v0.0.4 已通過 Android 12～16 啟動相容性流程，請不要安裝舊產物。**
+# 飄流 RE:LaLa｜Android 使用與技術指南
 
-# WLRe_LaLa Android v0.0.7（實驗版）
+本文件集中說明 Android 客戶端的**操作流程、權限、背景機制、APK 建置及驗收限制**。首次安裝與下載入口請先閱讀 [專案首頁 README](../README.md)；功能逐項對照請參考 [FEATURE_PARITY.md](FEATURE_PARITY.md)。
 
-沿用 Kivy 直式介面與 Python 協議核心。所有 Android 修改位於 `main`；版本與桌面版分開。
+**開發中版本：v0.0.7** ｜ **最低 Android 12（API 31）** ｜ **ARM64 手機與 x86_64 模擬器分別建置** ｜ **Debug 測試用途**
 
-### 懸浮小球（Android v0.0.7）
+> 請勿安裝早期 v0.0.2／v0.0.3 的舊 APK：歷史紀錄曾確認 Keystore／PyJNIUS JNI 初始化崩潰。v0.0.7 新增的懸浮小球與遊戲自動化操作仍需真機驗收；「Actions 成功」不等於正式遊戲連線驗收。
 
-在「服務與資源」點選 **開啟懸浮小球**，首次使用會開啟 Android「顯示在其他應用程式上層」的特殊權限頁。授權後返回 App，小球由現有前景服務管理，可拖曳、點擊展開帳號連線與自動戰鬥狀態，面板也提供返回 App 與隱藏小球。不需要另外建立背景服務；隱藏小球不會停止連線。為避免浮在其他 App 上時洩漏登入資料，帳號只顯示遮罩、沒有密碼或憑證。
+## 操作流程
 
-小球採使用者主動開啟，不會在未授權時顯示。即使開啟了懸浮球，Android 仍可撤銷特殊權限、停止服務或關閉 App，且 Android 15 的 dataSync 前景服務仍有限時。首次發布後需要真機測試拖曳、展開／收合、鎖屏、返回桌面、權限撤銷與斷線狀態；模擬器通過不等同真機驗收。
+### 1. 安裝及開始登入
 
-## 本版功能
+1. 在 [Smoke Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-smoke.yml) 的**成功執行紀錄**下載 `Android-arm64-apk`，或於 [Phone APK Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml) 取得指定版本的 ARM64 APK。
+2. 解壓後確認 APK 與 `SHA256SUMS.txt`，在 ARM64 Android 12 以上手機安裝測試包。
+3. 啟動程式、選擇地球／水星及分流，輸入帳號與密碼後登入。帳號驗證、角色清單與角色入場須等待伺服器實際回覆。
+4. 可新增多個獨立連線；各帳號各自擁有停止旗標、指令佇列與狀態，不將一個帳號的操作轉送給另一個帳號。
+5. 入場後在帳號卡片啟動／停止自動戰鬥或徘徊，也可開啟角色功能，操作戰場、地圖、補給、社交與製作等頁面。
 
-- 新增每帳號的完整觸控功能頁：角色概況、包包與特技、小地圖、戰場陣形、聊天、組隊、煉金、製作、經驗效率、事件紀錄及完整 AI／補給設定。詳見 [電腦／手機功能對照](FEATURE_PARITY.md)。
+停止某個帳號不等於停止其他帳號；「停止全部連線與服務」會關閉整個連線服務。若服務尚未就緒或已失去回應，UI 應顯示未知或失聯，不以先前快照冒充目前在線。
 
-- 各帳號卡片新增自動戰鬥／自動徘徊啟動與停止，以及 AI 設定。設定依帳號＋伺服器保存，重新登入自動載入；不自動啟動操作。狀態依遊戲核心實際回報更新。
+### 2. 前景通知及背景連線
 
-- 每個帳號使用獨立連線、停止旗標、選角佇列及狀態；沒有固定帳號數量上限。
-- 連線移至獨立 Python 前景服務程序，畫面暫停或重建不停止服務；重新開啟可取回帳號卡片及目前狀態。
-- 常駐通知可以返回畫面或停止全部連線；畫面也提供停止及重新啟動服務。
-- 活動連線期間以有時限的 partial wake lock 保持 CPU，連線結束即釋放；TCP keepalive 協助偵測無回應的網路。
-- 自願勾選保存時，用 Android Keystore AES-256-GCM 加密整份帳號資料；金鑰不可匯出，密文放在不備份的 App 私有目錄。可切換已保存帳號、刪除保存資料；刪除保存資料不會關閉其他既有連線。未勾選時不保存密碼。
-- 畫面與服務透過私有 Unix socket 溝通，沒有 TCP 控制埠；密碼不寫入 IPC 檔案、參數、日誌或事件。
-- 顯示帳號登入／選角／角色資訊與各自斷線狀態；服務失聯顯示未知，不能繼續顯示在線。
-- 顯示活動連線、在線數、畫面／服務 PSS 記憶體、取樣時間、裝置電量及溫度。App 精確耗電無可靠公共 API，目前明確顯示未知，不把裝置掉電當作本 App 耗電。
-- 整個表單及帳號清單可捲動，包含 Noto Sans TC 中文字型（OFL 授權附於 assets/fonts）。
+本專案不是單靠 Kivy 畫面維持連線。`android_app/service.py` 啟動獨立的 Python 前景服務程序，在服務端管理多帳號連線；`android_app/runtime.py` 使用 App 私有 Unix socket 將畫面操作交給服務處理。
 
-## 背景限制與待驗收
+- 畫面暫停、切換到其他 App 或 Activity 重建時，前景服務可繼續管理連線；使用者重新開啟畫面後可取回狀態。
+- 系統前景通知提供返回 App 與停止全部連線的入口。通知的常駐標記不能保證 Android 不允許使用者移除。
+- 活動連線時使用**有期限的 partial wake lock**，並透過 TCP keepalive 協助偵測網路中斷；兩者都不是永久在線的保證。
+- Android 15 的 `dataSync` 類型前景服務在適用條件下有每 24 小時累計約 **6 小時** 的背景執行時限；系統停止服務後不會擅自用儲存帳密重新登入。
+- 網路切換、省電模式、Doze、廠商背景限制及使用者在系統設定強制停止 App，都可能中斷服務。長時間行為須逐台手機驗證。
 
-Android 15 對 `dataSync` 前景服務有背景累計時限（通常為每 24 小時 6 小時）；時限到達會停止服務，回到前景後可手動重啟。通知、前景服務與 wake lock 不能保證繞過 Doze、廠商省電或無網路。系統停止服務後，不會偷偷自動重新登入。
+### 3. 懸浮小球（v0.0.7）
 
-v0.0.4 使用者實機畫面已確認登入及角色狀態同步；Android API 31～36 模擬器均通過啟動、Keystore 加解密、切換 App 與短暫鎖屏測試。v0.0.6 自動戰鬥／徘徊及 15／30／60 分鐘鎖屏仍須實機驗收。桌面測試不能代替這些結果。請參閱 [驗收表](ACCEPTANCE.md) 與 [驗證紀錄](VALIDATION.md)。
+**懸浮球是選用的狀態介面，不是另一條遊戲連線，也不能替代前景服務通知。**
 
-## APK 與開發測試
+1. 開啟 App → **服務與資源** → **開啟懸浮小球（需額外授權）**。
+2. 系統開啟「顯示在其他應用程式上層」設定時，允許本 App 使用；返回程式，等待背景服務同步設定。
+3. 小球可以拖曳至螢幕其他位置，點擊小球展開狀態面板。
+4. 面板顯示在線／活動／總帳號數，以及帳號連線與自動戰鬥狀態，並可點選返回 App。
+5. 點「隱藏懸浮小球（不斷線）」或回到「服務與資源」關閉小球；**不會因單純關閉小球而停止遊戲連線**。
 
-採用混合觸發模式：`main` 的程式碼更新會自動執行 `android-smoke.yml`（完整單元測試、語法檢查、Android 12～16 模擬器測試，並額外產出 **ARM64 手機測試 APK**）；只有推送版本 Git Tag 才會透過 `android-apk.yml` 建置正式版號命名的手機 APK。推送符合 `v<主>.<次>.<修訂>` 格式的 Git Tag（例如 `v0.0.7`）才會自動觸發 `android-apk.yml`。兩套工作流程都保留 Actions 手動執行入口。
+顯示在其他 App 上層時，帳號名稱會遮罩，不顯示密碼、聊天內文或憑證；狀態面板最多列出六筆帳號摘要，其餘顯示數量。當權限被撤銷或前景服務結束，小球可能消失；普通 Android App 無法禁止使用者或系統關閉它。
 
-發布版本前，必須先讓 `buildozer.spec` 的 `version` 與 `android_app/version.py` 的 `ANDROID_VERSION` 一致，並與 Git Tag 的版本相符；Tag 也必須指向 `main` 內的提交。手動 APK 建置僅允許從 `main` 執行，使用目前原始碼的版本號。
+懸浮權限與 Android 13 以上的**通知權限**是不同設定。通知權限在系統要求時處理，懸浮權限只在使用者主動開啟小球時要求。**安裝 APK 並不會自動取得懸浮權限**。
 
-在 [Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml) 的成功執行頁下載 `WLRe_LaLa-Android-v<版本號>-debug` Artifact，內含 `WLRe_LaLa-Android-v<版本號>-debug.apk` 與 `SHA256SUMS.txt`。打包成功不等於實機登入驗收通過。
+### 4. 帳號與設定資料
+
+- **帳號保存是自願選項**：勾選「加密保存帳密」時，使用 Android Keystore 的 AES-256-GCM 加密後，儲存在 App 私有、不備份的檔案位置；未勾選則不保存密碼。
+- Keystore 金鑰不可匯出。解除安裝、清除 App 資料、換機或系統金鑰失效，都可能導致舊密文無法恢復。不要把此機制當作跨裝置備份。
+- 自動戰鬥 AI 與偏好依帳號及伺服器保存，重新登入可載入，但**不會自動啟動戰鬥或徘徊**。
+- 畫面與服務之間使用私有 Unix socket；沒有開放外部 TCP 控制埠。帳密不得寫入日誌、聊天事件或公開通知。
+- 事件歷史與聊天紀錄在服務內做有限長度保存；若服務終止，不應假設未另存的記錄可永久保留。
+
+## 功能分類
+
+完整細項、條件及桌面版差異請閱讀 [電腦／手機功能對照](FEATURE_PARITY.md)。手機端的功能分區如下：
+
+| 分區 | 範圍 |
+| --- | --- |
+| 帳號／角色 | 伺服器分流、登入選角、獨立連線、狀態與資源監控 |
+| 戰鬥／隊伍 | AI 條件、補給、戰場陣形、手動戰鬥、組隊管理 |
+| 移動／地圖／傳送 | 小地圖、位置、路線、傳送與場景資料 |
+| 物品／製作／補給 | 背包、技能、煉金、材料、配方、收藏與排程 |
+| 社交／紀錄／其他 | 聊天、組織、事件紀錄、經驗效率及偏好 |
+
+資料尚未由遊戲伺服器確認時，核心應拒絕或暫停相關操作，例如未知位置、未學會的技能、未確認配方、未收到材料消耗結果等。不能用 UI 上存在某個按鈕，推論遊戲伺服器已接受該功能。
+
+## GitHub Actions 與下載檔案
+
+本專案保留**開發測試**與**版本 Tag 建置**兩套流程；兩者都支援手動執行：
+
+| 工作流程 | 觸發 | 執行範圍 | 下載項目 |
+| --- | --- | --- | --- |
+| [`android-smoke.yml`](../.github/workflows/android-smoke.yml) | `main` 指定程式碼有更新，或手動執行 | 版本欄位一致性、完整測試、Python 語法、獨立編譯 x86_64 與 ARM64，再測 API 31～36 模擬器啟動 | `Android-emulator-apk`、`Android-arm64-apk`；各有 APK + SHA256 |
+| [`android-apk.yml`](../.github/workflows/android-apk.yml) | 推送 `vX.Y.Z` Git Tag，或從 `main` 手動執行 | 驗證 Tag／程式版號、測試、ARM64 編譯、SHA256 | `WLRe_LaLa-Android-vX.Y.Z-debug` |
+
+### Smoke 產物（不帶版本號）
+
+| Artifact | ZIP 內容 | 裝置 | 保存期限 |
+| --- | --- | --- | --- |
+| `Android-arm64-apk` | `WLRe_LaLa-Android-arm64-debug.apk`、`SHA256SUMS.txt` | 一般 ARM64 Android 手機測試 | 7 天 |
+| `Android-emulator-apk` | `WLRe_LaLa-Android-emulator-debug.apk`、`SHA256SUMS.txt` | x86_64 Android 模擬器 | 7 天 |
+
+Smoke 的模擬器測試矩陣為 API **31、32、33、34、35、36**，涵蓋 Android **12、12L、13、14、15、16**。測試會等待 UI／前景服務／Keystore 就緒、切至 Home 約 15 秒、鎖屏約 30 秒並返回畫面；**不使用真實遊戲帳密，也不驗證懸浮視窗的全部觸控行為**。
+
+Smoke 的 ARM64 是另外一份 Debug APK 建置，**不是在 x86_64 模擬器上測 ARM64 ABI**；其存在不代表手機真實登入、戰鬥或長時間背景運行已通過。
+
+### Phone APK 產物（帶版本號）
+
+`android-apk.yml` 從 `buildozer.spec` 與 `android_app/version.py` 核對版號。自動觸發需要 Git Tag 為 `vX.Y.Z` 且符合原始碼的版本設定，Tag 的提交需在 `main` 歷史上。手動執行只允許從 `main` 建置。
+
+例如 `v0.0.7` 的 Artifact 名稱為 `WLRe_LaLa-Android-v0.0.7-debug`，內含 `WLRe_LaLa-Android-v0.0.7-debug.apk` 和 `SHA256SUMS.txt`，保存期限 14 天。它仍是 Debug 測試包，不是已完成真機驗收或商店簽署的正式發行包。
+
+## 開發與測試
+
+**主要程式**：`main.py`（Kivy 直式入口）；`android_app/`（UI、連線與服務）；`wlre/`（共用遊戲核心與資料）；`buildozer.spec`（Android 套件設定）。Android 使用本地 `wlre/` 副本，桌面專案的更改不會自動同步至手機。
+
+CI 建置環境是 **Ubuntu 22.04、Python 3.11、Java 17、Buildozer**。本地 Linux 測試須具備系統相依套件及可用顯示器（或 Xvfb）：
 
 ```bash
-pip install kivy==2.3.1 Pillow cryptography
-KIVY_NO_ARGS=1 xvfb-run -a python -m unittest discover -s tests -p 'test_android*.py' -q
+python -m pip install -r requirements-dev.txt
+xvfb-run -a python -m unittest discover -s tests -q
+python -m compileall -q main.py android_app wlre tools
+```
+
+本地 ARM64 編譯（還需要 Android SDK／NDK 與 Buildozer 原生建置相依）：
+
+```bash
 buildozer -v android debug
 ```
 
-服務入口 `android_app/service.py`；IPC `runtime.py`；密文帳號庫 `vault.py`；Android 通知／超時處理位於 `android_app/java/`。Buildozer 固定 python-for-android revision，並固定 charset-normalizer 3.4.2，避免 Linux 主機 pip 拒收新 Android 專用 wheel 的跨編譯問題。
+**修改 Android 版本**時，需同步調整 `buildozer.spec` 的 `version` 與 `android_app/version.py` 的 `ANDROID_VERSION`；一般 `main` 更新會跑 Smoke，但**不會自動觸發版本 APK 流程**。只有準備發布指定版本時才建立 Git Tag。不要把桌面版的 Nuitka、BAT、Tkinter 建置步驟混入 Android 專案。
 
-相容性流程 `android-smoke.yml` 以 API 31–36（Android 12／12L／13／14／15／16）測試啟動、Keystore 加解密及服務。開始編譯前也會核對 `buildozer.spec` 與 `android_app/version.py` 的版本設定一致；不要求 Git Tag，也不把版本號放進 smoke 的工作名稱或產物名稱。模擬器 Artifact 固定為 `Android-emulator-apk`，包含 `WLRe_LaLa-Android-emulator-debug.apk` 與 `SHA256SUMS.txt`，各 API 測試下載後會校驗 SHA256。同一 Smoke 執行頁另外提供固定名稱的 `Android-arm64-apk` Artifact，內含 `WLRe_LaLa-Android-arm64-debug.apk` 及 `SHA256SUMS.txt`，供 ARM64 Android 真機測試，並不帶版本號；此為 Debug 測試包，不等同於 Tag 發布產物。模擬器 APK 不供手機安裝。最低 Android 版本為 12（API 31）。App 圖示由 `wlre/resources/assets/app.ico` 最大 256×256 圖層直接轉成 PNG 使用。
+## 驗收項目及限制
+
+可從每次 [GitHub Actions](https://github.com/blesses0603/WLRe_lala_Android/actions) 的執行結果確認打包與模擬器測試；歷史測試細節收錄於 [VALIDATION.md](VALIDATION.md)。目前**仍須 Android 真機確認**的項目包括：
+
+- ARM64 手機的安裝、啟動、登入、選角，以及不同伺服器／分流下的狀態同步。
+- 同時多帳號登入；中斷 A 帳號時不影響 B 帳號，網路切換與重新連線狀態是否正確。
+- 懸浮小球授權、拖曳、展開、關閉、跨 App 顯示及權限撤銷後的回復。
+- 自動戰鬥、徘徊、補給、煉金、製作與社交操作的實際伺服器回覆。
+- 15／30／60 分鐘鎖屏與省電模式測試，包含斷線、重連、記憶體及裝置耗電觀察。
+
+**請以實際封包或伺服器回應辨識成功，不以畫面顯示或背景服務程序存活代表所有功能正常。**
+
+相關文件：[驗收規格](ACCEPTANCE.md) · [桌面／手機功能對照](FEATURE_PARITY.md) · [歷史驗證紀錄](VALIDATION.md) · [遷移說明](../MIGRATION.md)。

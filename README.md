@@ -16,7 +16,7 @@
 - **直式操作介面**：手機登入表單與地球／水星分流選擇。
 - **多帳號工作階段**：同一個 App 可以建立多個獨立連線，並逐一停止。
 - **角色選擇與連線狀態**：沿用 Python 遊戲通訊核心，提供初步選角和狀態顯示。
-- **測試 APK 建置**：使用 Buildozer，僅在推送版本 Git Tag（如 `v0.0.7`）或手動執行時產生手機 APK；一般程式提交自動執行單元測試與模擬器相容性檢查。
+- **測試 APK 建置**：使用 Buildozer。更新 `main` 時，`android-smoke.yml` 會自動執行單元測試、模擬器相容性測試，並產生可供 ARM64 手機安裝的 Debug 測試 APK；僅推送版本 Git Tag（如 `v0.0.7`）或手動執行 `android-apk.yml` 才建立帶版本名稱的手機發布測試包。
 - **帳號隱私**：可選用 Keystore AES-GCM 加密保存、切換及刪除帳密；未勾選時不保存。
 - **背景服務**：獨立程序管理連線，常駐通知可返回或停止；畫面重建可重新附接。
 - **資源監控**：連線數、畫面／服務記憶體、裝置電量／溫度與取樣時間。
@@ -25,7 +25,7 @@
 
 ## 🧪 取得與測試 APK
 
-1. 日常提交 `main` 的程式碼時，`android-smoke.yml` 自動進行單元測試、Python 語法檢查及 Android 12～16 模擬器啟動測試；**不會自動產生手機 APK**。
+1. 日常提交 `main` 的程式碼時，`android-smoke.yml` 自動進行單元測試、Python 語法檢查、Android 12～16 模擬器啟動測試，**並產生 ARM64 手機測試 APK**。在 [Smoke Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-smoke.yml) 的執行頁下載 `Android-arm64-apk` Artifact，解壓後安裝 `WLRe_LaLa-Android-arm64-debug.apk`；`Android-emulator-apk` 僅供 x86_64 模擬器測試。
 2. 發布新版本時，同步更新 `buildozer.spec` 的 `version` 與 `android_app/version.py` 的 `ANDROID_VERSION`（例如 `0.0.7`），將修改提交至 `main`，確認測試成功後建立並推送 `v0.0.7` Git Tag。
 3. Git Tag 自動觸發 [手機 APK Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml)；也可以在 Actions 選 **Run workflow** 從 `main` 手動建置目前版號。
 4. 手機 APK 成功後，在該次執行的 **Artifacts** 下載 `WLRe_LaLa-Android-v<版本號>-debug`，內含對應版本 APK 與 `SHA256SUMS.txt`。

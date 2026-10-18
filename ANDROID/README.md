@@ -34,7 +34,7 @@ v0.0.4 使用者實機畫面已確認登入及角色狀態同步；Android API 3
 
 ## APK 與開發測試
 
-採用混合觸發模式：`main` 的程式碼更新會自動執行 `android-smoke.yml`（完整單元測試、語法檢查與 Android 12～16 模擬器測試），**不會因此自動編譯手機 APK**。推送符合 `v<主>.<次>.<修訂>` 格式的 Git Tag（例如 `v0.0.7`）才會自動觸發 `android-apk.yml`。兩套工作流程都保留 Actions 手動執行入口。
+採用混合觸發模式：`main` 的程式碼更新會自動執行 `android-smoke.yml`（完整單元測試、語法檢查、Android 12～16 模擬器測試，並額外產出 **ARM64 手機測試 APK**）；只有推送版本 Git Tag 才會透過 `android-apk.yml` 建置正式版號命名的手機 APK。推送符合 `v<主>.<次>.<修訂>` 格式的 Git Tag（例如 `v0.0.7`）才會自動觸發 `android-apk.yml`。兩套工作流程都保留 Actions 手動執行入口。
 
 發布版本前，必須先讓 `buildozer.spec` 的 `version` 與 `android_app/version.py` 的 `ANDROID_VERSION` 一致，並與 Git Tag 的版本相符；Tag 也必須指向 `main` 內的提交。手動 APK 建置僅允許從 `main` 執行，使用目前原始碼的版本號。
 
@@ -48,4 +48,4 @@ buildozer -v android debug
 
 服務入口 `android_app/service.py`；IPC `runtime.py`；密文帳號庫 `vault.py`；Android 通知／超時處理位於 `android_app/java/`。Buildozer 固定 python-for-android revision，並固定 charset-normalizer 3.4.2，避免 Linux 主機 pip 拒收新 Android 專用 wheel 的跨編譯問題。
 
-相容性流程 `android-smoke.yml` 以 API 31–36（Android 12／12L／13／14／15／16）測試啟動、Keystore 加解密及服務。開始編譯前也會核對 `buildozer.spec` 與 `android_app/version.py` 的版本設定一致；不要求 Git Tag，也不把版本號放進 smoke 的工作名稱或產物名稱。模擬器 Artifact 固定為 `Android-emulator-apk`，包含 `WLRe_LaLa-Android-emulator-debug.apk` 與 `SHA256SUMS.txt`，各 API 測試下載後會校驗 SHA256。模擬器 APK 不供手機安裝。最低 Android 版本為 12（API 31）。App 圖示由 `wlre/resources/assets/app.ico` 最大 256×256 圖層直接轉成 PNG 使用。
+相容性流程 `android-smoke.yml` 以 API 31–36（Android 12／12L／13／14／15／16）測試啟動、Keystore 加解密及服務。開始編譯前也會核對 `buildozer.spec` 與 `android_app/version.py` 的版本設定一致；不要求 Git Tag，也不把版本號放進 smoke 的工作名稱或產物名稱。模擬器 Artifact 固定為 `Android-emulator-apk`，包含 `WLRe_LaLa-Android-emulator-debug.apk` 與 `SHA256SUMS.txt`，各 API 測試下載後會校驗 SHA256。同一 Smoke 執行頁另外提供固定名稱的 `Android-arm64-apk` Artifact，內含 `WLRe_LaLa-Android-arm64-debug.apk` 及 `SHA256SUMS.txt`，供 ARM64 Android 真機測試，並不帶版本號；此為 Debug 測試包，不等同於 Tag 發布產物。模擬器 APK 不供手機安裝。最低 Android 版本為 12（API 31）。App 圖示由 `wlre/resources/assets/app.ico` 最大 256×256 圖層直接轉成 PNG 使用。

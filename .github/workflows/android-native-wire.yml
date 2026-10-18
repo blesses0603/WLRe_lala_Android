@@ -1,0 +1,99 @@
+name: Android Phase04 native-wire ARM64 experiment
+
+# This job is opt-in by branch design. It does not replace the existing
+# pinned-signature release workflow or run on normal main/PR pushes.
+on:
+  push:
+    branches:
+      - security/android-phase04-cython-wire-pilot
+    paths:
+      - '.github/workflows/android-native-wire.yml'
+      - 'tools/android_native_wire_build.sh'
+      - 'tools/android_native_wire.py'
+      - 'tests/test_android_native_wire.py'
+      - 'p4a-recipes/lalawire/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase04-native-wire-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  arm64-native-pilot:
+    if: github.ref == 'refs/heads/security/android-phase04-cython-wire-pilot'
+    name: Compile and inspect experimental ARM64 native wire APK
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      KIVY_HOME: /tmp/wlre-kivy
+      KIVY_NO_ARGS: '1'
+      KIVY_NO_CONSOLELOG: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android host build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool pkg-config cmake \
+            libffi-dev libssl-dev libsqlite3-dev zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libltdl-dev git zip unzip \
+            xvfb xauth libmtdev1 libgl1-mesa-dri
+          python -m pip install --upgrade pip
+          python -m pip install 'buildozer>=1.5,<2' 'Cython==3.0.12' \
+            'kivy==2.3.1' Pillow cryptography 'pyjnius==1.7.0'
+      - name: Run Python regression, Android config and safety preflight
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -q
+          python -m compileall -q main.py android_app wlre tools
+          python tools/android_presplash.py check-spec
+          python tools/android_hardening.py preflight
+      - name: Stage, NDK-compile and audit native ARM64 trial APK
+        run: |
+          bash tools/android_native_wire_build.sh /tmp/lalawire-phase04
+      - name: Show experimental APK layout on audit failure
+        if: failure()
+        run: |
+          echo "Phase04 verification failed; listing build artifacts for diagnosis."
+          find /tmp/lalawire-phase04/bin -maxdepth 1 -type f -printf '%f %s bytes\\n' 2>/dev/null || true
+          if [[ -d /tmp/lalawire-phase04/bin ]]; then
+            apk="$(find /tmp/lalawire-phase04/bin -maxdepth 1 -name '*.apk' -print -quit)"
+            if [[ -n "$apk" ]]; then
+              python - "$apk" <<'PY'
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[1]) as archive:
+              print("libpybundle present:", "lib/arm64-v8a/libpybundle.so" in archive.namelist())
+              print("private.tar present:", "assets/private.tar" in archive.namelist())
+          PY
+            fi
+          fi
+      - name: Collect experimental APK plus verification logs
+        run: |
+          mkdir -p phase04-arm64-proof
+          cp /tmp/lalawire-phase04/bin/*.apk phase04-arm64-proof/
+          cp /tmp/lalawire-phase04/EXPERIMENTAL_ARM64_SHA256SUMS.txt phase04-arm64-proof/SHA256SUMS.txt
+          for report in PROTECTION_INFO.txt PRESPLASH_INFO.txt; do
+            if [[ -f "$report" ]]; then cp "$report" phase04-arm64-proof/; fi
+          done
+          cat > phase04-arm64-proof/READ_ME_FIRST.txt <<'NOTE'
+          Experimental Android ARM64 Cython wire pilot only.
+          This is NOT a pinned-signed main/release APK.
+          Never install over your existing signed LaLa app.
+          Success confirms native APK packaging/static audit, not live Android import.
+          NOTE
+      - name: Upload verified experimental ARM64 APK
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: Phase04-ARM64-native-wire-EXPERIMENT-NOT-RELEASE
+          path: phase04-arm64-proof/*
+          if-no-files-found: error
+          retention-days: 7

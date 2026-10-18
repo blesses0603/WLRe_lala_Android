@@ -1,0 +1,150 @@
+# 第 04 項｜ARM64 Cython 保護試點：準備與驗收計畫
+
+> 2026-10-19，基準 main `1aa458689322368f6124e7189d630fa4a00db765`、Android v0.0.7、min API 31、arm64-v8a。
+> **最新驗收狀態：Android ARM64 原生化試點的 CI 編譯、APK 靜態稽核已通過；使用者已回報實機測試正常。實驗 APK 尚未經固定簽章正式升級驗證，也尚未將原生化設為 main 的預設打包模式。**
+
+## 與前階段的界線
+
+- 第 01 項：原始碼與 APK 的安全現況盤點。
+- 第 02 項：固定 Debug APK 簽章、公開 SHA256 pin 與重簽驗收；沿用原來的 Repository Secret／Variable，不取出也不重建私鑰。
+- 第 03 項：敏感核心清單、APK 封裝檢查與 bytecode 風險揭露。
+- **第 04 項：先選一個低耦合但跨模組使用的核心進行 Cython 原生化試點，建立行為等價、Android ABI、匯入與封裝驗證；通過後才擴大。**
+- 第 05 項：逐步擴及其他 P0/P1 核心，需逐一回歸與實機驗收。
+
+## 試點選擇
+
+**目標模組：`wlre/network/wire.py`**
+
+主要使用者為 `wlre/network/client.py`、`wlre/network/protocol.py` 與其他引用封包原語的模組。公共 API 必須保留 `ProtocolError`、`Reader`、`Writer`、`Packet`、`encode`、`FrameDecoder`，尤其是 `Packet` dataclass 行為、TCP 分段接收、UTF-16LE 字串讀取、XOR 封包以及異常型別與文字。
+
+該模組是**協定處理核心**，而不是保存使用者私鑰的地方。Cython 的目的為提高 bytecode 靜態還原成本，不代表密碼學保護、反動態 Hook 或不可逆向。
+
+## 已建立的試點工具（不耗 Android Actions 分鐘）
+
+- `tests/test_android_cython_wire.py`：使用合成封包固定協定 golden vectors 與錯誤行為；純 Python 測試可列入日常快速回歸。
+- `python tools/android_cython_wire.py`：檢查當前 `wire.py` 基準 API。
+- `python tools/android_native_wire.py host-smoke`：以真實 `_wlre_wire_native` 命名及 `wlre.network.wire` shim，在臨時目錄對比 Python 與 Cython 封包與例外快照（仍非 Android）。
+- `python tools/android_cython_wire.py --host-smoke`：在**系統臨時資料夾**複製純 Python 封包模組、以主機 Cython + C 編譯器產生暫存擴充套件，在兩個相互隔離的程序對比輸出；結束後清除臨時資料。必須另外安裝 Cython、setuptools 和主機編譯器。**預設不自動執行 host-smoke**。
+
+本地預備檢查（主機 Cython 3.2.4）：純 Python golden tests 4 項通過；新增 native staging／APK 模擬安全測試 5 項通過；實際原始 wire 模組已編譯成 Linux x86_64 `_wlre_wire_native`，透過正式樣式 shim 執行封包 golden vectors，與純 Python 輸出一致。這**不是**專案完整回歸，也不是使用 CI 的 `cython<3` 或 Android NDK 編譯結果。
+
+## 實際操作（使用有 Android SDK／NDK 的 Linux）
+
+**這是實驗建置，不會產生一般手機更新用的正式驗收 APK。** 先於本分支根目錄執行：
+
+```bash
+python -m unittest tests.test_android_cython_wire tests.test_android_native_wire -v
+python tools/android_cython_wire.py --host-smoke
+python tools/android_native_wire.py host-smoke   # 驗證實際 recipe 的 _wlre_wire_native + shim 等價
+
+# --output 必須在 Git repo 外部；工具不會覆蓋已有資料夾。
+python tools/android_native_wire.py stage --output /tmp/wlre-native-wire-stage
+cd /tmp/wlre-native-wire-stage
+buildozer -v android debug
+```
+
+編譯完成後，回到原分支的工具程式，對實際 APK 執行：
+
+```bash
+python tools/android_native_wire.py verify-apk /tmp/wlre-native-wire-stage/bin/<實際APK檔名>.apk
+python tools/android_hardening.py report /tmp/wlre-native-wire-stage/bin/<實際APK檔名>.apk
+```
+
+最後仍需經完整既有固定簽章、SHA256、啟動畫面與真機驗收，才可提供使用者安裝。實驗 APK 若用隨機 Debug 憑證簽署，**不能當作固定簽章升級包**。建議不要使用真實遊戲帳密驗證不可信的未簽核建置。
+
+## ARM64 原生編譯方案與實際準備結果
+
+1. 維持上游已固定的 `p4a.commit`、`python3` 與正式版 `buildozer.spec`。已新增 `p4a-recipes/lalawire/`，使用 `IncludedFilesBehaviour` + `CythonRecipe`，以 p4a/NDK 編譯名稱為 `_wlre_wire_native` 的 extension。**還未以專案所固定的 p4a.commit 實際編譯測試。**
+2. 已新增 `tools/android_native_wire.py stage`：將整個 App 複製至獨立資料夾，將完整 `wire.py` 複製為 local recipe 的 `_wlre_wire_native.pyx`，原 `wlre/network/wire.py` 在暫存專案只保留原生導入 shim；Buildozer 暫存設定增加 `lalawire` requirement 與 `p4a.local_recipes`，並排除 `p4a-recipes` 不進入 App。正式原始碼與既有標準版 Buildozer 設定**完全不改**。
+3. 暫存版透過原本路徑 `wlre.network.wire` 匯入 `_wlre_wire_native` 中的 `ProtocolError`、`Reader`、`Writer`、`Packet`、`encode`、`FrameDecoder`。**Android App 與前景服務是否都能找到 site-packages 中的 native extension，仍需 Android 編譯／啟動檢查。**
+4. 已新增 `tools/android_native_wire.py verify-apk`：拒絕沒有 ARM64 ELF 的 `_wlre_wire_native*.so`、發現原始實作的 `.py`／`.pyx`／`.pyc` 或未檢出 native extension 的 APK。保留 `wlre/network/wire.py` 的小型兼容 shim 於 App（仍會有少量 shim `.pyc`），**只有原本核心邏輯移出 bytecode，才符合目標**。
+5. 已實作檢查 APK ZIP 與 `assets/private.tar` 的 ELF header（machine=AArch64）和敏感模組原始碼；**目前尚未有實際 APK，因此不能確認產物放置位置是否符合 p4a 目前版本，也不能聲稱可載入**。實際驗證必須比對 native import、封包與服務運行，必要時修正 recipe 與檢查器。
+6. 保留 `tools/android_signing.py`、`ANDROID_DEBUG_KEYSTORE_BASE64`、`ANDROID_EXPECTED_SIGNER_SHA256`、既有 Release 流程，**不變更簽章憑證**；手動／Tag APK 打包成功後才驗證完整簽署報告。
+
+p4a 參考：[官方 Recipes／CythonRecipe 文件](https://python-for-android.readthedocs.io/en/latest/recipes.html)。目前已新增本地 recipe 與實驗性分離建置接線；**但尚未在 Android SDK／NDK 編譯成功，不能列為已完成保護**。
+
+## 驗收門檻
+
+| 類型 | 必須完成的證據 | 目前 |
+| --- | --- | --- |
+| 純 Python 協定 golden vectors | 4 項新增測試 + 原有完整回歸 | 新增測試本地通過；完整回歸未執行 |
+| Cython 主機編譯行為等價 | Python／Linux host extension 相同合成輸出 | 本地試點通過（非 Android） |
+| Android ARM64 NDK 擴充套件 | 正確 ABI、模組名稱、輸入輸出、錯誤行為 | 已備 recipe／分離建置；尚未執行真正編譯 |
+| 應用＋前景服務 import | 同一 Android-native 擴充套件可載入 | 未執行 |
+| APK 排除原始碼與同名 bytecode | 保留小型 shim，但核心 `.pyc` 不得殘留 | 已寫測試工具；未取得真正 APK |
+| 發佈安全 | 固定簽章 + 公開 pin + SHA256 + 安全掃描 | 此階段未產生新 APK |
+| Android 12+ ARM64 真機 | 啟動、登入、分段收包、背景連線、功能回歸 | 未執行 |
+
+## 2026-10-19 程式碼複檢與額外安全修正
+
+- 提高原生 .so 的檢查門檻：確認 ELF 64 位元、little-endian、ELF version、ET_DYN、AArch64 machine 與 ELF header 長度；主機架構命名（例如 x86_64／linux-gnu）必須拒絕。這**仍不是動態連結／Android 載入成功的證明**。
+- wire.pyc 改為解析 CPython 的 code object，只接受由預期原生 shim 編譯出的 bytecode，拒絕失配、同名偽裝、額外附加內容與未知 Python magic。也支援 __pycache__/wire.cpython-*.pyc 路徑。
+- APK 必須實際包含原生擴充模組與至少一份已驗證的 shim bytecode；只存在 native header 但沒有可用匯入介面的 APK 不得通過驗收。
+- 修正原本測試中「缺原生 extension」與「損壞 shim bytecode」的錯誤預期，新增 Linux 偽裝檔名、附加 payload 與 ELF e_type 的反例。
+- 本次透過本機獨立 Python 小型驗證檢查 parser 條件與合成測資通過；**仍未以本分支程式碼跑完完整單元測試，也沒有進行 Android NDK／Buildozer 完整編譯**。Python magic 的嚴格檢查若與 p4a 實際 Python 版本不同，將 fail closed，必須在真實 APK 調整後再驗證。
+
+## 2026-10-19｜實際原生編譯啟動紀錄與阻擋
+
+已在本次可用的 Linux x86_64 工具環境以 Cython **3.2.4** 和 GCC 編譯原始 wire 核心為動態共享模組，並實際執行封包驗證。
+
+- 編譯產物：`_wlre_wire_native.cpython-313-x86_64-linux-gnu.so`（約 827 KiB，**不是 Android ARM64**）。
+- ELF 判定：ELF64、ET_DYN、Machine = x86-64。
+- 實測：`Packet(63,7,...)`、XOR 編碼 `696ba9ad92aaacad`、分段 FrameDecoder、Reader unicode8、Writer 二進位編碼及 ProtocolError 已通過。
+- SHA256：`cae4632445ba49d9add6b8e0fcabd6e35ea1744893fabda0c4c7b622747e7fd8`。此值僅對應 host 實驗產物，不應拿來當成 APK 下載驗證。
+- **Android 原生編譯阻礙**：當前執行環境找不到 Android SDK／NDK／Buildozer，外網 DNS 無法取得 Google NDK，GitHub-hosted Actions 又受剩餘額度限制。因此不能在此輪產出或驗收 ARM64 Android 擴充套件。
+- 已核對專案固定 p4a commit `8ef9d1d`：其中 python3 recipe 預設為 **3.14.2**。舊版檢查器直接用 CI 主機 Python（3.11 或其他版本）解析 APK 的 .pyc，會在版本不一致時錯誤拒絕。本次新增 `--pyc-python` 選項，允許由 matching p4a hostpython 解析；未提供、版本不符時繼續 fail closed。
+- Buildozer 本地 recipes 改為使用 **staging 資料夾絕對路徑**，避免其變更工作目錄造成 local recipe 找不到。
+- 新增 `tools/android_native_wire_build.sh` 專供 Linux 本地 NDK 實驗建置；它先執行新增測試、建立隔離原始碼、進行 Buildozer 編譯，再執行 ARM64／bytecode／啟動畫面與 SHA256 檢查。不修改日常 GitHub Actions，不使用正式私鑰。
+- 新增對應 unit test 驗證絕對 recipe 路徑及 target hostpython 子程序判讀；完整專案測試仍需要有可用完整 Python/Kivy 環境執行。
+
+### 在具備 SDK／NDK 的 Linux 執行原生試驗
+
+```bash
+# 在第 04 項分支根目錄，預先安裝 JDK17、Buildozer、Cython 與 Android SDK/NDK。
+# 可以不設定 ANDROID_PYC_PYTHON；首次建置後工具會嘗試尋找 p4a 的 hostpython3.14。
+bash tools/android_native_wire_build.sh /tmp/lalawire-phase04
+```
+
+若無法唯一找到 p4a 的 hostpython，指定其實際路徑後執行 APK 檢查：
+
+```bash
+python tools/android_native_wire.py verify-apk /tmp/lalawire-phase04/bin/<實驗APK>.apk \
+  --pyc-python /path/to/p4a-hostpython3.14
+```
+
+**驗收界線**：Linux host 成功不代表 ARM64 成功；真實 APK 安全掃描通過也不能取代 Android Activity／Service 的動態 import、封包測試及固定簽章驗收。實驗 APK 不能拿來覆蓋已安裝的固定簽章手機版。
+
+## Actions 額度不足時的操作原則
+
+- 第 04 項分支**不修改正常版 `buildozer.spec` 與 `.github/workflows/android-apk.yml`**，不會意外啟用未驗收 native 模組。Recipe 僅在 stage 產生的獨立暫存專案中啟用；也不手動觸發 GitHub 完整 APK。
+- 可先在本地或恢復額度後跑 `python -m unittest tests.test_android_cython_wire -v` 與其他快速回歸；正式 ARM64 的安全與相容性必須等待有建置資源時再做。
+- **未完成上述 APK/真機門檻前，不合併任何會取代 `wire.py` 的 Cython 打包變更到 main。**
+
+## 回退方式
+
+在編譯方案不相容時，取消原生 recipe／來源排除修改，維持目前純 Python `wlre.network.wire`，避免破壞登入、IPC 與遊戲封包處理。若已建立 APK，回退需要完整重新編譯並維持既有固定簽章身份。
+
+## 2026-10-19｜第一次 GitHub Actions ARM64 編譯的失敗原因與修正
+
+- 第一次實際完整 Buildozer 任務：[Run #39172649082](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39172649082)，**Gradle 明確出現 `BUILD SUCCESSFUL`，已生成 `wlrelala-0.0.7-arm64-v8a-debug.apk`**。這代表 ARM64 建置及 APK 包裝階段已成功，但原生模組尚未由檢查工具最終驗收。
+- 工作流程整體失敗的直接原因：`tools/android_native_wire_build.sh` 用 `find` 找到多個 p4a Python 3.14 執行檔，誤判無法唯一取得 hostpython，於 APK 編譯**完成後**中止，造成簽署以外的後續驗收與 artifact 上傳被跳過。
+- 已由當次日誌確認固定 p4a 的 hostpython 路徑位於 `.buildozer/android/platform/build-arm64-v8a/build/other_builds/hostpython3/desktop/hostpython3/native-build/root/usr/local/bin/python3.14`，修正為此版本固定位置優先（若找不到才要求明確指定），並先執行 Python 3.14 版本檢查。
+- 發現另一個原驗收器的盲點：此版本 python-for-android 的 `assets/private.tar` 保存應用層 Python，而 `lib/arm64-v8a/libpybundle.so` **其實是 gzip TAR**，包含 `_python_bundle/site-packages/_wlre_wire_native.so`。首次建置日誌證實 NDK 用 `aarch64-linux-android31` 編譯並複製原生 extension 至 Python bundle；舊版驗收器未掃描此 TAR 會誤判缺少 native。
+- `tools/android_native_wire.py verify-apk` 已改為檢查兩種 TAR，且要求 `libpybundle.so` 的 site-packages 包含具 ARM64 ELF 標頭的 native extension，並驗證 `private.tar` 的 shim bytecode、拒絕真正 Python 實作殘留。新增模擬封裝測試。
+- **仍需重跑實際 GitHub Actions**，確認修正後的 native bundle 安全驗證、presplash、SHA256 與 artifact 上傳全部成功；真正 Android Activity 與前景 Service 導入仍需要手機驗收。
+
+## 2026-10-19｜第 04 項最新驗收結果（取代上文歷史待辦狀態）
+
+**試點範圍：** `wlre/network/wire.py` Cython 原生化與 Android `arm64-v8a` 實驗 APK。上面歷次「尚未編譯／真機驗收」描述為當時的歷史紀錄，不代表目前的最新狀態。
+
+| 驗收關卡 | 最後結果 | 依據 |
+| --- | --- | --- |
+| CI 全部 Python 回歸 | **通過（250 項）** | [Actions Run #39175568747](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39175568747) |
+| Android NDK／Cython ARM64 編譯 | **通過** | Buildozer Gradle `BUILD SUCCESSFUL`、產出 v0.0.7 arm64-v8a APK |
+| APK 內原生核心、shim 與來源殘留檢查 | **通過** | `_python_bundle/site-packages/_wlre_wire_native.so`，`verified_wire_shims: 1`，`source_leaks: 0` |
+| 原生 APK Artifact | **已上傳** | [Artifact #12154840429](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39175568747/artifacts/12154840429) |
+| Android 真機相容性 | **使用者回報測試正常** | 使用者在 2026-10-19 明確表示「已經實機驗證過了！目前都沒問題」；此為使用者自測回報，未附裝置型號、logcat、測試清單，不能冒充 CI 自動化的實機測試 |
+| 固定簽章正式升級、預設打包整合 | **尚未驗收／尚未啟用** | 試驗 workflow 不使用 Repository Secret 的固定簽章；main 仍使用原版 Buildozer 設定 |
+
+**結論：第 04 項 Android ARM64 Cython `wire.py`「試點」已達到原生編譯、靜態封裝與使用者回報的實機驗證門檻。** 但這不代表整個 App 所有 P0/P1 都已原生化，更不代表已完成固定簽章正式升級。後續正式推送 native 模式時，必須另外使 main 的受信任簽章工作流程使用已通過測試的 staging／recipe，再確認固定憑證 fingerprint、安裝升級及前景服務。
+

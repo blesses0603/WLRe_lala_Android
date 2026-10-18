@@ -13,6 +13,8 @@ import marshal
 from pathlib import Path
 import re
 import shutil
+import subprocess
+import sys
 import struct
 import tarfile
 import types
@@ -142,7 +144,18 @@ def _is_wire_bytecode(name: str) -> bool:
     ) is not None
 
 
-def _is_exact_shim_bytecode(blob: bytes) -> bool:
+def _is_exact_shim_bytecode(blob: bytes, *, pyc_python: Path | None = None) -> bool:
+    if pyc_python is not None and pyc_python.resolve() != Path(sys.executable).resolve():
+        # The pinned p4a Python can differ from the host used for APK audit.
+        # Marshal is version-specific: delegate to the matching hostpython.
+        try:
+            checked = subprocess.run(
+                [str(pyc_python), "-I", str(Path(__file__).resolve()), "_verify-pyc"],
+                input=blob, capture_output=True, timeout=15, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        return checked.returncode == 0
     # Fail closed for unknown Python bytecode versions, damaged marshal data,
     # renamed implementation bytecode, or hand-written alternative shims.
     # Only examine own local trusted build artifacts, not arbitrary uploads.
@@ -165,7 +178,7 @@ def _is_exact_shim_bytecode(blob: bytes) -> bool:
     )
 
 
-def verify_apk(path: Path) -> dict:
+def verify_apk(path: Path, *, pyc_python: Path | None = None) -> dict:
     """Validate the actual native payload. Never accept a host Linux .so."""
     found, suspicious, shim_count = [], [], 0
     with zipfile.ZipFile(path) as apk:
@@ -180,7 +193,7 @@ def verify_apk(path: Path) -> dict:
             if name.endswith(("_wlre_wire_native.py", "_wlre_wire_native.pyc", "_wlre_wire_native.pyx", "wlre/network/wire.py")):
                 suspicious.append(name)
             if _is_wire_bytecode(name):
-                if _is_exact_shim_bytecode(apk.read(name)):
+                if _is_exact_shim_bytecode(apk.read(name), pyc_python=pyc_python):
                     shim_count += 1
                 else:
                     suspicious.append(name + " (unverified wire bytecode)")
@@ -205,7 +218,7 @@ def verify_apk(path: Path) -> dict:
                     suspicious.append(name)
                 if _is_wire_bytecode(name):
                     body = bundle.extractfile(info).read()
-                    if _is_exact_shim_bytecode(body):
+                    if _is_exact_shim_bytecode(body, pyc_python=pyc_python):
                         shim_count += 1
                     else:
                         suspicious.append(name + " (unverified wire bytecode)")
@@ -280,6 +293,8 @@ def host_smoke(root: Path = ROOT) -> None:
     print("PASS: host Cython extension + production-style shim parity. Android ARM64 NOT verified.")
 
 def main(argv=None):
+    if sys.argv[1:] == ["_verify-pyc"]:
+        return 0 if _is_exact_shim_bytecode(sys.stdin.buffer.read()) else 1
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="operation", required=True)
     staging = sub.add_parser("stage")
@@ -288,14 +303,16 @@ def main(argv=None):
     sub.add_parser("host-smoke")
     audit = sub.add_parser("verify-apk")
     audit.add_argument("apk", type=Path)
+    audit.add_argument("--pyc-python", type=Path,
+                       help="Matching hostpython for target p4a CPython bytecode (e.g. Python 3.14)")
     opts = parser.parse_args(argv)
     if opts.operation == "stage":
         print(stage(opts.source, opts.output))
     elif opts.operation == "host-smoke":
         host_smoke()
     else:
-        print(verify_apk(opts.apk))
+        print(verify_apk(opts.apk, pyc_python=opts.pyc_python))
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

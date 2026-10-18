@@ -1,12 +1,14 @@
 # 飄流 RE:LaLa Android
 
-**Android 測試版本：v0.0.6** ｜ **專案：`WLRe_lala_Android` ｜ 分支：`main`**
+**Android 測試版本：v0.0.7** ｜ **專案：`WLRe_lala_Android` ｜ 分支：`main`**
 
 本專案用於開發《飄流 RE:LaLa》的 **Android 直式手機客戶端**，與 Windows／macOS 桌面版分開管理版本與建置流程。桌面正式版本請參閱 [`main` 分支](https://github.com/blesses0603/WLRe_lala/tree/main)。
 
-## 📱 Android v0.0.6
+## 📱 Android v0.0.7
 
-v0.0.6 加入前景服務與安全帳號管理，目前包含：
+本版新增可拖曳的 Android 懸浮小球：使用者開啟特殊權限後，在其他 App 上方查看遮罩帳號連線／自動戰鬥狀態。小球由原前景服務管理，關閉小球不影響連線；更多限制與授權說明見 [Android README](ANDROID/README.md)。
+
+沿用 v0.0.6 的前景服務與安全帳號管理，v0.0.7 新增懸浮小球，目前包含：
 
 - 每帳號的角色概況、包包／特技、小地圖、戰場陣形與手動指令、聊天、組隊、煉金、製作、經驗效率、事件紀錄。
 - 完整 AI 規則、HP／SP 戰後補給、必要成員、配方收藏及自訂製作清單；詳見 [功能對照](ANDROID/FEATURE_PARITY.md)。
@@ -29,7 +31,7 @@ v0.0.6 加入前景服務與安全帳號管理，目前包含：
 4. 手機 APK 成功後，在該次執行的 **Artifacts** 下載 `WLRe_LaLa-Android-v<版本號>-debug`，內含對應版本 APK 與 `SHA256SUMS.txt`。
 5. 解壓 ZIP 並安裝到 Android 手機，先驗證 App 啟動、直式版面與分流選單，再以測試帳號驗證伺服器連線及選角。
 
-**v0.0.2／v0.0.3 已知會在 Keystore 初始化時觸發 JNI 原生中止，請勿使用舊產物。v0.0.4／v0.0.5 已通過 Android 12–16 啟動流程；v0.0.6 增加完整手機功能頁，應下載新專案建置成功後的最新產物。**
+**v0.0.2／v0.0.3 已知會在 Keystore 初始化時觸發 JNI 原生中止，請勿使用舊產物。v0.0.4／v0.0.5 已通過 Android 12–16 啟動流程；v0.0.6 增加完整手機功能頁；v0.0.7 新增懸浮小球，應下載新專案建置成功後的最新產物。**
 
 📖 **[完整 Android 開發狀態、安全注意事項及測試步驟](ANDROID/README.md)**
 

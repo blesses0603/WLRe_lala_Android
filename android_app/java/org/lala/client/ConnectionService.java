@@ -10,6 +10,7 @@ import org.kivy.android.PythonService;
 public class ConnectionService extends PythonService {
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && "WLRE_STOP".equals(intent.getAction())) {
+            FloatingOverlay.destroy(this);
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -35,6 +36,11 @@ public class ConnectionService extends PythonService {
         startForeground(getServiceId(), builder.build());
     }
     @Override public void onTimeout(int startId, int foregroundServiceType) {
+        FloatingOverlay.destroy(this);
         stopSelf();
+    }
+    @Override public void onDestroy() {
+        FloatingOverlay.destroy(this);
+        super.onDestroy();
     }
 }

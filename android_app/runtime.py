@@ -29,10 +29,12 @@ def send(stream, value):
 
 
 class Runtime:
-    def __init__(self, manager, monitor=None):
+    def __init__(self, manager, monitor=None, overlay_control=None, overlay_state=None):
         self.manager = manager
         self.latest = {}
         self.monitor = monitor or (lambda: {})
+        self.overlay_control = overlay_control or (lambda enabled: False)
+        self.overlay_state = overlay_state or (lambda: False)
         self.exit_requested = False
 
     def dispatch(self, request):
@@ -46,6 +48,10 @@ class Runtime:
         if operation == 'automation': return self.manager.automation_command(request['id'], request['feature'], request['enabled'])
         if operation == 'settings': return self.manager.save_ai_settings(request['id'], request['settings'])
         if operation == 'select': return self.manager.select_role(request['id'], request['index'])
+        if operation == 'overlay':
+            enabled = request.get('enabled')
+            if type(enabled) is not bool: raise ValueError('Invalid overlay setting')
+            return bool(self.overlay_control(enabled))
         if operation == 'stop': return self.manager.stop(request['id'])
         if operation == 'remove':
             result = self.manager.remove(request['id'])
@@ -65,7 +71,8 @@ class Runtime:
                         active=session.active, phase=session.phase, pending=session.selection_pending,
                         stopped=session.stop_event.is_set(), ai_settings=getattr(session, 'ai_settings', {}),
                         automation=getattr(session, 'automation', {}), automation_pending=sorted(getattr(session, 'automation_pending', set())), events=self.latest.get(sid, {})))
-        return {'sessions': sessions, 'metrics': self.monitor()}
+        return {'sessions': sessions, 'metrics': self.monitor(),
+                'overlay_enabled': bool(self.overlay_state())}
 
     def collect_events(self):
         while True:
@@ -138,6 +145,7 @@ class ServiceManager:
         self.events = LatestEvents()
         self.requests = queue.Queue()
         self.metrics = {}
+        self.overlay_enabled = False
         self.available = False
         self._last = {}
         self.paused = False
@@ -175,6 +183,7 @@ class ServiceManager:
                     self.details[watched] = self.call({'op': 'detail', 'id': watched})
                 else: self.details.clear()
                 self.metrics = data['metrics']
+                self.overlay_enabled = bool(data.get('overlay_enabled', False))
                 if not self.available: self._last.clear()
                 self.available = True
                 present = set()
@@ -201,9 +210,15 @@ class ServiceManager:
                     self._last = {k: v for k, v in self._last.items() if k[0] != sid}
             except (OSError, ValueError, KeyError):
                 self.available = False
+                self.overlay_enabled = False
                 self.metrics = {}
                 self.details.clear()
                 time.sleep(0.5)
+
+    def set_overlay(self, enabled):
+        if type(enabled) is not bool or not self.available: return False
+        self.requests.put({'op': 'overlay', 'enabled': enabled})
+        return True
 
     def start(self, **args):
         if not self.available: raise ValueError('背景服務尚未就緒，請稍候')

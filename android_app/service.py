@@ -1,9 +1,11 @@
 """python-for-android foreground-service entry point (separate process)."""
+import json
 import os
 import time
 from pathlib import Path
 from android_app.runtime import Runtime
 from android_app.sessions import SessionManager
+from android_app.overlay_state import snapshot as overlay_snapshot
 
 
 def main():
@@ -15,6 +17,32 @@ def main():
     wake.setReferenceCounted(False)
     manager = SessionManager(settings_base=Path(str(service.getNoBackupFilesDir().getAbsolutePath())) / 'preferences')
     last_acquire = [0]
+    # Keep overlay in the same foreground-service process as game sessions.
+    # Failure to load an optional overlay must never terminate game connections.
+    try:
+        overlay = autoclass('org.lala.client.FloatingOverlay')
+        overlay.restore(service)
+    except Exception:
+        overlay = None
+
+    def overlay_control(enabled):
+        if overlay is None: return False
+        try: return bool(overlay.setEnabled(service, enabled))
+        except Exception: return False
+
+    def overlay_state():
+        if overlay is None: return False
+        try: return bool(overlay.isEnabled(service))
+        except Exception: return False
+
+    def refresh_overlay():
+        if not overlay_state(): return
+        try:
+            state = overlay_snapshot(manager)
+            overlay.updateStatus(service, json.dumps(state, ensure_ascii=False))
+        except Exception:
+            # Never let a visual overlay interfere with session keepalives.
+            pass
 
     def metrics():
         active = sum(s.active for s in list(manager.sessions.values()))
@@ -34,6 +62,7 @@ def main():
         battery_manager = cast('android.os.BatteryManager', service.getSystemService(context.BATTERY_SERVICE))
         current = battery_manager.getIntProperty(2)  # BATTERY_PROPERTY_CURRENT_NOW, device-wide microamps
         temperature = battery.getIntExtra('temperature', -1) if battery else -1
+        refresh_overlay()
         return {'device_current_ua': current if current != -2147483648 else None,
                 'device_temperature_c': temperature / 10 if temperature >= 0 else None,
                 'sample_time': time.time(), 'service_pss_kib': memory.getTotalPss(),
@@ -43,8 +72,12 @@ def main():
 
     directory = Path(str(service.getNoBackupFilesDir().getAbsolutePath())) / 'runtime'
     try:
-        Runtime(manager, metrics).serve(directory / 'sessions.sock')
+        Runtime(manager, metrics, overlay_control=overlay_control,
+                overlay_state=overlay_state).serve(directory / 'sessions.sock')
     finally:
+        if overlay is not None:
+            try: overlay.destroy(service)
+            except Exception: pass
         if wake.isHeld(): wake.release()
         service.stopSelf()
 

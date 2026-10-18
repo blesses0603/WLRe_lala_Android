@@ -45,6 +45,8 @@ class LaLaApp(App):
         self.vault_error = False
         self.android_initializing = False
         self.android_ready_reported = False
+        self.overlay_permission_pending = False
+        self.overlay_permission_checks = 0
 
     def on_start(self):
         print('WLRE_ANDROID_UI_READY', flush=True)
@@ -102,6 +104,44 @@ class LaLaApp(App):
             print('WLRE_ANDROID_STARTUP_ERROR ' + stage + ' ' + type(exc).__name__, flush=True)
         finally:
             self.android_initializing = False
+
+    def overlay_permission_granted(self):
+        if platform != 'android': return False
+        try:
+            from jnius import autoclass
+            return bool(autoclass('android.provider.Settings').canDrawOverlays(
+                autoclass('org.kivy.android.PythonActivity').mActivity))
+        except Exception:
+            return False
+
+    def toggle_overlay(self, *_):
+        if platform != 'android' or not getattr(self.manager, 'background', False):
+            return
+        if not self.manager.available:
+            self.message.text = '背景服務尚未就緒，請稍候'
+            return
+        enabled = not bool(getattr(self.manager, 'overlay_enabled', False))
+        if enabled and not self.overlay_permission_granted():
+            self.overlay_permission_pending = True
+            self.overlay_permission_checks = 0
+            try:
+                from jnius import autoclass
+                activity = autoclass('org.kivy.android.PythonActivity').mActivity
+                intent = autoclass('android.content.Intent')(
+                    'android.settings.action.MANAGE_OVERLAY_PERMISSION')
+                uri = autoclass('android.net.Uri').parse(
+                    'package:' + str(activity.getPackageName()))
+                intent.setData(uri)
+                activity.startActivity(intent)
+                self.message.text = '請在系統設定允許「顯示在其他應用程式上層」；返回後啟用'
+            except Exception:
+                self.overlay_permission_pending = False
+                self.message.text = '無法開啟授權頁，請到系統的特殊應用程式權限手動允許'
+            return
+        if self.manager.set_overlay(enabled):
+            self.message.text = '正在更新懸浮小球設定；背景連線不會中斷'
+        else:
+            self.message.text = '懸浮小球設定失敗，請確認背景服務'
 
     def stop_android_service(self, *_):
         try:
@@ -181,6 +221,10 @@ class LaLaApp(App):
         if platform == 'android':
             monitor.add_widget(label('背景連線需允許通知；可在此管理服務。'))
             monitor.add_widget(button('啟動背景服務', self.initialize_android))
+            self.overlay_button = button('開啟懸浮小球（需額外授權）', self.toggle_overlay)
+            self.overlay_button.disabled = True
+            monitor.add_widget(self.overlay_button)
+            monitor.add_widget(label('小球可拖曳，點開顯示帳號與 AI 狀態；可隨時關閉。'))
             stop = button('停止全部連線與服務', self.stop_android_service)
             style_button(stop, danger=True); monitor.add_widget(stop)
         base.add_widget(monitor)
@@ -302,6 +346,11 @@ class LaLaApp(App):
 
     def drain_events(self, *_):
         if getattr(self.manager, 'background', False):
+            if hasattr(self, 'overlay_button'):
+                self.overlay_button.disabled = not self.manager.available
+                self.overlay_button.text = ('關閉懸浮小球' if
+                    getattr(self.manager, 'overlay_enabled', False) else
+                    '開啟懸浮小球（需額外授權）')
             for session in list(self.manager.sessions.values()):
                 if session.session_id not in self.cards: self.add_card(session)
             metrics = self.manager.metrics
@@ -389,8 +438,28 @@ class LaLaApp(App):
         if not getattr(self.manager, 'background', False): self.manager.stop_all()
         return True
 
+    def finish_overlay_permission(self, *_):
+        if not self.overlay_permission_pending: return
+        if not self.overlay_permission_granted():
+            self.overlay_permission_pending = False
+            self.message.text = '未取得懸浮視窗權限，原有背景連線不受影響'
+            return
+        if (getattr(self.manager, 'background', False) and
+                getattr(self.manager, 'available', False) and
+                self.manager.set_overlay(True)):
+            self.overlay_permission_pending = False
+            self.message.text = '已送出懸浮小球啟用要求'
+        elif self.overlay_permission_checks < 16:
+            self.overlay_permission_checks += 1
+            Clock.schedule_once(self.finish_overlay_permission, 0.5)
+        else:
+            self.overlay_permission_pending = False
+            self.message.text = '服務尚未就緒，請稍後再開啟懸浮小球'
+
     def on_resume(self):
         if hasattr(self.manager, 'set_paused'): self.manager.set_paused(False)
+        if self.overlay_permission_pending:
+            Clock.schedule_once(self.finish_overlay_permission, 0.7)
 
     def on_stop(self):
         self.password.text = ""

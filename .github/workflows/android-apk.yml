@@ -1,17 +1,10 @@
-name: Android v0.0.6 Test APK
+name: Android phone APK (version tag)
 
+# Phone APK builds only on version tags or an explicit manual dispatch.
 on:
   push:
-    branches:
-      - main
-    paths:
-      - 'android_app/**'
-      - 'main.py'
-      - 'wlre/**'
-      - 'tests/**'
-      - 'requirements-dev.txt'
-      - 'buildozer.spec'
-      - '.github/workflows/android-apk.yml'
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
 
 permissions:
@@ -23,7 +16,6 @@ concurrency:
 
 jobs:
   android:
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
     timeout-minutes: 120
     env:
@@ -32,6 +24,8 @@ jobs:
       KIVY_NO_CONSOLELOG: '1'
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7.0.0
         with:
           python-version: '3.11'
@@ -39,6 +33,17 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Validate tag and resolve Android version
+        id: release
+        run: |
+          python tools/android_release_version.py
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            git fetch origin main
+            git merge-base --is-ancestor HEAD origin/main || {
+              echo "::error::Release tag must point to a commit on main."
+              exit 1
+            }
+          fi
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
@@ -68,15 +73,20 @@ jobs:
           rm -rf .buildozer/android/app bin
           buildozer -v android debug
       - name: Name APK and generate checksum
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
         run: |
           mkdir -p android-output
-          cp "$(find bin -maxdepth 1 -name '*.apk' -print -quit)" android-output/WLRe_LaLa-Android-v0.0.6-debug.apk
+          apk_path="$(find bin -maxdepth 1 -name '*.apk' -print -quit)"
+          test -n "$apk_path" || { echo "::error::APK not found"; exit 1; }
+          output="WLRe_LaLa-Android-${RELEASE_VERSION}-debug.apk"
+          cp "$apk_path" "android-output/$output"
           cd android-output
-          sha256sum WLRe_LaLa-Android-v0.0.6-debug.apk > SHA256SUMS.txt
+          sha256sum "$output" > SHA256SUMS.txt
       - name: Upload APK (only after successful build)
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: WLRe_LaLa-Android-v0.0.6-debug
+          name: WLRe_LaLa-Android-${{ steps.release.outputs.version }}-debug
           path: android-output/*
           if-no-files-found: error
           retention-days: 14

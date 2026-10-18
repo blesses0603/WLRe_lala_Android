@@ -14,7 +14,7 @@ v0.0.6 加入前景服務與安全帳號管理，目前包含：
 - **直式操作介面**：手機登入表單與地球／水星分流選擇。
 - **多帳號工作階段**：同一個 App 可以建立多個獨立連線，並逐一停止。
 - **角色選擇與連線狀態**：沿用 Python 遊戲通訊核心，提供初步選角和狀態顯示。
-- **測試 APK 建置**：使用 Buildozer，透過 GitHub Actions 產生測試 APK（以工作流程成功為準）。
+- **測試 APK 建置**：使用 Buildozer，僅在推送版本 Git Tag（如 `v0.0.7`）或手動執行時產生手機 APK；一般程式提交自動執行單元測試與模擬器相容性檢查。
 - **帳號隱私**：可選用 Keystore AES-GCM 加密保存、切換及刪除帳密；未勾選時不保存。
 - **背景服務**：獨立程序管理連線，常駐通知可返回或停止；畫面重建可重新附接。
 - **資源監控**：連線數、畫面／服務記憶體、裝置電量／溫度與取樣時間。
@@ -23,11 +23,11 @@ v0.0.6 加入前景服務與安全帳號管理，目前包含：
 
 ## 🧪 取得與測試 APK
 
-1. 前往 [GitHub Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml)。
-2. 選擇 **`android-apk.yml`（手機 APK）**，並確認使用 `main` 分支。
-3. 打包及啟動相容性測試通過後，打開手機 APK 執行頁，從 **Artifacts** 下載 `WLRe_LaLa-Android-v0.0.6-debug`。
-4. 解壓 ZIP，將 APK 安裝到 Android 手機，先確認 App 能開啟、直式版面與分流選單正常。
-5. 之後再以測試帳號驗證伺服器連線與選角流程。
+1. 日常提交 `main` 的程式碼時，`android-smoke.yml` 自動進行單元測試、Python 語法檢查及 Android 12～16 模擬器啟動測試；**不會自動產生手機 APK**。
+2. 發布新版本時，同步更新 `buildozer.spec` 的 `version` 與 `android_app/version.py` 的 `ANDROID_VERSION`（例如 `0.0.7`），將修改提交至 `main`，確認測試成功後建立並推送 `v0.0.7` Git Tag。
+3. Git Tag 自動觸發 [手機 APK Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml)；也可以在 Actions 選 **Run workflow** 從 `main` 手動建置目前版號。
+4. 手機 APK 成功後，在該次執行的 **Artifacts** 下載 `WLRe_LaLa-Android-v<版本號>-debug`，內含對應版本 APK 與 `SHA256SUMS.txt`。
+5. 解壓 ZIP 並安裝到 Android 手機，先驗證 App 啟動、直式版面與分流選單，再以測試帳號驗證伺服器連線及選角。
 
 **v0.0.2／v0.0.3 已知會在 Keystore 初始化時觸發 JNI 原生中止，請勿使用舊產物。v0.0.4／v0.0.5 已通過 Android 12–16 啟動流程；v0.0.6 增加完整手機功能頁，應下載新專案建置成功後的最新產物。**
 

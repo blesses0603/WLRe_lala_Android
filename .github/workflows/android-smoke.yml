@@ -6,8 +6,10 @@ on:
       - 'android_app/**'
       - 'main.py'
       - 'wlre/**'
+      - 'tests/**'
+      - 'requirements-dev.txt'
       - 'buildozer.spec'
-      - 'tools/android_smoke.py'
+      - 'tools/**'
       - '.github/workflows/android-smoke.yml'
   workflow_dispatch:
 permissions:
@@ -33,8 +35,16 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake libtool pkg-config cmake libffi-dev libssl-dev libsqlite3-dev zlib1g-dev libncurses5-dev libncursesw5-dev libltdl-dev zip unzip
-          python -m pip install 'buildozer>=1.5,<2' 'cython<3'
+          sudo apt-get install -y autoconf automake libtool pkg-config cmake libffi-dev libssl-dev libsqlite3-dev zlib1g-dev libncurses5-dev libncursesw5-dev libltdl-dev zip unzip xvfb libmtdev1 libgl1-mesa-dri
+          python -m pip install 'buildozer>=1.5,<2' 'cython<3' 'kivy==2.3.1' Pillow cryptography pyjnius==1.7.0
+      - name: Run unit tests and check Python syntax
+        env:
+          KIVY_HOME: /tmp/wlre-kivy
+          KIVY_NO_ARGS: '1'
+          KIVY_NO_CONSOLELOG: '1'
+        run: |
+          xvfb-run -a python -m unittest discover -s tests -q
+          python -m compileall -q main.py android_app wlre tools
       - uses: actions/cache@v6.1.0
         with:
           path: |

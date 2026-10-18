@@ -28,7 +28,11 @@ v0.0.4 使用者實機畫面已確認登入及角色狀態同步；Android API 3
 
 ## APK 與開發測試
 
-在 [Actions](https://github.com/blesses0603/WLRe_lala_Android/actions) 選 **`android-apk.yml`（手機 APK）**；綠燈後才有 `WLRe_LaLa-Android-v0.0.6-debug` Artifact，內含 APK 與 SHA256SUMS。打包成功不等於實機登入驗收通過。
+採用混合觸發模式：`main` 的程式碼更新會自動執行 `android-smoke.yml`（完整單元測試、語法檢查與 Android 12～16 模擬器測試），**不會因此自動編譯手機 APK**。推送符合 `v<主>.<次>.<修訂>` 格式的 Git Tag（例如 `v0.0.7`）才會自動觸發 `android-apk.yml`。兩套工作流程都保留 Actions 手動執行入口。
+
+發布版本前，必須先讓 `buildozer.spec` 的 `version` 與 `android_app/version.py` 的 `ANDROID_VERSION` 一致，並與 Git Tag 的版本相符；Tag 也必須指向 `main` 內的提交。手動 APK 建置僅允許從 `main` 執行，使用目前原始碼的版本號。
+
+在 [Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml) 的成功執行頁下載 `WLRe_LaLa-Android-v<版本號>-debug` Artifact，內含 `WLRe_LaLa-Android-v<版本號>-debug.apk` 與 `SHA256SUMS.txt`。打包成功不等於實機登入驗收通過。
 
 ```bash
 pip install kivy==2.3.1 Pillow cryptography

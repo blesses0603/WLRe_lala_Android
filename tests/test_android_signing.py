@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from tools.android_signing import prepare, signing_info, _fingerprint, _configured_pin
+from tools.android_signing import prepare, resign_apk, signing_info, _fingerprint, _configured_pin
 
 
 FP_A = "aa" * 32
@@ -26,7 +26,8 @@ class SigningTests(unittest.TestCase):
                 Mock(stdout="SHA256: " + ":".join(["AA"] * 32) + "\n"),
             ])
             with patch.dict(os.environ, {"GITHUB_ENV": str(github_env),
-                                         "ANDROID_SIGNING_MODE": "persistent"}):
+                                         "ANDROID_SIGNING_MODE": "persistent",
+                                         "ANDROID_EXPECTED_SIGNER_SHA256": FP_A}):
                 with patch("tools.android_signing.subprocess.run", mock):
                     self.assertTrue(prepare(secret, key))
                     self.assertEqual(key.read_bytes(), b"X" * 256)
@@ -48,7 +49,8 @@ class SigningTests(unittest.TestCase):
             key = root / "debug.keystore"
             calls = [Mock(stdout="Signer #1 certificate SHA-256 digest: " + FP_B + "\n"),
                      Mock(stdout="SHA256: " + ":".join(["AA"] * 32) + "\n")]
-            with patch.dict(os.environ, {"ANDROID_SIGNING_MODE": "persistent"}):
+            with patch.dict(os.environ, {"ANDROID_SIGNING_MODE": "persistent",
+                                         "ANDROID_EXPECTED_SIGNER_SHA256": FP_B}):
                 with patch("tools.android_signing.subprocess.run", side_effect=calls):
                     with self.assertRaisesRegex(ValueError, "does not match"):
                         signing_info(root, key, "test-apksigner")
@@ -181,6 +183,105 @@ class SigningTests(unittest.TestCase):
                            return_value=Mock(stdout=result + result)):
                     with self.assertRaisesRegex(ValueError, "exactly one"):
                         signing_info(root, apksigner="test-apksigner")
+
+    def test_resign_apk_replaces_default_debug_signature_atomically(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            apk = root / "app.apk"
+            apk.write_bytes(b"original-debug-signed-apk")
+            key = root / "debug.keystore"
+            key.write_bytes(b"private-fixture")
+            calls = []
+
+            def simulated_tool(command, **kwargs):
+                calls.append(command)
+                if command[0] == "keytool":
+                    return Mock(stdout="SHA256: " + ":".join(["AA"] * 32) + "\n")
+                if command[1] == "sign":
+                    Path(command[command.index("--out") + 1]).write_bytes(
+                        b"apk-signed-with-fixed-key")
+                    return Mock(stdout="")
+                if command[1] == "verify":
+                    return Mock(stdout="Signer #1 certificate SHA-256 digest: " +
+                                FP_A + "\n")
+                raise AssertionError("unexpected command")
+
+            with patch.dict(os.environ, {
+                    "ANDROID_SIGNING_MODE": "persistent",
+                    "ANDROID_EXPECTED_SIGNER_SHA256": FP_A,
+                    "ANDROID_REQUIRE_PERSISTENT_SIGNING": "1"}, clear=True):
+                with patch("tools.android_signing.subprocess.run",
+                           side_effect=simulated_tool):
+                    resign_apk(apk, key, "test-apksigner")
+            self.assertEqual(apk.read_bytes(), b"apk-signed-with-fixed-key")
+            self.assertEqual([cmd[1] for cmd in calls[1:]], ["sign", "verify"])
+            self.assertFalse(list(root.glob(".lala-signed-*.apk")))
+
+    def test_resign_mismatched_output_is_rejected_without_overwriting_apk(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            apk = root / "app.apk"
+            apk.write_bytes(b"original")
+            key = root / "debug.keystore"
+            key.write_bytes(b"key")
+
+            def simulated_tool(command, **kwargs):
+                if command[0] == "keytool":
+                    return Mock(stdout="SHA256: " + ":".join(["AA"] * 32) + "\n")
+                if command[1] == "sign":
+                    Path(command[command.index("--out") + 1]).write_bytes(b"bad")
+                    return Mock(stdout="")
+                return Mock(stdout="Signer #1 certificate SHA-256 digest: " +
+                            FP_B + "\n")
+
+            with patch.dict(os.environ, {
+                    "ANDROID_SIGNING_MODE": "persistent",
+                    "ANDROID_EXPECTED_SIGNER_SHA256": FP_A}, clear=True):
+                with patch("tools.android_signing.subprocess.run",
+                           side_effect=simulated_tool):
+                    with self.assertRaisesRegex(ValueError, "Re-signed APK certificate"):
+                        resign_apk(apk, key, "test-apksigner")
+            self.assertEqual(apk.read_bytes(), b"original")
+            self.assertFalse(list(root.glob(".lala-signed-*.apk")))
+
+    def test_resign_requires_persistent_signing_and_pin(self):
+        with tempfile.TemporaryDirectory() as folder:
+            apk = Path(folder) / "app.apk"
+            apk.write_bytes(b"original")
+            with patch.dict(os.environ, {"ANDROID_SIGNING_MODE": "ephemeral"}, clear=True):
+                with self.assertRaisesRegex(RuntimeError, "persistent signing"):
+                    resign_apk(apk)
+            with patch.dict(os.environ, {"ANDROID_SIGNING_MODE": "persistent"}, clear=True):
+                with self.assertRaisesRegex(RuntimeError, "ANDROID_EXPECTED_SIGNER_SHA256"):
+                    resign_apk(apk)
+            self.assertEqual(apk.read_bytes(), b"original")
+
+    def test_ephemeral_pr_ignores_public_release_pin_and_reports_actual_cert(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "app.apk").write_bytes(b"fixture")
+            with patch.dict(os.environ, {
+                    "ANDROID_SIGNING_MODE": "ephemeral",
+                    "ANDROID_REQUIRE_PERSISTENT_SIGNING": "0",
+                    "ANDROID_EXPECTED_SIGNER_SHA256": FP_A}, clear=True):
+                with patch("tools.android_signing.subprocess.run",
+                           return_value=Mock(stdout=(
+                               "Signer #1 certificate SHA-256 digest: " + FP_B + "\n"))) as process:
+                    report_path = signing_info(root, apksigner="test-apksigner")
+            report = Path(report_path).read_text()
+            self.assertIn("Mode: ephemeral", report)
+            self.assertIn("Pinned public signer SHA256: NOT CONFIGURED", report)
+            self.assertIn("Certificate SHA256: " + ":".join(["BB"] * 32), report)
+            process.assert_called_once()
+
+    def test_persistent_mode_rejects_missing_pin_even_without_required_flag(self):
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / "app.apk").write_bytes(b"fixture")
+            with patch.dict(os.environ, {
+                    "ANDROID_SIGNING_MODE": "persistent",
+                    "ANDROID_REQUIRE_PERSISTENT_SIGNING": "0"}, clear=True):
+                with self.assertRaisesRegex(RuntimeError, "ANDROID_EXPECTED_SIGNER_SHA256"):
+                    signing_info(folder, apksigner="test-apksigner")
 
     def test_bad_secret_fails_without_ephemeral_fallback(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -5,6 +5,7 @@
 ## 實際狀態與發布政策
 
 - **正式提供給手機更新的 main ARM64 APK、Tag／手動版本 APK**：必須提供私有簽章金鑰 **以及**獨立的公開憑證 SHA-256 指紋鎖定；兩者任何一項不存在、無效或不一致就停止建置／上傳，不能退回隨機 Debug 簽章。
+- **Buildozer Debug 特例**：Gradle 有時使用自己的 Debug 簽章，而不是 CI 事先恢復至 `~/.android/debug.keystore` 的金鑰；因此正式可下載 APK 在編譯完成後，會先由 `apksigner sign` 用固定金鑰重新簽署、以公開指紋驗證通過，才產生 `SHA256SUMS.txt`、`SIGNING_INFO.txt` 和上傳。PR 不取得私鑰也不重新簽署。
 - **未合併 PR 的 ARM64 驗證 APK**：使用臨時 Debug 憑證，不取用 Secrets。Artifact 名稱為 `Android-arm64-pr-ephemeral-apk`，**不可當作可持續更新的手機發行版**。
 - 採用原本的 `debug.keystore` 格式、`androiddebugkey` 別名與公認 Debug 密碼只適用於測試包及自行分發。真正公開發行請改用獨立強密碼的 Release 金鑰。
 - 當前未能從 GitHub 讀到 Actions Secrets／Variables 的值；本次修改無法代替使用者設定。**未完成兩項設定前 main 及 Tag 建置會明確失敗**，這是為了避免無意間更換簽章。
@@ -78,3 +79,7 @@ keytool -list -v -keystore WLRe_LaLa.debug.keystore -storepass android -alias an
 - GitHub PR 不提供私人 Secret，所以 PR Artifact 是臨時簽章；其 CI 成功只能證明簽署程式測試、ARM64 打包可用，**無法證明固定簽章在主分支已生效**。
 - `SIGNING_INFO.txt` 記錄 APK 簽署憑證的公開指紋；`SHA256SUMS.txt` 是 APK 位元檔案校驗，不可互相取代。
 - R8／ProGuard 不保護 Python `.pyc`，固定簽章亦不會阻止逆向或重新打包。
+
+### 2026-10-18：PR 臨時簽章比對修復
+
+PR 使用臨時簽章，不應該用正式版的公開憑證指紋檢查 PR APK；在 `Mode: ephemeral` 時，`SIGNING_INFO.txt` 只報告 APK 真實簽章及 `Pinned public signer SHA256: NOT CONFIGURED`。只有 `Mode: persistent` 才必須比對固定 pin。不影響 main/Tag 的嚴格簽章阻擋。

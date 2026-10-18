@@ -120,7 +120,9 @@ class AndroidUI(unittest.TestCase):
         self.assertEqual(field.font_name, INPUT_FONT)
         self.assertEqual(field.hint_text, '輸入帳號')
         field.size = (320, 52)
-        field.insert_text('abc中文')
+        # A detached, unfocused Kivy TextInput deliberately ignores
+        # insert_text(); set its value just as saved-account autofill does.
+        field.text = 'abc中文'
         self.assertEqual(field.text, 'abc中文')
         for _ in range(4):
             Clock.tick()
@@ -133,7 +135,7 @@ class AndroidUI(unittest.TestCase):
             hint_text='輸入密碼', password=True, multiline=False))
         self.assertIs(password.canvas.before.children[0],
                       password._lala_input_background_group)
-        password.insert_text('pass123')
+        password.text = 'pass123'
         self.assertEqual(password.text, 'pass123')
         self.assertEqual(password.font_name, INPUT_FONT)
         self.assertIs(self.app.account.canvas.before.children[0],

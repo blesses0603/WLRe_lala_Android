@@ -6,6 +6,7 @@ from android_app.widgets import column, label, button, field, select, check, row
 from wlre.services.battle.auto_battle import defaults, validate, ACTION_IDS
 from wlre.services.battle.battle_commands import ACTIONS, owned_units
 from wlre.services.items.combat_resources import CAT, item_name, skill_rows, field_context, heal_effects
+from wlre.services.items.maintenance import backpack_stock, cleanup_action
 
 GROUPS = (('bDeadAction','deadAction','同方陣亡',1), ('bEnemyHPAction','enemyHpAction','敵HP條件',1),
     ('bLowHpAction','lowHpAction','低HP條件',1), ('bLowSpAction','lowSpAction','低SP條件',1),
@@ -37,7 +38,7 @@ def known_actions(state, who, item=False):
 
 
 class SettingsEditor:
-    TABS = ('一般設定','角色規則','夥伴規則','HP／SP補給','必要成員','匯入／匯出')
+    TABS = ('一般設定','角色規則','夥伴規則','HP／SP補給','必要成員','修理／整理','匯入／匯出')
     def __init__(self, app, sid, initial='一般設定'):
         self.app, self.sid = app, sid
         session = app.manager.sessions.get(sid)
@@ -70,6 +71,7 @@ class SettingsEditor:
         elif name in ('角色規則','夥伴規則'): self.rules('player' if name == '角色規則' else 'partner')
         elif name == 'HP／SP補給': self.recovery()
         elif name == '必要成員': self.guard()
+        elif name == '修理／整理': self.maintenance()
         else: self.exchange()
     def general(self):
         for key, title in (('bPlayerDieCloseAI','角色陣亡時停止 AI／徘徊'), ('bNPCDieCloseAI','出戰夥伴陣亡時停止 AI／徘徊'), ('field_heal','啟用戰後 HP／SP 補給')):
@@ -171,6 +173,56 @@ class SettingsEditor:
         def collect(d):
             d['party_guard'] = dict(enabled=enabled.active,members=[dict(role_id=int(r.text),name=n.text) for r,n in controls if r.text.strip()])
         self.collectors.append(collect)
+    def maintenance(self):
+        config = self.value.get('maintenance', {})
+        state = self.state()
+        self.form.add_widget(label(
+            '只從本帳號已確認的背包使用物品。修理、賣出或丟棄後，'
+            '會等待伺服器裝備與扣料回覆；逾時不重送。'))
+        status = (state.get('maintenance') or {}).get('status', '等待戰後檢查')
+        self.form.add_widget(label('目前執行狀態：'+str(status)))
+        repair = check(self.form, '戰後自動修理裝備', config.get('repair_enabled', False))
+        below = field(self.form, '剩餘耐久低於（0～249）', config.get('repair_below', 50), True)
+        cleanup = check(self.form, '戰後自動整理指定物品', config.get('cleanup_enabled', False))
+        self.collectors.append(lambda draft, r=repair, c=cleanup, b=below: draft['maintenance'].update(
+            repair_enabled=r.active, cleanup_enabled=c.active, repair_below=int(b.text)))
+        self.form.add_widget(label('修理道具：最多兩種，只會選擇已確認的修復物品'))
+        for i, sid in enumerate(config.get('repair_items', [0, 0])):
+            self.form.add_widget(button(
+                '{}. {}'.format(i+1, item_name(sid) if sid else '未指定修理道具'),
+                lambda slot=i:self.choose_maintenance_item('repair_items', slot)))
+        self.form.add_widget(label(
+            '物品整理：最多十五種。依遊戲禁止出售／丟棄的限制判斷；'
+            '不處理被鎖定、被保留或限時道具。'))
+        for i, sid in enumerate(config.get('cleanup_items', [0]*15)):
+            self.form.add_widget(button(
+                '{}. {}'.format(i+1, item_name(sid) if sid else '未指定整理物品'),
+                lambda slot=i:self.choose_maintenance_item('cleanup_items', slot)))
+
+    def choose_maintenance_item(self, kind, index):
+        try:
+            self.collect()
+        except (ValueError, TypeError) as exc:
+            self.message.text = str(exc)
+            return
+        inv = self.state().get('inventory') or {}
+        counts = backpack_stock(inv, repair=(kind == 'repair_items'))
+        entries = [(0, '清除此格')]
+        for sid, count in sorted(counts.items()):
+            if kind == 'cleanup_items' and cleanup_action(sid) is None:
+                continue
+            operation = '' if kind == 'repair_items' else (
+                ' · 可賣出' if cleanup_action(sid) == 'sell' else ' · 僅可丟棄')
+            entries.append((sid, '{}｜可用 {}{}'.format(item_name(sid), count, operation)))
+        existing = self.value['maintenance'][kind][index]
+        if existing and not any(sid == existing for sid, _ in entries):
+            entries.append((existing, '目前無可用存量：'+item_name(existing)))
+        def choose(sid):
+            self.value['maintenance'][kind][index] = sid
+            self.render(self.current)
+        pick('選擇背包'+('修理' if kind == 'repair_items' else '整理')+'道具',
+             entries, choose)
+
     def exchange(self):
         self.form.add_widget(label('使用與電腦版相同的 AI JSON 格式交換。匯入只更新草稿，按保存才會套用。'))
         self.form.add_widget(row(button('複製設定',self.export),button('從剪貼簿匯入',self.import_value)))

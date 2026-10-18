@@ -98,7 +98,7 @@ class MobilePages(unittest.TestCase):
         for name in PAGES:
             d.data={};d.show(name);d.page.refresh()
             d.data=self.app.manager.session_detail('fixture');d.page.refresh()
-        self.assertEqual(len(PAGES),11)
+        self.assertEqual(len(PAGES),13)
         self.assertFalse(any('tkinter' in type(w).__module__ for w in d.popup.walk()))
     def test_full_settings_drafts_all_fields_cancel_and_validate(self):
         from android_app.settings_ui import SettingsEditor,GROUPS

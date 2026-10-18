@@ -15,3 +15,7 @@ wlre/core、network、services、storage 與 resources 是手機必需的核心�
 ## 遷移後本地驗證
 
 Android 獨立專案：94 項測試全部通過，包含實際 Java／PyJNIUS 加密橋接、手機介面、帳號隔離、自動戰鬥／煉金核心、快照節流及座標快取。Python 語法與 Actions 靜態檢查通過。測試在 Linux／Python 3.11／JDK 17／虛擬顯示器執行，不代表新專案 APK 已成功打包或通過真機測試。
+
+## 2026-10-18 共用核心二次同步（桌面來源 c6bee236）
+
+根據桌面 main 新增的遠征、夥伴出戰、戰後修理／整理、超空間袋唯讀 S62 協定、24 格圖示背包與官方遊戲功能 ICON，移植至獨立 Android Kivy 頁面及遊戲核心。桌面 Tkinter 多欄視窗與建置腳本不移入手機；功能狀態仍以遊戲伺服器回覆為準。詳見 `ANDROID/FEATURE_PARITY.md`。

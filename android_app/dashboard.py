@@ -4,10 +4,11 @@ from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
-from android_app.widgets import button, label, select, column
+from android_app.widgets import button, label, select, column, GameIconTab
 from android_app.theme import TEXT, SURFACE, ACCENT, MUTED, SOFT, surface
 
-PAGES = ('角色概況', '包包與特技', '小地圖', '戰場陣形', '聊天', '組隊', '煉金', '製作', '經驗效率', '事件紀錄', 'AI與補給設定')
+PAGES = ('角色概況', '包包與特技', '小地圖', '戰場陣形', '聊天', '組隊',
+         '夥伴出戰', '遠征', '煉金', '製作', '經驗效率', '事件紀錄', 'AI與補給設定')
 
 
 class Dashboard:
@@ -24,6 +25,21 @@ class Dashboard:
         nav = surface(column(), color=SOFT, radius=16)
         nav.padding = dp(10)
         self.navigation = select(nav, '功能', PAGES); base.add_widget(nav)
+        # Original game icons replace desktop multi-window navigation with a
+        # horizontally scrollable, one-hand-friendly Android quick launcher.
+        shortcuts = ('角色概況', '包包與特技', '組隊', '夥伴出戰',
+                     '遠征', '煉金', '製作', '經驗效率', 'AI與補給設定')
+        shortcut_scroll = ScrollView(
+            do_scroll_y=False, do_scroll_x=True,
+            bar_width=dp(2), size_hint_y=None, height=dp(73))
+        shortcut_row = BoxLayout(
+            size_hint_x=None, width=dp(80)*len(shortcuts),
+            size_hint_y=None, height=dp(70), spacing=dp(4))
+        for title in shortcuts:
+            shortcut_row.add_widget(GameIconTab(
+                title, lambda name: setattr(self.navigation, 'text', name)))
+        shortcut_scroll.add_widget(shortcut_row)
+        base.add_widget(shortcut_scroll)
         self.content = BoxLayout(orientation='vertical'); base.add_widget(self.content)
         self.message = label(); self.message.color = MUTED; base.add_widget(self.message)
         base.add_widget(button('返回帳號列表', self.close))
@@ -69,7 +85,11 @@ class Dashboard:
         from android_app.pages.production import Alchemy, Crafting
         from android_app.pages.map import MapPage
         from android_app.pages.settings import SettingsPage
-        classes = dict(zip(PAGES, (Overview, Resources, MapPage, Battle, Chat, Party, Alchemy, Crafting, Efficiency, Events, SettingsPage)))
+        from android_app.pages.companions import Companions
+        from android_app.pages.expedition import Expedition
+        classes = dict(zip(PAGES, (Overview, Resources, MapPage, Battle, Chat,
+                                  Party, Companions, Expedition, Alchemy,
+                                  Crafting, Efficiency, Events, SettingsPage)))
         if name not in self.views:
             page = classes[name](self)
             scroll = ScrollView(do_scroll_x=False); scroll.add_widget(page)

@@ -130,14 +130,20 @@ class SessionManager:
                                          for r in event.get("roles", []) if isinstance(r, dict)]
                         session.phase = "role_selection"
                         self.events.put((session_id, "roles", session.roles))
+                    elif kind == 'expedition_status':
+                        session.automation['expedition'] = copy.deepcopy(event)
+                        session.automation_pending.discard('expedition')
+                        self.events.put((session_id, 'automation', copy.deepcopy(session.automation)))
                     elif kind in ('auto_battle_status', 'roaming_status'):
                         feature = 'battle' if kind == 'auto_battle_status' else 'roaming'
                         session.automation[feature] = {k: copy.deepcopy(v) for k, v in event.items() if k != 'type'}
                         session.automation_pending.discard(feature)
                         self.events.put((session_id, 'automation', copy.deepcopy(session.automation)))
                     elif kind == 'command_rejected' and event.get('command_type') in (
-                            'start_auto_battle', 'stop_auto_battle', 'start_roaming', 'stop_roaming'):
-                        feature = 'battle' if 'auto_battle' in event['command_type'] else 'roaming'
+                            'start_auto_battle', 'stop_auto_battle', 'start_roaming', 'stop_roaming',
+                            'start_expedition', 'stop_expedition'):
+                        feature = ('battle' if 'auto_battle' in event['command_type'] else
+                                   'expedition' if 'expedition' in event['command_type'] else 'roaming')
                         session.automation_pending.discard(feature)
                         self.events.put((session_id, 'notice', '操作未成功：請確認角色已入場、補給結果及隊長狀態後重試'))
                     elif kind == "command_rejected" and event.get("command_type") == "select_role":
@@ -161,7 +167,9 @@ class SessionManager:
                         stats.update({k: unit[k] for k in ('hp','max_hp','sp','max_sp','level') if k in unit})
                     session.phase = state.get("phase", "未知")
                     session.automation = {'battle': copy.deepcopy(state.get('auto_battle') or {}),
-                                          'roaming': copy.deepcopy(state.get('roaming') or {})}
+                                          'roaming': copy.deepcopy(state.get('roaming') or {}),
+                                          'expedition': copy.deepcopy(state.get('expedition') or {})}
+                    session.automation_pending.discard('expedition')
                     self.events.put((session_id, 'automation', copy.deepcopy(session.automation)))
                     self.events.put((session_id, "snapshot", {
                         "phase": session.phase, "character": str(player.get("name") or ""),
@@ -214,15 +222,21 @@ class SessionManager:
             return True
 
     def automation_command(self, session_id, feature, enabled):
-        if feature not in ('battle', 'roaming') or type(enabled) is not bool: return False
+        if feature not in ('battle', 'roaming', 'expedition') or type(enabled) is not bool:
+            return False
         with self.lock: session = self.sessions.get(session_id)
         if session is None: return False
         with session.lock:
             if (not session.active or session.stop_event.is_set() or session.phase != 'world_ready'
                     or feature in session.automation_pending): return False
             command = {'type': ('start_' if enabled else 'stop_') +
-                       ('auto_battle' if feature == 'battle' else 'roaming')}
-            if enabled and feature == 'battle': command['settings'] = copy.deepcopy(session.ai_settings)
+                       ('auto_battle' if feature == 'battle' else feature)}
+            if enabled and feature == 'battle':
+                command['settings'] = copy.deepcopy(session.ai_settings)
+            if enabled and feature == 'expedition':
+                from wlre.services.expedition import validate as validate_expedition
+                command['settings'] = validate_expedition(
+                    session.preferences.get('expedition', {}))
             session.automation_pending.add(feature)
             session.commands.put(command)
             return True

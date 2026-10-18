@@ -21,9 +21,14 @@ class Overview(Page):
     def __init__(self, d):
         super().__init__(d); self.info = label(); self.add_widget(self.info)
         from android_app.automation_ui import toggle
-        self.add_widget(row(button('切換自動戰鬥', lambda: toggle(d.app, d.sid, 'battle')),
-                            button('切換自動徘徊', lambda: toggle(d.app, d.sid, 'roaming'))))
-        self.add_widget(button('開啟完整 AI／補給設定', lambda: setattr(d.navigation, 'text', 'AI與補給設定')))
+        self.add_widget(row(button('切換戰鬥', lambda: toggle(d.app, d.sid, 'battle')),
+                            button('切換徘徊', lambda: toggle(d.app, d.sid, 'roaming')),
+                            button('切換遠征', lambda: toggle(d.app, d.sid, 'expedition'))))
+        self.add_widget(row(
+            button('AI／補給／修理設定',
+                   lambda: setattr(d.navigation, 'text', 'AI與補給設定')),
+            button('遠征詳情／設定',
+                   lambda: setattr(d.navigation, 'text', '遠征'))))
     def refresh(self):
         self.info.text = '\n\n'.join(overview_lines(self.state))
 

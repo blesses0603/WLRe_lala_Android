@@ -45,6 +45,8 @@ def overview_model(state):
             "alchemy": (s.get("alchemy") or {}).get("status", "待同步"),
             "crafting": (s.get("crafting") or {}).get("status", "待同步"),
             "supply": str(((s.get("inventory") or {}).get("field_supply") or {}).get("reason", "尚無紀錄")),
+            "expedition": (s.get("expedition") or {}).get("status", "等待資料同步"),
+            "maintenance": (s.get("maintenance") or {}).get("status", "等待戰後檢查"),
         },
     }
 
@@ -59,6 +61,7 @@ def overview_lines(state):
     for key, label in (
         ("battle", "自動戰鬥"), ("roaming", "自動徘徊"), ("event", "事件"),
         ("alchemy", "煉金"), ("crafting", "製作"), ("supply", "補給"),
+        ("expedition", "遠征"), ("maintenance", "修理／整理"),
     ):
         rows.append(label + "：" + str(data["statuses"][key]))
     return rows

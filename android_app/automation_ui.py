@@ -13,17 +13,17 @@ def attach(app, card, sid):
     card.bind(minimum_height=card.setter('height'))
     card.automation_buttons = {}
     row = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(6))
-    for feature, label in (('battle', '戰鬥'), ('roaming', '徘徊')):
+    for feature, label in (('battle', '戰鬥'), ('roaming', '徘徊'), ('expedition', '遠征')):
         button = style_button(Button(text='啟動' + label, disabled=True))
         button.bind(on_release=lambda _, f=feature: toggle(app, sid, f))
         card.automation_buttons[feature] = button
         row.add_widget(button)
-    settings = style_button(Button(text='AI 設定'))
+    settings = style_button(Button(text='AI 設定', size_hint_y=None, height=dp(48)))
     settings.bind(on_release=lambda _: edit_settings(app, sid))
-    row.add_widget(settings)
     card.settings_button = settings
     card.add_widget(row)
-    card.automation_status = mobile_label('登入角色後可啟動自動戰鬥／自動徘徊')
+    card.add_widget(settings)
+    card.automation_status = mobile_label('登入角色後可啟動自動戰鬥／徘徊／遠征')
     card.automation_status.font_size = '13sp'
     card.automation_status.color = MUTED
     card.add_widget(card.automation_status)
@@ -39,15 +39,22 @@ def refresh(app, sid):
     state = getattr(session, 'automation', {})
     pending = getattr(session, 'automation_pending', set())
     for feature, button in card.automation_buttons.items():
-        button.disabled = not ready or feature in pending
+        expedition = state.get('expedition', {})
+        awaiting_data = feature == 'expedition' and not expedition.get('enabled') and (
+            not expedition.get('ready') or not expedition.get('outpost_ready'))
+        button.disabled = not ready or feature in pending or awaiting_data
         button.text = ('處理中' if feature in pending else
             ('停止' if state.get(feature, {}).get('enabled') else '啟動') +
-            ('戰鬥' if feature == 'battle' else '徘徊'))
+            {'battle': '戰鬥', 'roaming': '徘徊', 'expedition': '遠征'}[feature])
     card.settings_button.disabled = not available or not session.active
     if not available: text = '服務無回應；自動操作狀態未知'
     elif not session.active or session.stop_event.is_set(): text = '連線已停止，自動操作已結束'
-    elif session.phase != 'world_ready': text = '登入角色後可啟動自動戰鬥／自動徘徊'
-    else: text = '戰鬥：' + battle_summary(state.get('battle', {})) + '\n徘徊：' + roaming_summary(state.get('roaming', {}))
+    elif session.phase != 'world_ready':
+        text = '登入角色後可啟動自動戰鬥／徘徊／遠征'
+    else:
+        text = ('戰鬥：' + battle_summary(state.get('battle', {})) +
+                '\n徘徊：' + roaming_summary(state.get('roaming', {})) +
+                '\n遠征：' + str(state.get('expedition', {}).get('status', '等待同步')))
     card.automation_status.text = text
 
 

@@ -2,13 +2,16 @@
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
+from kivy.uix.behaviors import ButtonBehavior
+from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.spinner import Spinner, SpinnerOption
 from kivy.uix.checkbox import CheckBox
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
-from android_app.theme import TEXT, MUTED, ACCENT, SURFACE, BACKGROUND, surface, style_button, style_input, style_checkbox
+from android_app.theme import TEXT, MUTED, ACCENT, SURFACE, SOFT, BACKGROUND, surface, style_button, style_input, style_checkbox
+from android_app.assets import function_icon
 
 
 class RoundedSpinnerOption(SpinnerOption):
@@ -16,6 +19,26 @@ class RoundedSpinnerOption(SpinnerOption):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         style_button(self)
+
+
+class GameIconTab(ButtonBehavior, BoxLayout):
+    """Compact touch button with an original 1262 game icon and round plate."""
+    def __init__(self, title, callback):
+        super().__init__(orientation='vertical', spacing=dp(1),
+                         padding=dp(3), size_hint=(None, None),
+                         size=(dp(76), dp(69)))
+        surface(self, color=SOFT, radius=21)
+        holder = AnchorLayout(anchor_x='center', anchor_y='center',
+                              size_hint_y=None, height=dp(43))
+        sprite = function_icon(title, 35)
+        if sprite is not None:
+            holder.add_widget(sprite)
+        self.add_widget(holder)
+        name = Label(text=title.replace('與補給設定', '').replace('與特技', ''),
+                     color=TEXT, font_size='10sp', halign='center',
+                     size_hint_y=None, height=dp(18))
+        self.add_widget(name)
+        self.bind(on_release=lambda *_: callback(title))
 
 
 def column():

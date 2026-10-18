@@ -43,3 +43,28 @@ def emoji_texture(index):
     if not data or not data.get('available', True): return None
     try: return texture('emoji_images.zip', data['sprite']+'.png')
     except (KeyError, OSError, ValueError): return None
+
+
+# Original function pictograms are from the user-provided 1262 game atlas.
+GAME_ICONS = {
+    '角色概況': 'MainIcon_041',
+    '包包與特技': 'MainIcon_001',
+    '組隊': 'MainIcon_005',
+    '夥伴出戰': 'MainIcon_010',
+    '遠征': 'MainIcon_038',
+    '煉金': 'MainIcon_007',
+    '製作': 'MainIcon_011',
+    '經驗效率': 'MainIcon_020',
+    'AI與補給設定': 'Btn_AI',
+}
+
+
+def function_icon(name, size=34):
+    icon = GAME_ICONS.get(name)
+    if not icon:
+        return None
+    path = RESOURCE_ROOT / 'assets' / 'function-icons' / (icon + '.png')
+    if not path.is_file():
+        return None
+    return Image(source=str(path), size_hint=(None, None),
+                 size=(dp(size), dp(size)))

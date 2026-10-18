@@ -4,18 +4,21 @@ from pathlib import Path
 from wlre.storage.atomic import write_json, file_lock
 from wlre.services.items.crafting import RECIPES
 from wlre.services.items.crafting_plan import validate_rows
+from wlre.services.expedition import preferences as expedition_defaults, validate as validate_expedition
 
 
-def defaults(): return {'favorites': [], 'plan': []}
+def defaults(): return {'favorites': [], 'plan': [], 'expedition': expedition_defaults()}
 
 
 def validate(value):
-    if not isinstance(value, dict) or set(value) - {'favorites', 'plan'}: raise ValueError('偏好格式錯誤')
+    if not isinstance(value, dict) or set(value) - {'favorites', 'plan', 'expedition'}:
+        raise ValueError('偏好格式錯誤')
     ids = value.get('favorites', [])
     if (not isinstance(ids, list) or len(ids) > 100 or
             any(type(sid) is not int or str(sid) not in RECIPES for sid in ids)):
         raise ValueError('收藏配方無效，最多 100 項')
-    return {'favorites': list(dict.fromkeys(ids)), 'plan': validate_rows(value.get('plan', []))}
+    return {'favorites': list(dict.fromkeys(ids)), 'plan': validate_rows(value.get('plan', [])),
+            'expedition': validate_expedition(value.get('expedition', expedition_defaults()))}
 
 
 def path(base, key): return Path(base) / 'mobile' / (key + '.json')

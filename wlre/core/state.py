@@ -9,6 +9,8 @@ from wlre.services.items.alchemy import defaults as alchemy_defaults
 from wlre.core.efficiency import defaults as efficiency_defaults, observe as observe_efficiency
 from wlre.core.activity import apply_activity
 from wlre.services.items.crafting import defaults as craft_defaults, room_defaults, apply_crafting
+from wlre.services.items.room_storage import defaults as storage_defaults, apply_storage
+from wlre.services.expedition import defaults as expedition_defaults, apply_expedition
 
 
 POSITION_CACHE_LIMIT = 2048
@@ -16,7 +18,9 @@ POSITION_CACHE_LIMIT = 2048
 
 @dataclass
 class State:
+    maintenance: dict = field(default_factory=lambda:{'pending':None,'uncertain':False,'checking':False,'status':'尚未執行戰後修理／整理','completed':0})
     potion_storage: dict = field(default_factory=dict)
+    room_storage: dict = field(default_factory=storage_defaults)
     guild: dict = field(default_factory=dict)
     activities: dict = field(default_factory=dict)
     crafting: dict = field(default_factory=craft_defaults)
@@ -50,6 +54,7 @@ class State:
 
     party: dict = field(default_factory=party_defaults)
     alchemy: dict = field(default_factory=alchemy_defaults)
+    expedition: dict = field(default_factory=expedition_defaults)
 
     def remember_position(self,role_id,x,y):
         # Observed remote positions are a cache, not a lifetime travel history.
@@ -99,8 +104,10 @@ class State:
         apply_guild(self,event)
         apply_activity(self,event)
         apply_crafting(self,event)
+        apply_storage(self,event)
         apply_live(self,event)
         apply_party(self,event)
+        apply_expedition(self,event)
         if kind == "login_result":
             self.phase = "authenticated" if event["result"] == 0 else "login_failed"
         elif kind == "role_list_available":

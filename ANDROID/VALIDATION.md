@@ -1,3 +1,10 @@
+## v0.0.7 桌面 main → Android 增量移植
+
+- 來源固定為桌面 `WLRe_lala/main` 的 `c6bee236f0074f1981f29e957785beffe21f0ed8`；包含核心遠征、夥伴出戰、戰後修理／整理、遠端儲藏 S62 唯讀解碼及正式名稱資料。
+- Android 保留獨立 `main.py`、Kivy 頁面、前景服務和私有 IPC；不匯入桌面 Tkinter GUI。
+- 已新增桌面核心可在無桌面環境執行的測試、Android 功能橋接與編排測試、原始物品圖示及原版功能 ICON。
+- 驗證尚以新 GitHub Actions 的實際結果為準。傳統 Smoke 只測無登入的 Activity／Keystore／服務啟動，**不代表已對正式服執行遠征派遣、道具消耗、儲藏室或出戰操作**。
+
 ## v0.0.7：原生啟動畫面提交後 API 35／36 Smoke 回歸
 
 - [Actions 39109093293](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39109093293) 編譯並驗證 ARM64 與 x86_64 APK 內含自訂 `presplash.jpg`，但工作流程總結為 **failure**；API 31～34 通過，API 35／36 失敗。

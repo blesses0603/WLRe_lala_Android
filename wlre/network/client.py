@@ -12,9 +12,12 @@ import time
 from wlre.network.wire import FrameDecoder, Packet, encode, ProtocolError
 from wlre.services.world.portal_travel import PortalTravel
 from wlre.services.battle.party import team_command, own_team, expire as expire_team
+from wlre.services.battle.companions import command as companion_command
+from wlre.services.expedition import Expedition
 from wlre.services.items.alchemy import AutoAlchemy
 from wlre.services.items.crafting import Crafting
 from wlre.services.items.field_supply import FieldSupply
+from wlre.services.items.post_battle_maintenance import PostBattleMaintenance
 from wlre.services.items.recovery import storage_plan, storage_packet
 from wlre.services.social.chat import chat_packet, sent_event
 from wlre.network.protocol import login, select_role, decode, attack, cast_skill, use_battle_item, use_field_item
@@ -94,7 +97,11 @@ class SessionLogic:
     """Deterministic reactions shared by network operation and tests."""
     def __init__(self, role_index=None):
         self.last_chat_time = None
+        self.last_companion_time = None
         self.field_supply = FieldSupply()
+        self.maintenance = PostBattleMaintenance()
+        self.expedition = Expedition()
+        self.expedition_time_requested = False
         self.crafting = Crafting()
         self.alchemy = AutoAlchemy()
         self.movement = Movement()
@@ -115,7 +122,9 @@ class SessionLogic:
     def receive(self, event, state):
         outgoing = []
         kind = event['type']
+        self.expedition.observe(event,state)
         self.field_supply.observe(event,state)
+        self.maintenance.observe(event,state)
         self.crafting.observe(event,state)
         self.alchemy.observe(event,state)
         if kind in ('team_join','team_list','team_new_leader'):
@@ -179,6 +188,10 @@ class SessionLogic:
             self.world_acknowledged = True
             state.phase = 'world_ready'
             self.acknowledged_scene = state.player.get('scene')
+        if (self.world_acknowledged and state.expedition['ready'] and state.expedition['outpost_ready']
+                and not self.expedition_time_requested):
+            outgoing.append(Packet(31, 28))  # ExpeditionMgr.RequestTime; no paid refresh
+            self.expedition_time_requested = True
         return outgoing
 
     def flush_events(self,state):
@@ -208,6 +221,25 @@ class SessionLogic:
             state.phase = 'role_selected_awaiting_world'
             return [packet]
         if not self.world_acknowledged: raise ProtocolError('world initialization has not completed')
+        if (self.maintenance.pending or self.maintenance.uncertain) and kind not in (
+                'stop_auto_battle','stop_roaming','stop_walk','stop_expedition','stop_crafting','stop_alchemy','chat','reset_efficiency'):
+            raise ProtocolError('請先等待戰後修理／整理確認；結果未確認時需重新登入同步')
+        if kind == 'start_expedition':
+            self.expedition.start(state, command.get('settings', {}))
+            return []
+        if kind == 'stop_expedition':
+            self.expedition.stop(state)
+            return []
+        if (state.expedition['enabled'] or state.expedition['pending'] or state.expedition['uncertain']) and kind in (
+                'start_alchemy', 'craft', 'companion'):
+            raise ProtocolError('請先停止遠征自動派遣，並等待目前遠征操作確認')
+        if kind == 'companion':
+            packet = companion_command(state, command)
+            now = time.monotonic()
+            if self.last_companion_time is not None and now - self.last_companion_time < 2:
+                raise ProtocolError('夥伴操作間隔至少 2 秒，請等待伺服器回覆')
+            self.last_companion_time = now
+            return [packet]
         if kind in ('start_auto_battle','start_roaming','battle_item'):self.field_supply.check()
         if kind=='craft':return self.crafting.command(state,command)
         if kind in ('start_roaming','start_auto_battle','start_alchemy','field_item','field_storage','learned_action','battle_item') and (state.crafting.get('pending') or state.crafting.get('auto_continue')):
@@ -420,7 +452,7 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
                     try:
                         for packet in logic.command(command, state):
                             _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
-                        if command.get('type') in ('team','start_alchemy','stop_alchemy','reset_efficiency','craft') and on_state:notify_state(on_state,state)
+                        if command.get('type') in ('team','start_alchemy','stop_alchemy','reset_efficiency','craft','start_expedition','stop_expedition') and on_state:notify_state(on_state,state)
                         if command.get('type') in ('start_auto_battle','stop_auto_battle','set_party_guard'):
                             emit({'type':'auto_battle_status',**state.auto_battle})
                             if on_state:notify_state(on_state,state)
@@ -434,6 +466,17 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
                             if on_state:notify_state(on_state,state)
                     except (ValueError, KeyError, TypeError) as exc:
                         emit({'type': 'command_rejected', 'command_type':command.get('type'), 'error': str(exc)})
+                before_maintenance=state.maintenance
+                for packet in logic.maintenance.tick(state,logic,time.monotonic()):
+                    _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
+                if state.maintenance != before_maintenance:
+                    emit({'type':'maintenance_status',**state.maintenance})
+                    if on_state:notify_state(on_state,state)
+                before_expedition = (state.expedition['status'], state.expedition['pending'], state.expedition['enabled'])
+                for packet in logic.expedition.tick(state,time.monotonic()):
+                    _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
+                if before_expedition != (state.expedition['status'], state.expedition['pending'], state.expedition['enabled']) and on_state:
+                    notify_state(on_state,state)
                 before_craft=(state.crafting['status'],state.crafting['pending'],state.crafting['revision'],state.crafting['auto_continue'],repr(state.crafting.get('local_plan')))
                 for packet in logic.crafting.tick(state,time.monotonic()):_send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
                 if before_craft!=(state.crafting['status'],state.crafting['pending'],state.crafting['revision'],state.crafting['auto_continue'],repr(state.crafting.get('local_plan'))) and on_state:notify_state(on_state,state)
@@ -499,6 +542,7 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
         closed_reason = 'client_error'; closed_error = exc
         raise
     finally:
+        logic.expedition.stop(state,'連線結束，遠征自動派遣已停止')
         logic.crafting.disconnect(state)
         logic.alchemy.stop(state,'連線結束')
         logic.portal_travel.cancel(state,'連線結束，已取消傳點移動')

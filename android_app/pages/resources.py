@@ -1,8 +1,14 @@
 from kivy.metrics import dp
 from kivy.uix.gridlayout import GridLayout
+from kivy.uix.behaviors import ButtonBehavior
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.anchorlayout import AnchorLayout
+from kivy.uix.label import Label
 from android_app.pages.general import Page
 from android_app.widgets import column, label, button, row, field, select, pick, dialog
 from android_app.assets import item_image
+from android_app.bag_model import visible_items, item_details, PAGE_SIZE, COLUMNS, ICON_SIZE
+from android_app.theme import surface, SURFACE, TEXT
 from wlre.services.items.combat_resources import (CAT, item_name, available, heal_effects,
     field_context, food_command, skill_rows, learned_command)
 from wlre.services.battle.battle_commands import owned_units, slot, action_command, ACTIONS
@@ -29,43 +35,154 @@ def battle_guard(command, state):
     return dict(command, battle_count=state.get('battle_count'), round=state.get('battle', {}).get('round'))
 
 
+class IconBagCell(ButtonBehavior, BoxLayout):
+    """Original item sprite with rounded touch target and stack count."""
+    def __init__(self, index, record, name, callback, **kwargs):
+        super().__init__(orientation='vertical', size_hint_y=None,
+                         height=dp(112), spacing=dp(1), padding=(dp(3), dp(5)), **kwargs)
+        surface(self, color=SURFACE, radius=13)
+        image = AnchorLayout(size_hint_y=None, height=dp(75),
+                             anchor_x='center', anchor_y='center')
+        image.add_widget(item_image(record["item_id"], size=ICON_SIZE))
+        self.add_widget(image)
+        title = Label(text="×{} · {}".format(record.get("count", 0), name),
+                      color=TEXT, font_size='10sp', size_hint_y=None,
+                      height=dp(26), halign='center', valign='middle',
+                      shorten=True, shorten_from='right')
+        title.bind(width=lambda widget, width: setattr(
+            widget, 'text_size', (max(1, width-dp(6)), widget.height)))
+        self.add_widget(title)
+        self.index = index
+        self.bind(on_release=lambda *_: callback(index, record))
+
+
 class Resources(Page):
     def __init__(self, d):
         super().__init__(d); self.offset = 0
-        self.kind = select(self, '顯示', ['包包', '已確認特技'])
+        self.kind = select(self, '顯示', ['包包', '超空間袋', '已確認特技'])
+        self.storage_section = select(self, '超空間袋區域', ['儲藏室', '雜物櫃'])
+        self.display = select(self, '包包檢視方式', ['大圖示（24 格）', '清單'])
         self.query = field(self, '搜尋名稱／ID')
         self.info = label(); self.add_widget(self.info)
         self.add_widget(button('使用 HP／SP 藥水儲存槽', self.storage))
+        self.grid = GridLayout(cols=COLUMNS, spacing=dp(5), size_hint_y=None,
+                               row_default_height=dp(112), row_force_default=True)
+        self.grid.bind(minimum_height=self.grid.setter('height'))
+        self.add_widget(self.grid)
         self.rows = column(); self.add_widget(self.rows)
-        self.add_widget(row(button('上一頁', lambda: self.move(-1)), button('下一頁', lambda: self.move(1))))
-        self.kind.bind(text=lambda *_: self.find()); self.query.bind(text=lambda *_: self.find())
+        self.add_widget(row(button('上一頁', lambda: self.move(-1)),
+                            button('下一頁', lambda: self.move(1))))
+        self.kind.bind(text=lambda *_: self.find())
+        self.storage_section.bind(text=lambda *_: self.find())
+        self.display.bind(text=lambda *_: self.find())
+        self.query.bind(text=lambda *_: self.find())
     def find(self): self.offset = 0; self.key = None; self.refresh()
     def move(self, delta): self.offset = max(0, self.offset+delta); self.key = None; self.refresh()
     def refresh(self):
-        s = self.state; inv = s.get('inventory', {})
-        key = (str(inv), str(s.get('knowledge')), str(s.get('battle_units')), self.query.text, self.kind.text, self.offset)
-        if key == self.key: return
-        self.key = key; q = self.query.text.casefold()
+        state = self.state
+        actual_inventory = state.get('inventory', {})
+        read_only = self.kind.text == '超空間袋'
+        storage = state.get('room_storage') or {}
+        bucket = ('garage' if self.storage_section.text == '儲藏室'
+                  else 'materials')
+        inventory = (storage.get(bucket) or {}) if read_only else actual_inventory
+        key = (str(inventory), str(state.get('knowledge')),
+               str(state.get('battle_units')), self.query.text,
+               self.kind.text, self.storage_section.text,
+               self.display.text, self.offset)
+        if key == self.key:
+            return
+        self.key = key
+        search = self.query.text.strip().casefold()
+        self.grid.clear_widgets()
         self.rows.clear_widgets()
-        if self.kind.text == '包包':
-            data = [v for _, v in sorted(inv.get('items', {}).items(), key=lambda pair: int(pair[0]))
-                    if q in (item_name(v['item_id'])+str(v['item_id'])).casefold()]
+        is_inventory = self.kind.text in ('包包', '超空間袋')
+        if is_inventory:
+            entries = visible_items(inventory, search) if inventory.get('ready') else []
         else:
-            data = [(a, skill) for a in actors(s, True) for skill in skill_rows(s, a)
-                    if q in (actor_label(a)+skill['name']+str(skill['id'])).casefold()]
-        pages = max(1, (len(data)+14)//15); self.offset = min(self.offset, pages-1)
-        self.info.text = ('包包已同步' if inv.get('ready') else '等待包包同步')+' · '+('數量可靠' if inv.get('reliable') else '數量未確認')+f'\n{self.offset+1}/{pages} 頁 · {len(data)} 項'
-        for value in data[self.offset*15:self.offset*15+15]:
-            if self.kind.text == '包包':
-                index = value['index']; sid = value['item_id']
-                effects = '／'.join(f'{k.upper()}+{v}' for k, v in heal_effects(sid).items())
-                text = f'#{index} {item_name(sid)} ×{value["count"]}\n可用 {available(inv, str(index))} · {effects}'
-                self.rows.add_widget(row(item_image(sid), button(text, lambda v=value: self.use_item(v), 68)))
-                self.rows.children[0].height = dp(68)
+            entries = [(a, skill) for a in actors(state, True)
+                       for skill in skill_rows(state, a)
+                       if search in (actor_label(a)+skill['name']+str(skill['id'])).casefold()]
+        use_grid = is_inventory and self.display.text == '大圖示（24 格）'
+        page_size = PAGE_SIZE if use_grid else 15
+        pages = max(1, (len(entries)+page_size-1)//page_size)
+        self.offset = min(self.offset, pages-1)
+        if read_only:
+            data_status = ('已同步' if inventory.get('ready')
+                           else '等待伺服器同步；不會以普通背包資料代替')
+            source = ('超空間袋／'+self.storage_section.text +
+                      ' · 唯讀 ' + data_status)
+        elif is_inventory:
+            source = ('包包已同步' if actual_inventory.get('ready')
+                      else '等待包包同步')
+            source += ' · ' + ('數量可靠' if actual_inventory.get('reliable')
+                              else '數量未確認')
+        else:
+            source = '已確認特技'
+        self.info.text = source + (
+            '\n{}/{} 頁 · {} 項{}'.format(
+                self.offset+1, pages, len(entries),
+                ' · 每頁 24 格' if use_grid else ''))
+        for value in entries[self.offset*page_size:self.offset*page_size+page_size]:
+            if is_inventory:
+                index, record, name = value
+                if use_grid:
+                    self.grid.add_widget(IconBagCell(
+                        index, record, name, self.show_item))
+                else:
+                    sid = record['item_id']
+                    text = '#{} {} ×{}'.format(
+                        index, name, record.get('count', 0))
+                    if not read_only:
+                        effects = '／'.join('{}+{}'.format(k.upper(), v)
+                                           for k, v in heal_effects(sid).items())
+                        text += '\n可用 {} · {}'.format(
+                            available(inventory, str(index)), effects)
+                    line = row(item_image(sid), button(
+                        text, lambda n=index,v=record:self.show_item(n,v), 68))
+                    line.height = dp(68)
+                    self.rows.add_widget(line)
             else:
                 actor, skill = value
-                text = actor_label(actor)+'｜'+skill['name']+f" Lv.{skill['level']} · SP {skill['sp']}\n"+('；'.join(skill['reasons']) or '基礎條件可用')+' · '+skill['source']
-                self.rows.add_widget(button(text, lambda a=actor, v=skill: self.use_skill(a, v), 90))
+                text = (actor_label(actor)+'｜'+skill['name']+
+                    ' Lv.{} · SP {}\n'.format(skill['level'], skill['sp'])+
+                    ('；'.join(skill['reasons']) or '基礎條件可用')+
+                    ' · '+skill['source'])
+                self.rows.add_widget(button(
+                    text, lambda a=actor,v=skill:self.use_skill(a,v), 90))
+
+    def show_item(self, index, record):
+        read_only = self.kind.text == '超空間袋'
+        storage = self.state.get('room_storage') or {}
+        bucket = ('garage' if self.storage_section.text == '儲藏室'
+                  else 'materials')
+        inventory = ((storage.get(bucket) or {}) if read_only
+                     else self.state.get('inventory') or {})
+        current = (inventory.get('items') or {}).get(str(index))
+        if not current or current.get('item_id') != record.get('item_id'):
+            self.d.message.text = '此格位已更新，請重新開啟道具'
+            self.key = None
+            self.refresh()
+            return
+        info = item_details(inventory, index, current)
+        body = column()
+        body.add_widget(item_image(info['id'], size=64))
+        body.add_widget(label('{}（ID {}）'.format(info['name'], info['id'])))
+        body.add_widget(label('格位 #{}｜持有 {}{}'.format(
+            info['index'], info['count'],
+            '｜僅供檢視' if read_only else
+            '｜可用 {}｜保留 {}'.format(info['available'], info['reserved']))))
+        for line in info['lines']:
+            body.add_widget(label(line))
+        popup = None
+        def action():
+            popup.dismiss()
+            self.use_item(current)
+        if not read_only and info['available'] > 0 and info['effects'] and self.d.live:
+            body.add_widget(button('使用已確認的 HP／SP 道具', action))
+        body.add_widget(button('返回包包', lambda: popup.dismiss()))
+        popup = dialog('道具詳情' + ('（遠端唯讀）' if read_only else ''), body, .74)
+
     def storage(self):
         entries = [((a.get('npc_index',0),res),actor_label(a)+' 補'+res.upper()+' · 儲存槽 '+
                     str(self.state.get('potion_storage',{}).get(res,{}).get('value','待同步')))

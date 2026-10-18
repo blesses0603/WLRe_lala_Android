@@ -62,7 +62,12 @@ jobs:
           python -m compileall -q main.py android_app wlre tools
           python tools/android_presplash.py check-spec
           python tools/android_hardening.py preflight
+      # Build caches are optional; transient cache-service outages must not block APK builds.
       - uses: actions/cache@v6.1.0
+        timeout-minutes: 4
+        continue-on-error: true
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1'
         with:
           path: |
             ~/.buildozer/android

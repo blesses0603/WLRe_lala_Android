@@ -39,3 +39,7 @@
 - 已封裝第三方 Python 位元碼；此門檻只針對應用程式自身的原始碼與 ABI。
 - 檔名與固定模式掃描無法檢查所有二進位硬編碼秘密、惡意 Runtime Hook、網路傳輸或真機動態攻擊；其他稽核項目仍須進行。
 - 固定 Debug 金鑰維持測試用途，不是 Play 商店 Release 金鑰。
+
+## 第 04 項準備（2026-10-19）
+
+已在獨立分支 `security/android-phase04-cython-wire-pilot` 建立 `tools/android_cython_wire.py`（合成封包、主機 Cython/Python 行為對照）、`tests/test_android_cython_wire.py`（純 Python golden vectors）及 [PHASE04_CYTHON_PILOT.md](PHASE04_CYTHON_PILOT.md)（真正 Android ARM64 native 的驗收設計）。目前僅完成準備與主機試驗，**尚未改動 APK 封裝、未啟用 NDK 原生套件，也未進行 ARM64 APK 驗收**。因 GitHub Actions 額度不足，本分支先不建立會觸發雲端快速測試的 PR，亦不合併 main。

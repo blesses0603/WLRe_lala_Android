@@ -62,20 +62,6 @@ jobs:
           python -m compileall -q main.py android_app wlre tools
           python tools/android_presplash.py check-spec
           python tools/android_hardening.py preflight
-      # Build caches are optional; transient cache-service outages must not block APK builds.
-      - uses: actions/cache@v6.1.0
-        timeout-minutes: 4
-        continue-on-error: true
-        env:
-          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1'
-        with:
-          path: |
-            ~/.buildozer/android
-            .buildozer/android/platform
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-wlre-arm64-${{ hashFiles('buildozer.spec') }}
-          restore-keys: ${{ runner.os }}-wlre-arm64-
       - name: Require persistent Android signing for version-tag APK
         env:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}

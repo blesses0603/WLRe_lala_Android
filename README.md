@@ -43,15 +43,3 @@ v0.0.6 加入前景服務與安全帳號管理，目前包含：
 | `buildozer.spec` | Android APK 打包設定 |
 | `.github/workflows/android-apk.yml` | GitHub Actions 安卓測試建置流程 |
 | `wlre/` | 沿用中的遊戲通訊及服務核心 |
-
-## 🖥️ 桌面版本
-
-Windows／macOS 的版本說明及發布流程仍以 [**桌面主分支 `main`**](https://github.com/blesses0603/WLRe_lala/tree/main) 為準；本專案的 Android 版號 **v0.0.6** 不會取代桌面版號。
-
-完整目標與逐項驗收規格見 [Android 驗收規格](ANDROID/ACCEPTANCE.md)，目前測試結果見 [開發驗證](ANDROID/VALIDATION.md)。
-
-`android-smoke.yml` 是開發者的 Android 12–16 模擬器測試；其 `Android-emulator-apk` 是 x86_64 測試包，不是手機下載版本。
-
-## 專案拆分
-
-Android 已遷至本獨立專案，建置分支為 `main`。桌面專案仍為 [WLRe_lala](https://github.com/blesses0603/WLRe_lala)。核心同步方式、來源提交及新建置驗證範圍見 [遷移說明](MIGRATION.md)。

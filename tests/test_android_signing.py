@@ -18,8 +18,8 @@ class SigningTests(unittest.TestCase):
             secret = base64.b64encode(b"X" * 256).decode("ascii")
             mock = Mock(side_effect=[
                 Mock(stdout="alias verified"),
-                Mock(stdout="SHA256: AA:BB:CC:DD\n"),
                 Mock(stdout="Signer #1 certificate SHA-256 digest: aabbccdd\n"),
+                Mock(stdout="SHA256: AA:BB:CC:DD\n"),
             ])
             with patch.dict(os.environ, {"GITHUB_ENV": str(github_env),
                                          "ANDROID_SIGNING_MODE": "persistent"}):
@@ -42,12 +42,30 @@ class SigningTests(unittest.TestCase):
             root = Path(folder)
             (root / "app.apk").write_bytes(b"fixture")
             key = root / "debug.keystore"
-            calls = [Mock(stdout="SHA256: AA:BB\n"),
-                     Mock(stdout="Signer #1 certificate SHA-256 digest: 1122\n")]
-            with patch("tools.android_signing.subprocess.run", side_effect=calls):
-                with self.assertRaisesRegex(ValueError, "does not match"):
-                    signing_info(root, key, "test-apksigner")
+            calls = [Mock(stdout="Signer #1 certificate SHA-256 digest: 1122\n"),
+                     Mock(stdout="SHA256: AA:BB\n")]
+            with patch.dict(os.environ, {"ANDROID_SIGNING_MODE": "persistent"}):
+                with patch("tools.android_signing.subprocess.run", side_effect=calls):
+                    with self.assertRaisesRegex(ValueError, "does not match"):
+                        signing_info(root, key, "test-apksigner")
             self.assertFalse((root / "SIGNING_INFO.txt").exists())
+
+    def test_ephemeral_build_reads_actual_apk_certificate_without_keystore(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "app.apk").write_bytes(b"fixture")
+            nonexistent_key = root / "missing.keystore"
+            with patch.dict(os.environ, {"ANDROID_SIGNING_MODE": "ephemeral"}):
+                with patch("tools.android_signing.subprocess.run",
+                           return_value=Mock(stdout=(
+                               "Signer #1 certificate SHA-256 digest: 11223344\n"))) as call:
+                    result = signing_info(root, nonexistent_key, "test-apksigner")
+            text = Path(result).read_text()
+            self.assertIn("Mode: ephemeral", text)
+            self.assertIn("Certificate SHA256: 11:22:33:44", text)
+            self.assertIn("signature may change", text)
+            call.assert_called_once()
+            self.assertFalse(nonexistent_key.exists())
 
     def test_missing_secret_warns_and_does_not_write_fake_key(self):
         with tempfile.TemporaryDirectory() as folder:

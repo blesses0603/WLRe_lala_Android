@@ -72,19 +72,13 @@ def prepare(encoded=None, keystore=None):
 
 
 def signing_info(output_dir, keystore=None, apksigner=None):
-    """Provide a public certificate fingerprint and signing mode with each APK."""
-    if keystore is None:
-        keystore = KEYSTORE
-    command = [
-        "keytool", "-list", "-v", "-keystore", str(keystore),
-        "-storepass", PASSWORD, "-alias", ALIAS,
-    ]
-    result = subprocess.run(command, capture_output=True, text=True,
-                            check=True, timeout=30)
-    match = re.search(r"SHA256:\s*([0-9A-Fa-f:]+)", result.stdout)
-    if match is None:
-        raise ValueError("Could not read Android signing certificate fingerprint")
-    # Verify the built APK itself, not merely that a keystore file exists.
+    """Verify the APK signature and publish its public signer fingerprint.
+
+    An ephemeral Gradle key is often generated under a build distribution,
+    not ~/.android/debug.keystore. Only persistent mode may assume our
+    restored keystore is present; ephemeral mode reports the APK cert itself.
+    """
+    mode = os.environ.get(ENV_MODE, "ephemeral")
     candidates = list(Path(output_dir).glob("*.apk"))
     if len(candidates) != 1:
         raise ValueError("Expected exactly one built Android APK for signature verification")
@@ -94,20 +88,42 @@ def signing_info(output_dir, keystore=None, apksigner=None):
         apksigner = str(options[-1]) if options else shutil.which("apksigner")
     if not apksigner:
         raise FileNotFoundError("Android SDK apksigner is required to validate the APK signature")
+
     verified = subprocess.run([str(apksigner), "verify", "--print-certs",
                                str(candidates[0])], capture_output=True, text=True,
                               check=True, timeout=30)
-    actual = re.search(r"certificate SHA-256 digest:\s*([0-9A-Fa-f]+)", verified.stdout)
-    if actual is None or actual.group(1).lower() != match.group(1).replace(":", "").lower():
-        raise ValueError("APK certificate does not match configured debug keystore")
-    mode = os.environ.get(ENV_MODE, "ephemeral")
+    signer = re.search(r"certificate SHA-256 digest:\s*([0-9A-Fa-f]+)",
+                       verified.stdout)
+    if signer is None:
+        raise ValueError("Could not determine APK signer certificate fingerprint")
+    apk_fingerprint = signer.group(1).lower()
+
+    if mode == "persistent":
+        if keystore is None:
+            keystore = KEYSTORE
+        command = ["keytool", "-list", "-v", "-keystore", str(keystore),
+                   "-storepass", PASSWORD, "-alias", ALIAS]
+        result = subprocess.run(command, capture_output=True, text=True,
+                                check=True, timeout=30)
+        expected = re.search(r"SHA256:\s*([0-9A-Fa-f:]+)", result.stdout)
+        if (expected is None or expected.group(1).replace(":", "").lower()
+                != apk_fingerprint):
+            raise ValueError("APK certificate does not match configured debug keystore")
+    elif mode != "ephemeral":
+        raise ValueError("Unrecognized Android signing mode")
+
+    # The actual APK certificate is authoritative; it is not a hash of the APK.
+    fingerprint = ":".join(apk_fingerprint[i:i + 2] for i in range(
+        0, len(apk_fingerprint), 2)).upper()
     lines = [
         "Android debug APK signing (public certificate identity)",
         "Mode: " + mode,
-        "Certificate SHA256: " + match.group(1).upper(),
-        "APK signer certificate verified against the debug keystore.",
+        "Certificate SHA256: " + fingerprint,
+        "APK signature verified by Android SDK apksigner.",
+        ("Signer also verified against the persistent debug keystore."
+         if mode == "persistent" else
+         "No persistent key configured; signature may change on another run."),
         "The certificate SHA256 above is NOT the APK file checksum.",
-        "Identical certificates require the same persistent private keystore.",
     ]
     dest = Path(output_dir) / "SIGNING_INFO.txt"
     dest.parent.mkdir(parents=True, exist_ok=True)

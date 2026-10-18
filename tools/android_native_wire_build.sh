@@ -14,7 +14,7 @@ fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGE="$1"
 PYTHON="${PYTHON:-python3}"
-for tool in "$PYTHON" buildozer file; do
+for tool in "$PYTHON" buildozer; do
   command -v "$tool" >/dev/null || { echo "Missing tool: $tool" >&2; exit 2; }
 done
 echo "== Phase04: validate host Python vectors (not ARM64 proof) =="

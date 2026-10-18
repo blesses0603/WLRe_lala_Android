@@ -23,11 +23,11 @@
 
 手機開啟 APK 時，Kivy 主畫面還沒建立，會先顯示 python-for-android SDL2 的原生 `presplash`。原本 `buildozer.spec` 只有設定 App ICON，沒有設定 `presplash.filename`，因此手機仍顯示 Kivy 預設黑底 `Loading...`。目前已指定與 App 相同的 `android_app/assets/app.png`，並設定深藍背景 `#081626`。
 
-兩套 APK 流程都會在編譯後檢查 APK 內的 `res/drawable*/presplash` 圖片是否與 LaLa ICON 相符，通過後才上傳；Artifact 中另附 `PRESPLASH_INFO.txt`。**此修改只改啟動圖案，並不能修復真正卡在 Loading 的崩潰或初始化失敗**。若新版本停留在啟動畫面超過一分鐘，請提供手機 Logcat 供進一步定位。
+完整 APK 建置流程會在編譯後檢查 APK 內的 `res/drawable*/presplash` 圖片是否與 LaLa ICON 相符，通過後才上傳；Artifact 中另附 `PRESPLASH_INFO.txt`。**此修改只改啟動圖案，並不能修復真正卡在 Loading 的崩潰或初始化失敗**。若新版本停留在啟動畫面超過一分鐘，請提供手機 Logcat 供進一步定位。
 
 ### 1. 安裝及開始登入
 
-1. 在 [ARM64 Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-smoke.yml) 的**成功執行紀錄**下載 `Android-arm64-apk`，或於 [Phone APK Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml) 取得指定版本的 ARM64 APK。
+1. 從 [手動／Tag APK 建置流程](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml) 的成功執行紀錄下載帶版本號的 ARM64 APK；舊版的 [ARM64 Artifact](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39141939393) 可在尚未過期時使用。日常 [快速測試流程](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-smoke.yml) **不再上傳 APK**。
 2. 解壓後確認 APK 與 `SHA256SUMS.txt`，在 ARM64 Android 12 以上手機安裝測試包。
 3. 啟動程式、選擇地球／水星及分流，輸入帳號與密碼後登入。帳號驗證、角色清單與角色入場須等待伺服器實際回覆。
 4. 可新增多個獨立連線；各帳號各自擁有停止旗標、指令佇列與狀態，不將一個帳號的操作轉送給另一個帳號。
@@ -88,28 +88,30 @@ App 回到前景時會重新建立 Kivy 畫面，恢復帳號／伺服器欄位�
 
 資料尚未由遊戲伺服器確認時，核心應拒絕或暫停相關操作，例如未知位置、未學會的技能、未確認配方、未收到材料消耗結果等。不能用 UI 上存在某個按鈕，推論遊戲伺服器已接受該功能。
 
-## GitHub Actions 與下載檔案
+## GitHub Actions｜節省額度的兩階段模式（2026-10-19）
 
-本專案保留**開發測試**與**版本 Tag 建置**兩套流程；兩者都支援手動執行。**若需讓不同版本的 APK 簽章保持一致，必須依 [Android 固定簽章設定](SIGNING.md) 建立並設定 GitHub Secret `ANDROID_DEBUG_KEYSTORE_BASE64`。** 未設定前仍會編譯，但 Debug 簽章可能每次不同：
+因 GitHub-hosted Runner 免費分鐘數有限，已將日常 Python 測試與完整 Android 原生編譯分開。**一般 PR／main push 不再自動執行 Buildozer，也不會產生 APK。** 此模式不更改 Android 12（API 31）、ARM64-only、APK 版號、功能或既有固定簽章。
 
-| 工作流程 | 觸發 | 執行範圍 | 下載項目 |
+| 工作流程 | 觸發方式 | 執行項目 | APK 產物 |
 | --- | --- | --- | --- |
-| [`android-smoke.yml`](../.github/workflows/android-smoke.yml) | `main` 指定程式碼有更新，或手動執行 | 單元測試、Python 語法、版本一致性、安全檢查、ARM64 APK 編譯與 SHA256 | `Android-arm64-apk`（APK + SHA256） |
-| [`android-apk.yml`](../.github/workflows/android-apk.yml) | 推送 `vX.Y.Z` Git Tag，或從 `main` 手動執行 | 驗證 Tag／程式版號、測試、ARM64 編譯、SHA256 | `WLRe_LaLa-Android-vX.Y.Z-debug` |
+| [Android fast checks (no APK)](../.github/workflows/android-smoke.yml) | 指定路徑的 PR、main push，或手動 | Python 3.11 回歸、語法、版本一致性、安全預檢、ARM64 配置檢查 | **無** |
+| [Android phone APK (version tag)](../.github/workflows/android-apk.yml) | 在 **main 手動** Run workflow；或推送符合目前版本的 `vX.Y.Z` Tag | 相同測試 + Buildozer ARM64 APK + pinned persistent 簽章 + SHA256 + 啟動畫面與 APK 內容掃描 | `WLRe_LaLa-Android-vX.Y.Z-debug` |
 
-### ARM64 日常建置產物（不帶版本號）
+### 需要新 APK 時：手動建置
 
-| Artifact | ZIP 內容 | 裝置 | 保存期限 |
-| --- | --- | --- | --- |
-| `Android-arm64-apk` | `WLRe_LaLa-Android-arm64-debug.apk`、`SHA256SUMS.txt`、`SIGNING_INFO.txt` | 一般 ARM64 Android 手機測試 | 7 天 |
+1. 先確認 [快速測試 Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-smoke.yml) 的最新 main 測試通過。
+2. 打開 [Android phone APK (version tag)](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml)，按 **Run workflow**。
+3. Branch 選擇 **main**，再按 **Run workflow**。其他分支會被版號檢查拒絕。
+4. 等待成功後下載 `WLRe_LaLa-Android-v0.0.7-debug`（版本升級後名稱會隨版本變更）。ZIP 包含 APK、`SHA256SUMS.txt`、`SIGNING_INFO.txt`、`PRESPLASH_INFO.txt` 及 `PROTECTION_INFO.txt`。
+5. 對照 `SIGNING_INFO.txt` 的 `Mode: persistent` 與 `Pinned public signer SHA256: VERIFIED`。不要把 PR 用的臨時簽章 APK 當作手機長期更新包。
 
-原 API 31～36、x86_64 模擬器建置與啟動測試已依需求停用；編譯仍使用 Android API 35、最低支援 API 31。ARM64 APK 建置成功不等於所有 Android 版本實機驗證通過。
+需要發佈下一個新版本時，須先同步更新 `buildozer.spec` 與 `android_app/version.py`，然後才建立相符的 `vX.Y.Z` Tag；Tag 必須指向 main 歷史中的 Commit。**既有 GitHub Secret `ANDROID_DEBUG_KEYSTORE_BASE64` 和 Variable `ANDROID_EXPECTED_SIGNER_SHA256` 保持原樣，不重新產生或輸出私鑰。**沒有它們，完整建置會拒絕發佈，不會悄悄改用臨時簽章。
 
-### Phone APK 產物（帶版本號）
+### 已有的最後一份自動 ARM64 主分支產物
 
-`android-apk.yml` 從 `buildozer.spec` 與 `android_app/version.py` 核對版號。自動觸發需要 Git Tag 為 `vX.Y.Z` 且符合原始碼的版本設定，Tag 的提交需在 `main` 歷史上。手動執行只允許從 `main` 建置。
-
-例如 `v0.0.7` 的 Artifact 名稱為 `WLRe_LaLa-Android-v0.0.7-debug`，內含 `WLRe_LaLa-Android-v0.0.7-debug.apk`、`SHA256SUMS.txt` 及 `SIGNING_INFO.txt`，保存期限 14 天。它仍是 Debug 測試包，不是已完成真機驗收或商店簽署的正式發行包。
+- 歷史成功 Run：[39141939393](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39141939393)，Commit `dda1719`，Artifact 為 `Android-arm64-apk`，保存至 2026-10-26（台灣時間）。
+- 此舊 Artifact 只在 GitHub 保存期限內可下載；**改成快速測試後，新 main/PR 的每次提交都不會再有 APK**。
+- 當前不會自動進行 API 31～36 模擬器測試；ARM64 打包成功也不能代替真機遊戲登入與長時間背景驗收。
 
 ## 開發與測試
 

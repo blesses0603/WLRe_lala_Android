@@ -36,7 +36,7 @@ class Session:
     preferences: dict = field(default_factory=preferences.defaults)
     detail_revision: int = 0
     chat_sequence: int = 0
-    chat_requests: deque = field(default_factory=deque)
+    chat_requests: deque = field(default_factory=lambda: deque(maxlen=64))
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
 
 
@@ -67,6 +67,19 @@ class SessionManager:
             self.sessions[session_id] = session
             self.events.put((session_id, "status", "準備驗證帳號"))
 
+            def emit_chat_ack(status):
+                # Match server results to the original message, not a later edited field.
+                if not session.chat_requests:
+                    return
+                pending = session.chat_requests.popleft()
+                session.chat_sequence += 1
+                self.events.put((session_id, 'chat_ack', {
+                    'sequence': session.chat_sequence,
+                    'request_id': pending['request_id'],
+                    'status': status,
+                    'text': pending['text'],
+                }))
+
             def emit(event):
                 kind = event.get("type")
                 with session.lock:
@@ -79,17 +92,18 @@ class SessionManager:
                             'reply_items', 'reply_at', 'items', 'target_id') if k in event})
                         session.detail_revision += 1
                     elif kind in ('chat_sent', 'chat_result', 'chat_notice'):
-                        text = '已送出，等待伺服器轉送；不代表對方已讀' if kind == 'chat_sent' else str(event.get('text', '發話回覆已收到'))
+                        text = ('已寫入連線，等待伺服器發話結果；不能據此判定發話成功'
+                                if kind == 'chat_sent' else str(event.get('text', '發話回覆已收到')))
                         self.events.put((session_id, 'notice', text[:500]))
-                        if kind == 'chat_sent':
-                            session.chat_sequence += 1
-                            self.events.put((session_id, 'chat_ack', dict(sequence=session.chat_sequence, request_id=session.chat_requests.popleft() if session.chat_requests else None, status='sent', text=event.get('text',''))))
+                        if kind == 'chat_result':
+                            # Only an actual server reply confirms that the request
+                            # was accepted/rejected. chat_sent is local transport only.
+                            emit_chat_ack('sent' if event.get('result') == 0 else 'rejected')
                     elif kind == 'chat_profile':
                         session.names.update(session.game_state, event)
                     if kind == 'command_rejected':
                         if event.get('command_type') == 'chat':
-                            session.chat_sequence += 1
-                            self.events.put((session_id, 'chat_ack', dict(sequence=session.chat_sequence,request_id=session.chat_requests.popleft() if session.chat_requests else None,status='rejected')))
+                            emit_chat_ack('rejected')
                         from wlre.core.event_log import chinese
                         text = '操作未送出：' + chinese(event.get('error', '操作條件不符'))[:500]
                         # Errors originate from supported game commands, never login exceptions.
@@ -235,7 +249,11 @@ class SessionManager:
             if session.commands.qsize() >= 32: raise ValueError('操作佇列已滿，請等待回覆')
             if checked['type'] == 'chat' and checked.get('channel') == '密語':
                 checked['target'] = session.names.resolve(checked.get('target'), session.game_state.get('player', {}).get('role_id'))
-            if checked['type'] == 'chat': session.chat_requests.append(checked.get('request_id'))
+            if checked['type'] == 'chat':
+                session.chat_requests.append({
+                    'request_id': checked.get('request_id'),
+                    'text': checked.get('text', ''),
+                })
             session.commands.put(checked)
             return True
 

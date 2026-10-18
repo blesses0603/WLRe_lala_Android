@@ -84,6 +84,8 @@ class Dashboard:
         if not session: self.close(); return False
         if not getattr(self.app.manager, 'available', True):
             self.status.text = '服務失聯，資料為最後同步內容；操作已停用'
+            if self.page_name == '聊天' and self.page:
+                self.page.refresh()  # Clear pending without discarding draft.
             return True
         try: data = self.app.manager.session_detail(self.sid)
         except ValueError: return True

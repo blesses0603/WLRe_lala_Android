@@ -194,6 +194,40 @@ class MobilePages(unittest.TestCase):
         d.chat_ack({'status':'sent','request_id':sent['request_id'],'text':'測試聊天'})
         self.assertFalse(chat.pending); self.assertEqual(chat.text.text,'')
 
+    def test_chat_times_out_without_losing_draft_or_auto_resending(self):
+        from android_app.dashboard import Dashboard
+        d = Dashboard(self.app, "fixture")
+        self.addCleanup(d.dismissed)
+        d.data = self.app.manager.session_detail("fixture")
+        d.show("聊天")
+        chat = d.page
+        chat.text.text = "等待伺服器回覆"
+        chat.send()
+        queued = self.session.commands.get_nowait()
+        self.assertTrue(chat.pending)
+        chat.pending_started -= 21
+        chat.refresh()
+        self.assertFalse(chat.pending)
+        self.assertFalse(chat.send_button.disabled)
+        self.assertEqual(chat.text.text, queued["text"])
+        self.assertTrue(self.session.commands.empty())
+        self.assertIn("逾時", d.message.text)
+
+    def test_chat_ipc_uncertainty_preserves_draft(self):
+        from android_app.dashboard import Dashboard
+        d = Dashboard(self.app, "fixture")
+        self.addCleanup(d.dismissed)
+        d.data = self.app.manager.session_detail("fixture")
+        d.show("聊天")
+        chat = d.page
+        chat.text.text = "不要消失"
+        chat.send()
+        command = self.session.commands.get_nowait()
+        chat.ack({"status": "uncertain", "request_id": command["request_id"]})
+        self.assertFalse(chat.pending)
+        self.assertEqual(chat.text.text, "不要消失")
+        self.assertIn("結果未知", d.message.text)
+
     def test_chat_emoji_selection_preserves_draft_and_sends_token(self):
         from android_app.dashboard import Dashboard
         from kivy.uix.button import Button

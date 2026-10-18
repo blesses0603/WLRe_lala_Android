@@ -91,14 +91,26 @@ class Chat(Page):
         if self.quote: command['reply'] = copy.deepcopy(self.quote)
         if self.d.send(command):
             self.d.message.text = '聊天已排入佇列；請以伺服器轉送／回覆為準'
-            self.pending = True; self.send_button.disabled = True; self.sent_text = self.text.text
+            import time
+            self.pending = True
+            self.pending_started = time.monotonic()
+            self.send_button.disabled = True
+            self.sent_text = self.text.text
             self.sent_quote = copy.deepcopy(self.quote)
     def ack(self, value):
         if not self.pending or value.get('request_id') != getattr(self, 'request_id', None): return
-        self.pending = False; self.send_button.disabled = False
-        if value.get('status') == 'sent':
+        self.pending = False
+        self.send_button.disabled = False
+        status = value.get('status')
+        if status == 'sent':
+            # Server accepted the chat packet; no claim that others read it.
             if self.text.text == value.get('text') == self.sent_text: self.text.text = ''
             if self.quote == getattr(self, 'sent_quote', None): self.cancel_quote()
+            self.d.message.text = '伺服器已回覆發話成功；不代表對方已讀'
+        elif status == 'uncertain':
+            self.d.message.text = '背景服務回覆中斷，發話結果未知；原文字已保留，請先確認再重送'
+        else:
+            self.d.message.text = '伺服器拒絕或未能送出聊天訊息；原文字已保留'
 
     def move(self, delta):
         self.offset = max(0, self.offset+delta); self.render()
@@ -154,8 +166,16 @@ class Chat(Page):
             if images: self.messages.add_widget(row(*images))
         self.messages.add_widget(label(f'{self.offset+1}/{pages} 頁 · 保留最近 200 則'))
     def refresh(self):
-        if not self.d.live:
-            self.pending = False; self.send_button.disabled = False
+        if self.pending:
+            import time
+            if not self.d.live:
+                self.pending = False
+                self.send_button.disabled = False
+                self.d.message.text = '遊戲連線中斷；聊天狀態未確認，原文字已保留'
+            elif time.monotonic() - getattr(self, 'pending_started', time.monotonic()) >= 20:
+                self.pending = False
+                self.send_button.disabled = False
+                self.d.message.text = '等待伺服器發話結果逾時；原文字已保留，重送前請先檢查聊天紀錄'
         key = (str(self.d.data.get('chat')), self.filter.text)
         if key != self.key:
             was_latest = self.offset >= max(0, ((len(getattr(self, '_previous', []))+19)//20)-1)

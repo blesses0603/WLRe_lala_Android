@@ -27,6 +27,7 @@
 - 活動連線時使用**有期限的 partial wake lock**，並透過 TCP keepalive 協助偵測網路中斷；兩者都不是永久在線的保證。
 - Android 15 的 `dataSync` 類型前景服務在適用條件下有每 24 小時累計約 **6 小時** 的背景執行時限；系統停止服務後不會擅自用儲存帳密重新登入。
 - 網路切換、省電模式、Doze、廠商背景限制及使用者在系統設定強制停止 App，都可能中斷服務。長時間行為須逐台手機驗證。
+- 裝置電池、記憶體、喚醒鎖等監控讀取如果失敗，只會回報監控異常，不會因為監控本身的例外直接關閉 IPC 服務或所有角色連線。
 
 ### 3. 懸浮小球（v0.0.7）
 
@@ -51,6 +52,8 @@
 - 自動戰鬥 AI 與偏好依帳號及伺服器保存，重新登入可載入，但**不會自動啟動戰鬥或徘徊**。
 - 畫面與服務之間使用私有 Unix socket；沒有開放外部 TCP 控制埠。帳密不得寫入日誌、聊天事件或公開通知。
 - 事件歷史與聊天紀錄在服務內做有限長度保存；若服務終止，不應假設未另存的記錄可永久保留。
+- 聊天僅在收到伺服器發話結果為成功時才清除相同草稿；發話被拒絕、IPC 結果不明或伺服器長時間沒有回覆時，保留原文字並解除送出按鈕。因協定不支援端到端已讀確認，仍不保證對方已收到。
+- IPC 失聯不會自動重送道具使用、煉金、製作或聊天等可能重複執行的操作；畫面將提示使用者先確認伺服器狀態。
 
 ## 功能分類
 
@@ -68,7 +71,7 @@
 
 ## GitHub Actions 與下載檔案
 
-本專案保留**開發測試**與**版本 Tag 建置**兩套流程；兩者都支援手動執行：
+本專案保留**開發測試**與**版本 Tag 建置**兩套流程；兩者都支援手動執行。**若需讓不同版本的 APK 簽章保持一致，必須依 [Android 固定簽章設定](SIGNING.md) 建立並設定 GitHub Secret `ANDROID_DEBUG_KEYSTORE_BASE64`。** 未設定前仍會編譯，但 Debug 簽章可能每次不同：
 
 | 工作流程 | 觸發 | 執行範圍 | 下載項目 |
 | --- | --- | --- | --- |
@@ -79,8 +82,8 @@
 
 | Artifact | ZIP 內容 | 裝置 | 保存期限 |
 | --- | --- | --- | --- |
-| `Android-arm64-apk` | `WLRe_LaLa-Android-arm64-debug.apk`、`SHA256SUMS.txt` | 一般 ARM64 Android 手機測試 | 7 天 |
-| `Android-emulator-apk` | `WLRe_LaLa-Android-emulator-debug.apk`、`SHA256SUMS.txt` | x86_64 Android 模擬器 | 7 天 |
+| `Android-arm64-apk` | `WLRe_LaLa-Android-arm64-debug.apk`、`SHA256SUMS.txt`、`SIGNING_INFO.txt` | 一般 ARM64 Android 手機測試 | 7 天 |
+| `Android-emulator-apk` | `WLRe_LaLa-Android-emulator-debug.apk`、`SHA256SUMS.txt`、`SIGNING_INFO.txt` | x86_64 Android 模擬器 | 7 天 |
 
 Smoke 的模擬器測試矩陣為 API **31、32、33、34、35、36**，涵蓋 Android **12、12L、13、14、15、16**。測試會等待 UI／前景服務／Keystore 就緒、切至 Home 約 15 秒、鎖屏約 30 秒並返回畫面；**不使用真實遊戲帳密，也不驗證懸浮視窗的全部觸控行為**。
 
@@ -90,7 +93,7 @@ Smoke 的 ARM64 是另外一份 Debug APK 建置，**不是在 x86_64 模擬器�
 
 `android-apk.yml` 從 `buildozer.spec` 與 `android_app/version.py` 核對版號。自動觸發需要 Git Tag 為 `vX.Y.Z` 且符合原始碼的版本設定，Tag 的提交需在 `main` 歷史上。手動執行只允許從 `main` 建置。
 
-例如 `v0.0.7` 的 Artifact 名稱為 `WLRe_LaLa-Android-v0.0.7-debug`，內含 `WLRe_LaLa-Android-v0.0.7-debug.apk` 和 `SHA256SUMS.txt`，保存期限 14 天。它仍是 Debug 測試包，不是已完成真機驗收或商店簽署的正式發行包。
+例如 `v0.0.7` 的 Artifact 名稱為 `WLRe_LaLa-Android-v0.0.7-debug`，內含 `WLRe_LaLa-Android-v0.0.7-debug.apk`、`SHA256SUMS.txt` 及 `SIGNING_INFO.txt`，保存期限 14 天。它仍是 Debug 測試包，不是已完成真機驗收或商店簽署的正式發行包。
 
 ## 開發與測試
 

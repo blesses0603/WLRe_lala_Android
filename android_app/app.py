@@ -435,6 +435,9 @@ class LaLaApp(App):
         return True
 
     def render_metrics(self, metrics):
+        if metrics.get('monitor_error'):
+            self.resources.text = '裝置資源監控暫時失效，遊戲連線仍由背景服務管理'
+            return
         import time
         from jnius import autoclass
         memory = autoclass('android.os.Debug$MemoryInfo')()

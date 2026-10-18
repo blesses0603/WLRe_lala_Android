@@ -68,6 +68,10 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-wlre-arm64-${{ hashFiles('buildozer.spec') }}
           restore-keys: ${{ runner.os }}-wlre-arm64-
+      - name: Restore persistent debug signing key when configured
+        env:
+          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: python tools/android_signing.py prepare
       - name: Build Android debug APK
         run: |
           rm -rf .buildozer/android/app bin
@@ -83,6 +87,8 @@ jobs:
           cp "$apk_path" "android-output/$output"
           cd android-output
           sha256sum "$output" > SHA256SUMS.txt
+          cd ..
+          python tools/android_signing.py report android-output
       - name: Upload APK (only after successful build)
         uses: actions/upload-artifact@v7.0.2
         with:

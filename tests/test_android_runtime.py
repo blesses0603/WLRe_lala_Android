@@ -8,7 +8,7 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from android_app.runtime import Runtime, LatestEvents, receive, send
+from android_app.runtime import Runtime, LatestEvents, ServiceManager, receive, send
 from android_app.vault import AccountVault
 
 
@@ -54,6 +54,67 @@ class RuntimeTests(unittest.TestCase):
         runtime.dispatch({'op': 'stop', 'id': '0'})
         self.assertEqual(manager.stopped, ['0'])
         self.assertFalse(manager.sessions['1'].stop_event.is_set())
+
+    def test_monitor_failure_does_not_terminate_sessions_or_idle_server(self):
+        def fail_telemetry():
+            raise RuntimeError("DO_NOT_SHOW_ACCOUNT_PASSWORD")
+        manager = FakeManager()
+        runtime = Runtime(manager, fail_telemetry)
+        session = manager.start(label="s", account="test", password="secret")
+        first = runtime.dispatch({"op": "poll"})
+        self.assertEqual(first["metrics"]["monitor_error"], "RuntimeError")
+        self.assertEqual(len(first["sessions"]), 1)
+        with tempfile.TemporaryDirectory() as folder:
+            address = Path(folder) / "sock"
+            worker = threading.Thread(target=runtime.serve, args=(address,))
+            worker.start()
+            try:
+                deadline = time.monotonic() + 3
+                while not address.exists() and time.monotonic() < deadline:
+                    time.sleep(.02)
+                time.sleep(1.2)  # Background heartbeat invokes faulty telemetry.
+                self.assertTrue(worker.is_alive())
+                with socket.socket(socket.AF_UNIX) as client:
+                    client.connect(str(address))
+                    with client.makefile("rwb") as stream:
+                        send(stream, {"op": "poll"})
+                        reply = receive(stream)
+                self.assertTrue(reply["ok"])
+                self.assertEqual(reply["value"]["metrics"]["monitor_error"], "RuntimeError")
+                self.assertEqual(len(reply["value"]["sessions"]), 1)
+                self.assertFalse(session.stop_event.is_set())
+            finally:
+                runtime.exit_requested = True
+                worker.join(3)
+                self.assertFalse(worker.is_alive())
+
+    def test_failed_ipc_command_releases_pending_and_never_replays(self):
+        manager = ServiceManager.__new__(ServiceManager)
+        session = SimpleNamespace(selection_pending=True,
+            automation_pending={"battle"})
+        manager.sessions = {"s": session}
+        manager.events = LatestEvents()
+        requests = [
+            ({"op": "select", "id": "s", "index": 1}, False),
+            ({"op": "automation", "id": "s", "feature": "battle", "enabled": True}, True),
+            ({"op": "game", "id": "s", "command": {
+                "type": "chat", "request_id": "msg-1", "text": "private draft"}}, True),
+            ({"op": "game", "id": "s", "command": {
+                "type": "field_item", "item_id": 123}}, True),
+        ]
+        for request, uncertain in requests:
+            manager._delivery_failed(request, uncertain=uncertain)
+        self.assertFalse(session.selection_pending)
+        self.assertNotIn("battle", session.automation_pending)
+        events = []
+        while True:
+            try: events.append(manager.events.get_nowait())
+            except queue.Empty: break
+        ack = next(value for _, kind, value in events if kind == "chat_ack")
+        self.assertEqual(ack, {"request_id": "msg-1", "status": "uncertain"})
+        self.assertNotIn("private draft", str(events))
+        self.assertTrue(any("結果無法確認" in value for _, kind, value in events
+                            if kind == "error"))
 
     def test_private_socket_roundtrip_and_sanitized_error(self):
         with tempfile.TemporaryDirectory() as directory:

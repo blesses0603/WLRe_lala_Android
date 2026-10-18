@@ -60,6 +60,10 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-wlre-x86-${{ hashFiles('buildozer.spec') }}
           restore-keys: ${{ runner.os }}-wlre-x86-
+      - name: Restore persistent debug signing key when configured
+        env:
+          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: python tools/android_signing.py prepare
       - name: Build emulator APK (not the arm64 phone download)
         run: |
           rm -rf .buildozer/android/app bin
@@ -72,6 +76,7 @@ jobs:
           test -n "$apk_path" || { echo "::error::Emulator APK not found"; exit 1; }
           cp "$apk_path" emulator-output/WLRe_LaLa-Android-emulator-debug.apk
           (cd emulator-output && sha256sum WLRe_LaLa-Android-emulator-debug.apk > SHA256SUMS.txt)
+          python tools/android_signing.py report emulator-output
       - name: Upload emulator APK and checksum
         uses: actions/upload-artifact@v7.0.2
         with:
@@ -122,6 +127,10 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-wlre-arm64-${{ hashFiles('buildozer.spec') }}
           restore-keys: ${{ runner.os }}-wlre-arm64-
+      - name: Restore persistent debug signing key when configured
+        env:
+          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: python tools/android_signing.py prepare
       - name: Verify ARM64 target
         run: grep -Fqx 'android.archs = arm64-v8a' buildozer.spec
       - name: Build ARM64 debug APK for phones
@@ -136,6 +145,7 @@ jobs:
           cp "$apk_path" phone-output/WLRe_LaLa-Android-arm64-debug.apk
           (cd phone-output && sha256sum WLRe_LaLa-Android-arm64-debug.apk > SHA256SUMS.txt)
           (cd phone-output && sha256sum --check SHA256SUMS.txt)
+          python tools/android_signing.py report phone-output
       - name: Upload ARM64 phone test APK and checksum
         uses: actions/upload-artifact@v7.0.2
         with:

@@ -36,6 +36,22 @@ class Runtime:
         self.overlay_control = overlay_control or (lambda enabled: False)
         self.overlay_state = overlay_state or (lambda: False)
         self.exit_requested = False
+        self._last_monitor_warning = 0
+
+    def _safe_monitor(self):
+        """Keep nonessential Android telemetry from terminating game sessions."""
+        try:
+            data = self.monitor()
+            if not isinstance(data, dict):
+                raise TypeError("monitor must return a mapping")
+            return data
+        except Exception as exc:
+            now = time.monotonic()
+            if now - self._last_monitor_warning >= 60 or not self._last_monitor_warning:
+                # Exception messages may contain private device or session details.
+                print("WLRE_MONITOR_UNAVAILABLE " + type(exc).__name__, flush=True)
+                self._last_monitor_warning = now
+            return {"monitor_error": type(exc).__name__}
 
     def dispatch(self, request):
         operation = request.get('op')
@@ -71,7 +87,7 @@ class Runtime:
                         active=session.active, phase=session.phase, pending=session.selection_pending,
                         stopped=session.stop_event.is_set(), ai_settings=getattr(session, 'ai_settings', {}),
                         automation=getattr(session, 'automation', {}), automation_pending=sorted(getattr(session, 'automation_pending', set())), events=self.latest.get(sid, {})))
-        return {'sessions': sessions, 'metrics': self.monitor(),
+        return {'sessions': sessions, 'metrics': self._safe_monitor(),
                 'overlay_enabled': bool(self.overlay_state())}
 
     def collect_events(self):
@@ -98,7 +114,7 @@ class Runtime:
                 try: client, _ = server.accept()
                 except socket.timeout:
                     self.collect_events()
-                    self.monitor()
+                    self._safe_monitor()
                     continue
                 with client:
                     client.settimeout(2)
@@ -153,6 +169,31 @@ class ServiceManager:
         self.details = {}
         threading.Thread(target=self._work, daemon=True, name='service-ui-bridge').start()
 
+    def _delivery_failed(self, request, uncertain=False):
+        """One rejected/uncertain IPC command must never freeze a UI control.
+
+        Socket failure after writing could mean the service executed a command.
+        Never automatically replay game actions, chat, item use or crafting.
+        """
+        op = request.get("op")
+        sid = request.get("id", "")
+        if op == "select":
+            session = self.sessions.get(sid)
+            if session:
+                session.selection_pending = False
+        elif op == "automation":
+            session = self.sessions.get(sid)
+            if session:
+                session.automation_pending.discard(request.get("feature"))
+        elif op == "game" and request.get("command", {}).get("type") == "chat":
+            self.events.put((sid, "chat_ack", {
+                "request_id": request["command"].get("request_id"),
+                "status": "uncertain" if uncertain else "rejected",
+            }))
+        label = ("IPC 回覆中斷；操作結果無法確認，請先檢查遊戲狀態，勿直接重複操作"
+                 if uncertain else "背景服務拒絕操作；請確認帳號與連線狀態")
+        self.events.put(("", "error", label))
+
     def call(self, request):
         with socket.socket(socket.AF_UNIX) as client:
             client.settimeout(2)
@@ -173,10 +214,15 @@ class ServiceManager:
                 except queue.Empty: request = None
                 if request:
                     try:
-                        if self.call(request) is False:
-                            self.events.put(('', 'error', '操作未執行，請確認連線狀態後重試'))
+                        accepted = self.call(request)
                     except ValueError:
-                        self.events.put(('', 'error', '操作失敗，請確認帳號或連線狀態'))
+                        self._delivery_failed(request)
+                    except (OSError, KeyError):
+                        self._delivery_failed(request, uncertain=True)
+                        raise
+                    else:
+                        if accepted is False:
+                            self._delivery_failed(request)
                 data = self.call({'op': 'poll'})
                 watched = self.watched
                 if watched and any(r['id'] == watched for r in data['sessions']):
@@ -272,6 +318,8 @@ class ServiceManager:
         return True
 
     def stop(self, sid):
+        if not self.available:
+            return False
         self.requests.put({'op': 'stop', 'id': sid})
         return True
 

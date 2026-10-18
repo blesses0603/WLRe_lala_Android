@@ -112,6 +112,50 @@ class AndroidSessions(unittest.TestCase):
         self.assertTrue(self.manager.remove(session.session_id))
         self.assertFalse(self.manager.sessions)
 
+    def test_chat_waits_for_real_server_result_before_ack(self):
+        session = self.start()
+        self.drain()
+        session.phase = "world_ready"
+        emit = self.calls[0][0]
+        first = {"type": "chat", "channel": "區域", "text": "第一句",
+                 "request_id": "msg-1"}
+        self.assertTrue(self.manager.game_command(session.session_id, first))
+        self.assertEqual(session.commands.get_nowait(), first)
+        emit({"type": "chat_sent", "text": "第一句"})
+        self.assertFalse(any(kind == "chat_ack" for _, kind, _ in self.drain()))
+        self.assertEqual(len(session.chat_requests), 1)
+        emit({"type": "chat_result", "result": 1, "text": "頻率限制"})
+        acks = [v for _, kind, v in self.drain() if kind == "chat_ack"]
+        self.assertEqual(acks[0]["request_id"], "msg-1")
+        self.assertEqual(acks[0]["text"], "第一句")
+        self.assertEqual(acks[0]["status"], "rejected")
+        self.assertFalse(session.chat_requests)
+        second = dict(first, text="第二句", request_id="msg-2")
+        self.assertTrue(self.manager.game_command(session.session_id, second))
+        session.commands.get_nowait()
+        emit({"type": "chat_sent", "text": "第二句"})
+        self.assertFalse(any(kind == "chat_ack" for _, kind, _ in self.drain()))
+        emit({"type": "chat_result", "result": 0})
+        acks = [v for _, kind, v in self.drain() if kind == "chat_ack"]
+        self.assertEqual(acks[0]["request_id"], "msg-2")
+        self.assertEqual(acks[0]["text"], "第二句")
+        self.assertEqual(acks[0]["status"], "sent")
+
+    def test_chat_local_rejection_unblocks_draft(self):
+        session = self.start()
+        session.phase = "world_ready"
+        emit = self.calls[0][0]
+        command = {"type": "chat", "channel": "隊伍", "text": "還沒入隊",
+                   "request_id": "msg-rejected"}
+        self.assertTrue(self.manager.game_command(session.session_id, command))
+        session.commands.get_nowait()
+        emit({"type": "command_rejected", "command_type": "chat",
+              "error": "未加入隊伍"})
+        acks = [v for _, kind, v in self.drain() if kind == "chat_ack"]
+        self.assertEqual(len(acks), 1)
+        self.assertEqual(acks[0]["request_id"], "msg-rejected")
+        self.assertEqual(acks[0]["status"], "rejected")
+
     def test_invalid_input_does_not_start_session(self):
         for args in (dict(account='', password='x', port=1234),
                      dict(account='user', password='', port=1234),

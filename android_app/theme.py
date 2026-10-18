@@ -3,7 +3,9 @@
 Decorative drawing belongs to reusable widgets, not individual feature pages.
 No networking or game state is handled by this module.
 """
-from kivy.graphics import Color, RoundedRectangle, Ellipse
+from pathlib import Path
+
+from kivy.graphics import Color, RoundedRectangle, Ellipse, InstructionGroup
 from kivy.metrics import dp
 
 BACKGROUND = (0.035, 0.055, 0.105, 1)
@@ -30,16 +32,29 @@ INPUT_TEXT = (0.035, 0.075, 0.13, 1)
 INPUT_HINT = (0.31, 0.38, 0.45, 1)
 INPUT_CARET = (0.025, 0.34, 0.49, 1)
 INPUT_SELECTION = (0.28, 0.68, 0.81, 0.40)
+INPUT_FONT = str(Path(__file__).resolve().parent / "assets/fonts/NotoSansTC-Regular.ttf")
 
 
-def _rounded(view, fill, border, radius):
-    """Create a resize-aware border and inset panel in canvas.before."""
-    with view.canvas.before:
-        outer_tint = Color(*border)
-        outer = RoundedRectangle(pos=view.pos, size=view.size, radius=[dp(radius)])
-        inner_tint = Color(*fill)
-        inner = RoundedRectangle(pos=view.pos, size=view.size,
-                                 radius=[dp(max(1, radius - 1))])
+def _rounded(view, fill, border, radius, under_existing=False):
+    """Create resize-aware rounded paint, with an optional lowest draw layer.
+
+    Kivy TextInput may render its hint and editable line textures in
+    canvas.before. Appending an opaque rectangle there can hide BOTH the
+    typed glyphs and the hint even when foreground_color is correct.
+    Keep text fields' backgrounds at instruction index zero.
+    """
+    group = InstructionGroup()
+    outer_tint = Color(*border)
+    outer = RoundedRectangle(pos=view.pos, size=view.size, radius=[dp(radius)])
+    inner_tint = Color(*fill)
+    inner = RoundedRectangle(pos=view.pos, size=view.size,
+                             radius=[dp(max(1, radius - 1))])
+    for instruction in (outer_tint, outer, inner_tint, inner):
+        group.add(instruction)
+    if under_existing:
+        view.canvas.before.insert(0, group)
+    else:
+        view.canvas.before.add(group)
 
     def geometry(*_):
         inset = dp(1)
@@ -49,6 +64,8 @@ def _rounded(view, fill, border, radius):
 
     geometry()
     view.bind(pos=geometry, size=geometry)
+    if under_existing:
+        view._lala_input_background_group = group
     return outer_tint, inner_tint
 
 
@@ -106,6 +123,9 @@ def style_input(view, radius=16):
     view.background_normal = ''
     view.background_active = ''
     view.background_color = (0, 0, 0, 0)
+    # Use the actual bundled Chinese font for hint text and typed text,
+    # independently of LabelBase's global font alias registration order.
+    view.font_name = INPUT_FONT
     # TextInput.foreground_color governs typed text AND IME composition.
     # Do not inherit a dark or semi-transparent color from any default theme.
     view.foreground_color = INPUT_TEXT
@@ -115,7 +135,8 @@ def style_input(view, radius=16):
     view.selection_color = INPUT_SELECTION
     view.padding = [dp(14), dp(12), dp(14), dp(12)]
     if not hasattr(view, '_lala_input_colors'):
-        view._lala_input_colors = _rounded(view, INPUT_FILL, BORDER, radius)
+        view._lala_input_colors = _rounded(
+            view, INPUT_FILL, BORDER, radius, under_existing=True)
 
         def update(*_):
             edge, fill = view._lala_input_colors

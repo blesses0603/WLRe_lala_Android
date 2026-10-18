@@ -106,6 +106,41 @@ class AndroidUI(unittest.TestCase):
             for actual, target in zip(input_widget.foreground_color, INPUT_TEXT):
                 self.assertAlmostEqual(actual, target, places=5)
 
+    def test_input_round_background_is_beneath_hints_and_rendered_text(self):
+        from kivy.uix.textinput import TextInput
+        from kivy.clock import Clock
+        from android_app.theme import INPUT_FONT, style_input
+
+        # The reported phone bug: both the hint and input glyphs disappear
+        # despite good foreground/background contrast. This is a draw-order
+        # regression, not a color-contrast failure.
+        field = style_input(TextInput(hint_text='輸入帳號', multiline=False))
+        backdrop = field._lala_input_background_group
+        self.assertIs(field.canvas.before.children[0], backdrop)
+        self.assertEqual(field.font_name, INPUT_FONT)
+        self.assertEqual(field.hint_text, '輸入帳號')
+        field.size = (320, 52)
+        field.insert_text('abc中文')
+        self.assertEqual(field.text, 'abc中文')
+        for _ in range(4):
+            Clock.tick()
+        self.assertIs(field.canvas.before.children[0], backdrop)
+        self.assertTrue(any(texture for texture in field._lines_labels))
+
+        # Password glyphs must be masked instead of omitted by the custom
+        # canvas; the unmasked secret is retained only in TextInput.text.
+        password = style_input(TextInput(
+            hint_text='輸入密碼', password=True, multiline=False))
+        self.assertIs(password.canvas.before.children[0],
+                      password._lala_input_background_group)
+        password.insert_text('pass123')
+        self.assertEqual(password.text, 'pass123')
+        self.assertEqual(password.font_name, INPUT_FONT)
+        self.assertIs(self.app.account.canvas.before.children[0],
+                      self.app.account._lala_input_background_group)
+        self.assertIs(self.app.password.canvas.before.children[0],
+                      self.app.password._lala_input_background_group)
+
     def test_chinese_font_is_used_and_has_distinct_glyphs(self):
         from kivy.core.text import Label
         from PIL import ImageFont

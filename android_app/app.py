@@ -10,6 +10,7 @@ from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
+from kivy.uix.image import Image
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
@@ -151,8 +152,8 @@ class LaLaApp(App):
 
 
     def build(self):
-        from android_app.widgets import column, label, button, row
-        from android_app.theme import BACKGROUND, MUTED, ACCENT, surface, style_button, style_input
+        from android_app.widgets import column, label, button, row, RoundedSpinnerOption
+        from android_app.theme import BACKGROUND, MUTED, ACCENT, SURFACE, SOFT, surface, style_button, style_input, style_checkbox
         self.title = "WLRe_LaLa Android v" + ANDROID_VERSION
         Window.softinput_mode = "below_target"
         Window.clearcolor = BACKGROUND
@@ -160,17 +161,26 @@ class LaLaApp(App):
         base = column()
         base.padding = [dp(16), dp(20), dp(16), dp(24)]
         base.spacing = dp(16)
+        header = surface(BoxLayout(size_hint_y=None, height=dp(96), spacing=dp(12),
+                                  padding=dp(12)), color=SURFACE, radius=24)
+        icon = Image(source=str(Path(__file__).resolve().parent / 'assets/app.png'),
+                     size_hint_x=None, width=dp(68))
+        header.add_widget(icon)
+        header_text = BoxLayout(orientation='vertical', spacing=dp(2))
         title = label('飄流 RE:LaLa', 42)
         title.font_size = '25sp'; title.color = ACCENT
-        base.add_widget(title)
+        header_text.add_widget(title)
         subtitle = label('ANDROID  ·  v' + ANDROID_VERSION + '  /  多帳號管理', 26)
         subtitle.color = MUTED; subtitle.font_size = '12sp'
-        base.add_widget(subtitle)
+        header_text.add_widget(subtitle)
+        header.add_widget(header_text)
+        base.add_widget(header)
 
-        login = surface(column()); login.padding = dp(16); login.spacing = dp(10)
+        login = surface(column(), radius=24); login.padding = dp(16); login.spacing = dp(12)
         heading = label('登入遊戲', 32); heading.font_size = '19sp'
         login.add_widget(heading)
-        self.saved = style_button(Spinner(text='已保存帳號', values=self.saved_names()))
+        self.saved = style_button(Spinner(text='已保存帳號', values=self.saved_names(),
+                                          option_cls=RoundedSpinnerOption))
         self.saved.bind(text=self.switch_saved)
         delete = button('刪除', self.delete_saved)
         delete.size_hint_x = None; delete.width = dp(64)
@@ -181,7 +191,8 @@ class LaLaApp(App):
         choices = list(self.lookup)
         login.add_widget(label('伺服器與分流', 26))
         self.server = style_button(Spinner(text=choices[0] if choices else '沒有伺服器',
-            values=choices, size_hint_y=None, height=dp(48)))
+            values=choices, option_cls=RoundedSpinnerOption,
+            size_hint_y=None, height=dp(48)))
         login.add_widget(self.server)
         login.add_widget(label('帳號', 26))
         self.account = style_input(TextInput(hint_text='輸入遊戲帳號', multiline=False,
@@ -191,8 +202,8 @@ class LaLaApp(App):
         self.password = style_input(TextInput(hint_text='輸入密碼', multiline=False, password=True,
             size_hint_y=None, height=dp(48), font_size='15sp'))
         login.add_widget(self.password)
-        self.remember = CheckBox(active=False, color=ACCENT, size_hint_x=None,
-            width=dp(44), disabled=self.vault is None)
+        self.remember = style_checkbox(CheckBox(active=False, size_hint_x=None,
+            width=dp(44), disabled=self.vault is None))
         remember_text = label('加密保存帳密', 48)
         login.add_widget(row(self.remember, remember_text))
         connect = button('新增連線並登入', self.connect_account, 52)
@@ -204,7 +215,7 @@ class LaLaApp(App):
         base.add_widget(login)
 
         base.add_widget(label('帳號連線', 32))
-        self.empty_state = surface(BoxLayout(size_hint_y=None, height=dp(100), padding=dp(14)))
+        self.empty_state = surface(BoxLayout(size_hint_y=None, height=dp(100), padding=dp(16)), radius=22)
         empty_text = label('尚未建立連線\n登入後，角色資訊與操作會顯示在這裡。')
         empty_text.color = MUTED
         self.empty_state.add_widget(empty_text)
@@ -213,7 +224,7 @@ class LaLaApp(App):
         self.list_box.bind(minimum_height=self.list_box.setter('height'))
         base.add_widget(self.list_box)
 
-        monitor = surface(column()); monitor.padding = dp(14)
+        monitor = surface(column(), radius=24); monitor.padding = dp(16); monitor.spacing = dp(12)
         monitor.add_widget(label('服務與資源', 30))
         self.resources = label('資源監控：等待服務取樣')
         self.resources.font_size = '12sp'; self.resources.color = MUTED
@@ -224,7 +235,7 @@ class LaLaApp(App):
             self.overlay_button = button('開啟懸浮小球（需額外授權）', self.toggle_overlay)
             self.overlay_button.disabled = True
             monitor.add_widget(self.overlay_button)
-            monitor.add_widget(label('小球可拖曳，點開顯示帳號與 AI 狀態；可隨時關閉。'))
+            monitor.add_widget(label('懸浮小球顯示角色／夥伴、HP／SP、戰鬥、徘徊與事件；可隨時關閉。'))
             stop = button('停止全部連線與服務', self.stop_android_service)
             style_button(stop, danger=True); monitor.add_widget(stop)
         base.add_widget(monitor)
@@ -275,7 +286,7 @@ class LaLaApp(App):
         account = session.account
         from android_app.widgets import column, label
         from android_app.theme import MUTED, surface, style_button
-        card = surface(column())
+        card = surface(column(), radius=22)
         card.padding = dp(16); card.spacing = dp(10)
         title = label(account + "｜" + session.label)
         title.font_size = '17sp'

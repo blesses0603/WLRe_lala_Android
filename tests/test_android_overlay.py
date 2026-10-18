@@ -73,9 +73,11 @@ class OverlayStateTests(unittest.TestCase):
         self.assertEqual(overview["profiles"][0]["hp"], "1000")
         self.assertEqual(overview["profiles"][0]["sp"], "180")
         self.assertEqual(overview["statuses"]["battle"], full["statuses"]["battle"])
-        self.assertEqual(overview["statuses"]["alchemy"], "煉金中")
-        self.assertEqual(overview["statuses"]["crafting"], "製作中")
-        self.assertEqual(overview["statuses"]["supply"], "待補給")
+        self.assertEqual(set(overview["statuses"]), {"battle", "roaming", "event"})
+        self.assertNotIn("alchemy", overview["statuses"])
+        self.assertNotIn("crafting", overview["statuses"])
+        self.assertNotIn("supply", overview["statuses"])
+        self.assertEqual(overview["statuses"]["event"], full["statuses"]["event"])
         serialized = json.dumps(projected, ensure_ascii=False)
         self.assertNotIn("my-account", serialized)
         self.assertNotIn("another-account", serialized)
@@ -101,7 +103,7 @@ class OverlayStateTests(unittest.TestCase):
         self.assertEqual(len(result["profiles"]), 5)
         self.assertEqual(result["remaining_profiles"], 20)
         self.assertEqual(len(result["character"]), 32)
-        self.assertLessEqual(len(result["statuses"]["alchemy"]), 64)
+        self.assertEqual(set(result["statuses"]), {"battle", "roaming", "event"})
         self.assertNotIn("\n", result["character"])
 
     def test_native_bubble_uses_same_app_icon_and_role_overview(self):
@@ -111,7 +113,9 @@ class OverlayStateTests(unittest.TestCase):
         self.assertIn("getApplicationIcon(context.getPackageName())", java)
         self.assertIn('overview.optJSONArray("profiles")', java)
         self.assertIn("addVital(context, card", java)
-        self.assertIn('addStatus(context, card, "補給"', java)
+        self.assertIn('addStatus(context, card, "事件"', java)
+        for hidden in ("煉金", "製作", "補給"):
+            self.assertNotIn('addStatus(context, card, "' + hidden + '"', java)
         self.assertIn("overview_lines(self.state)", page)
 
     def test_no_account_and_many_accounts(self):

@@ -416,9 +416,6 @@ public final class FloatingOverlay {
             addStatus(context, card, "自動戰鬥", statuses.optString("battle", "待同步"), CYAN);
             addStatus(context, card, "自動徘徊", statuses.optString("roaming", "待同步"), CYAN);
             addStatus(context, card, "事件", statuses.optString("event", "待同步"), MUTED);
-            addStatus(context, card, "煉金", statuses.optString("alchemy", "待同步"), MUTED);
-            addStatus(context, card, "製作", statuses.optString("crafting", "待同步"), MUTED);
-            addStatus(context, card, "補給", statuses.optString("supply", "待同步"), MUTED);
         }
     }
 

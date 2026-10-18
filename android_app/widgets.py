@@ -4,15 +4,22 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
-from kivy.uix.spinner import Spinner
+from kivy.uix.spinner import Spinner, SpinnerOption
 from kivy.uix.checkbox import CheckBox
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
-from android_app.theme import TEXT, MUTED, ACCENT, SURFACE, style_button, style_input
+from android_app.theme import TEXT, MUTED, ACCENT, SURFACE, BACKGROUND, surface, style_button, style_input, style_checkbox
+
+
+class RoundedSpinnerOption(SpinnerOption):
+    """Round dropdown choices, not only the currently selected Spinner."""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        style_button(self)
 
 
 def column():
-    box = BoxLayout(orientation='vertical', spacing=dp(8), padding=dp(6), size_hint_y=None)
+    box = BoxLayout(orientation='vertical', spacing=dp(10), padding=dp(8), size_hint_y=None)
     box.bind(minimum_height=box.setter('height'))
     return box
 
@@ -34,7 +41,7 @@ def button(text, callback, height=48):
 
 
 def row(*views):
-    box = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(6))
+    box = BoxLayout(size_hint_y=None, height=dp(48), spacing=dp(8))
     for view in views: box.add_widget(view)
     return box
 
@@ -54,24 +61,29 @@ def field(box, title, text='', numeric=False):
 def select(box, title, values, current=None):
     box.add_widget(label(title))
     view = Spinner(text=current if current is not None else (values[0] if values else '無資料'),
-                   values=list(values), size_hint_y=None, height=dp(48), font_size='14sp')
+                   values=list(values), option_cls=RoundedSpinnerOption,
+                   size_hint_y=None, height=dp(48), font_size='14sp')
     style_button(view)
     box.add_widget(view)
     return view
 
 
 def check(box, title, value=False):
-    view = CheckBox(active=bool(value), color=ACCENT, size_hint_x=None, width=dp(48))
+    view = style_checkbox(CheckBox(active=bool(value), size_hint_x=None, width=dp(48)))
     text = label(title); text.size_hint_y = 1
     box.add_widget(row(view, text))
     return view
 
 
 def dialog(title, body, height=.92):
-    scroll = ScrollView(do_scroll_x=False); scroll.add_widget(body)
-    popup = Popup(title=title, content=scroll, size_hint=(.97, height), background='',
-                  background_color=SURFACE, title_color=TEXT, separator_color=ACCENT)
-    popup.open(); return popup
+    scroll = ScrollView(do_scroll_x=False, bar_width=dp(3))
+    scroll.add_widget(body)
+    frame = surface(BoxLayout(padding=dp(10)), color=SURFACE, radius=24)
+    frame.add_widget(scroll)
+    popup = Popup(title=title, content=frame, size_hint=(.96, height), background='',
+                  background_color=(0, 0, 0, 0), title_color=TEXT, separator_color=ACCENT)
+    popup.open()
+    return popup
 
 
 def confirm(title, text, callback):

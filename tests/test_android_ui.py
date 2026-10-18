@@ -29,6 +29,44 @@ class AndroidUI(unittest.TestCase):
         self.app.manager.events.put(('fixture', 'roles', self.session.roles))
         self.app.drain_events()
 
+    def test_round_theme_styles_buttons_inputs_selectors_cards_and_checks(self):
+        from kivy.uix.button import Button
+        from kivy.uix.textinput import TextInput
+        from android_app.theme import (
+            ACCENT, SOFT, PRIMARY_FILL, style_button, style_input, surface)
+        from android_app.widgets import RoundedSpinnerOption, column, select, check
+
+        control = style_button(Button(text='測試'))
+        self.assertTrue(hasattr(control, '_lala_button_colors'))
+        self.assertEqual(tuple(control.background_color), (0, 0, 0, 0))
+        for actual, expected in zip(control._lala_button_colors[1].rgba, SOFT):
+            self.assertAlmostEqual(actual, expected, places=5)
+        first_fill = control._lala_button_colors[1]
+        style_button(control, primary=True)
+        self.assertIs(control._lala_button_colors[1], first_fill)
+        for actual, expected in zip(first_fill.rgba, PRIMARY_FILL):
+            self.assertAlmostEqual(actual, expected, places=5)
+        control.state = 'down'
+        self.assertNotEqual(tuple(first_fill.rgba), PRIMARY_FILL)
+        control.state = 'normal'
+        control.disabled = True
+        self.assertNotEqual(tuple(first_fill.rgba), PRIMARY_FILL)
+
+        entry = style_input(TextInput(multiline=False))
+        self.assertTrue(hasattr(entry, '_lala_input_colors'))
+        self.assertEqual(tuple(entry.background_color), (0, 0, 0, 0))
+        box = surface(column())
+        self.assertTrue(hasattr(box, '_lala_surface_colors'))
+        spinner = select(box, '分流', ['地球', '水星'])
+        self.assertIs(spinner.option_cls, RoundedSpinnerOption)
+        self.assertTrue(hasattr(RoundedSpinnerOption(text='地球'), '_lala_button_colors'))
+        toggle = check(box, '保存帳號')
+        self.assertTrue(hasattr(toggle, '_lala_check_parts'))
+        toggle.active = True
+        for actual, expected in zip(toggle._lala_check_parts[4].rgba, ACCENT):
+            self.assertAlmostEqual(actual, expected, places=5)
+        self.assertTrue(hasattr(self.app.remember, '_lala_check_parts'))
+
     def test_chinese_font_is_used_and_has_distinct_glyphs(self):
         from kivy.core.text import Label
         from PIL import ImageFont

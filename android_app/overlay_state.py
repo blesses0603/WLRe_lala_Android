@@ -57,7 +57,8 @@ def _overview(state):
         "character": _text(value["character"], 32),
         "profiles": profiles,
         "remaining_profiles": max(0, len(value["profiles"]) - len(profiles)),
-        "statuses": {key: _text(text, 64) for key, text in value["statuses"].items()},
+        "statuses": {key: _text(value["statuses"][key], 64)
+                     for key in ("battle", "roaming", "event")},
     }
 
 

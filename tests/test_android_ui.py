@@ -67,6 +67,45 @@ class AndroidUI(unittest.TestCase):
             self.assertAlmostEqual(actual, expected, places=5)
         self.assertTrue(hasattr(self.app.remember, '_lala_check_parts'))
 
+    def test_input_text_has_accessible_contrast_in_focus_and_normal_state(self):
+        from kivy.uix.textinput import TextInput
+        from android_app.theme import (
+            INPUT_FILL, FOCUS_FILL, INPUT_TEXT, INPUT_HINT, INPUT_CARET,
+            style_input,
+        )
+
+        def luminance(rgb):
+            channels = [v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+                        for v in rgb[:3]]
+            return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+        def contrast(first, second):
+            high, low = sorted((luminance(first), luminance(second)), reverse=True)
+            return (high + 0.05) / (low + 0.05)
+
+        for background in (INPUT_FILL, FOCUS_FILL):
+            self.assertGreaterEqual(contrast(INPUT_TEXT, background), 7.0)
+            self.assertGreaterEqual(contrast(INPUT_HINT, background), 4.5)
+
+        entry = style_input(TextInput(text='中文測試 123', multiline=False))
+        self.assertEqual(entry.text, '中文測試 123')
+        for property_name, expected in (
+            ('foreground_color', INPUT_TEXT),
+            ('disabled_foreground_color', INPUT_HINT),
+            ('hint_text_color', INPUT_HINT),
+            ('cursor_color', INPUT_CARET),
+        ):
+            for actual, target in zip(getattr(entry, property_name), expected):
+                self.assertAlmostEqual(actual, target, places=5)
+        for actual, target in zip(entry._lala_input_colors[1].rgba, INPUT_FILL):
+            self.assertAlmostEqual(actual, target, places=5)
+        entry.focus = True
+        for actual, target in zip(entry._lala_input_colors[1].rgba, FOCUS_FILL):
+            self.assertAlmostEqual(actual, target, places=5)
+        for input_widget in (entry, self.app.account, self.app.password):
+            for actual, target in zip(input_widget.foreground_color, INPUT_TEXT):
+                self.assertAlmostEqual(actual, target, places=5)
+
     def test_chinese_font_is_used_and_has_distinct_glyphs(self):
         from kivy.core.text import Label
         from PIL import ImageFont

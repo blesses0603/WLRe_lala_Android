@@ -21,8 +21,15 @@ BUTTON_PRESSED = (0.13, 0.35, 0.47, 1)
 DANGER_FILL = (0.26, 0.105, 0.16, 1)
 DANGER_PRESSED = (0.37, 0.13, 0.19, 1)
 DISABLED_FILL = (0.09, 0.14, 0.20, 0.7)
-INPUT_FILL = (0.045, 0.085, 0.15, 1)
-FOCUS_FILL = (0.06, 0.14, 0.22, 1)
+# Inputs use an opaque bright fill with dark glyphs so both native Android IME
+# composition and Kivy's TextInput rendering remain readable across devices.
+# These colors intentionally contrast with the dark surrounding cards.
+INPUT_FILL = (0.87, 0.93, 0.97, 1)
+FOCUS_FILL = (0.97, 0.985, 1, 1)
+INPUT_TEXT = (0.035, 0.075, 0.13, 1)
+INPUT_HINT = (0.31, 0.38, 0.45, 1)
+INPUT_CARET = (0.025, 0.34, 0.49, 1)
+INPUT_SELECTION = (0.28, 0.68, 0.81, 0.40)
 
 
 def _rounded(view, fill, border, radius):
@@ -95,14 +102,17 @@ def style_button(view, primary=False, danger=False, radius=18):
 
 
 def style_input(view, radius=16):
-    """Rounded text inputs with a distinct focus ring, preserving Android IME."""
+    """Opaque high-contrast inputs with readable IME composition and focus ring."""
     view.background_normal = ''
     view.background_active = ''
     view.background_color = (0, 0, 0, 0)
-    view.foreground_color = TEXT
-    view.hint_text_color = MUTED
-    view.cursor_color = ACCENT
-    view.selection_color = (0.16, 0.47, 0.60, 0.60)
+    # TextInput.foreground_color governs typed text AND IME composition.
+    # Do not inherit a dark or semi-transparent color from any default theme.
+    view.foreground_color = INPUT_TEXT
+    view.disabled_foreground_color = INPUT_HINT
+    view.hint_text_color = INPUT_HINT
+    view.cursor_color = INPUT_CARET
+    view.selection_color = INPUT_SELECTION
     view.padding = [dp(14), dp(12), dp(14), dp(12)]
     if not hasattr(view, '_lala_input_colors'):
         view._lala_input_colors = _rounded(view, INPUT_FILL, BORDER, radius)

@@ -79,3 +79,7 @@ keytool -list -v -keystore WLRe_LaLa.debug.keystore -storepass android -alias an
 - GitHub PR 不提供私人 Secret，所以 PR Artifact 是臨時簽章；其 CI 成功只能證明簽署程式測試、ARM64 打包可用，**無法證明固定簽章在主分支已生效**。
 - `SIGNING_INFO.txt` 記錄 APK 簽署憑證的公開指紋；`SHA256SUMS.txt` 是 APK 位元檔案校驗，不可互相取代。
 - R8／ProGuard 不保護 Python `.pyc`，固定簽章亦不會阻止逆向或重新打包。
+
+### 2026-10-18：PR 臨時簽章比對修復
+
+PR 使用臨時簽章，不應該用正式版的公開憑證指紋檢查 PR APK；在 `Mode: ephemeral` 時，`SIGNING_INFO.txt` 只報告 APK 真實簽章及 `Pinned public signer SHA256: NOT CONFIGURED`。只有 `Mode: persistent` 才必須比對固定 pin。不影響 main/Tag 的嚴格簽章阻擋。

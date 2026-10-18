@@ -175,10 +175,15 @@ def signing_info(output_dir, keystore=None, apksigner=None):
     restored keystore is present; ephemeral mode reports the APK cert itself.
     """
     require = os.environ.get("ANDROID_REQUIRE_PERSISTENT_SIGNING") == "1"
-    pin = _configured_pin(required=require)
     mode = os.environ.get(ENV_MODE, "ephemeral")
     if require and mode != "persistent":
         raise RuntimeError("Release build refused: persistent signing is required")
+    if mode not in ("persistent", "ephemeral"):
+        raise ValueError("Unrecognized Android signing mode")
+    # PR/debug APKs are intentionally signed by ephemeral CI keys.
+    # A public release pin may still exist in repository variables, but must
+    # NEVER be compared against an ephemeral PR signer.
+    pin = _configured_pin(required=True) if mode == "persistent" else None
     candidates = list(Path(output_dir).glob("*.apk"))
     if len(candidates) != 1:
         raise ValueError("Expected exactly one built Android APK for signature verification")

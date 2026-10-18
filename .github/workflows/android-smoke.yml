@@ -88,7 +88,8 @@ jobs:
       - name: Prepare ARM64 phone APK with SHA256 checksum
         env:
           ANDROID_REQUIRE_PERSISTENT_SIGNING: ${{ github.event_name == 'pull_request' && '0' || '1' }}
-          ANDROID_EXPECTED_SIGNER_SHA256: ${{ github.event_name == 'pull_request' && '' || vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
+          # The report enforces the pin only when ANDROID_SIGNING_MODE=persistent.
+          ANDROID_EXPECTED_SIGNER_SHA256: ${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
         run: |
           mkdir -p phone-output
           apk_path="$(find bin -maxdepth 1 -type f -name '*.apk' -print -quit)"

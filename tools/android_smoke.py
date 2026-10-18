@@ -1,8 +1,8 @@
 """No-account emulator smoke test: UI, service, Home and screen-off survival.
 
-Readiness and process assertions are required; end-of-run diagnostic collection
-is best-effort. In particular, Android 15 emulators may return 255 from adb
-logcat after the smoke checks already passed.
+Readiness and process assertions are required; transient ADB logcat errors
+during startup and best-effort diagnostic collection must not conceal the
+actual Android UI/service result. A true readiness timeout still fails.
 """
 import subprocess
 import sys
@@ -40,6 +40,44 @@ def diagnostic_adb(*args):
         if attempt == 0:
             time.sleep(1)
     return "[diagnostic unavailable: {}]\n".format(failure)
+
+
+def readiness_log():
+    """Read startup markers without failing on transient emulator adb exit 255.
+
+    A missing/failed read is never treated as a ready application.
+    """
+    try:
+        result = subprocess.run(
+            ['adb', 'logcat', '-d', '-v', 'threadtime'],
+            text=True, capture_output=True, check=False, timeout=15)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        print("Startup logcat temporarily unavailable ({})".format(
+            type(error).__name__), flush=True)
+        return None
+    if result.returncode != 0:
+        print("Startup logcat temporarily unavailable (adb status {})".format(
+            result.returncode), flush=True)
+        return None
+    return result.stdout
+
+
+def wait_for_readiness(timeout=150):
+    """Collect positive markers over retries; missing markers remain failures."""
+    deadline = time.monotonic() + timeout
+    found = set()
+    while True:
+        logs = readiness_log()
+        if logs is not None:
+            found.update(marker for marker in MARKERS if marker in logs)
+            if len(found) == len(MARKERS):
+                return
+        if time.monotonic() >= deadline:
+            missing = [marker for marker in MARKERS if marker not in found]
+            raise RuntimeError(
+                "UI/service readiness markers missing after {}s: {}".format(
+                    timeout, ", ".join(missing)))
+        time.sleep(2)
 
 
 def collect_diagnostics(failed=False):
@@ -80,14 +118,7 @@ def main():
     adb('shell', 'am', 'start', '-W', '-n',
         PACKAGE + '/org.kivy.android.PythonActivity')
     try:
-        deadline = time.monotonic() + 90
-        while True:
-            logs = adb('logcat', '-d', '-v', 'threadtime')
-            if all(marker in logs for marker in MARKERS):
-                break
-            if time.monotonic() >= deadline:
-                raise RuntimeError('UI/service readiness markers missing')
-            time.sleep(2)
+        wait_for_readiness(timeout=150)
         assert alive(PACKAGE), 'Activity process exited'
         service = PACKAGE + ':service_Connections'
         assert alive(service), 'Foreground service process exited'

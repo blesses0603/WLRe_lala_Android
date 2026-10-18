@@ -1,3 +1,10 @@
+## v0.0.7：原生啟動畫面提交後 API 35／36 Smoke 回歸
+
+- [Actions 39109093293](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39109093293) 編譯並驗證 ARM64 與 x86_64 APK 內含自訂 `presplash.jpg`，但工作流程總結為 **failure**；API 31～34 通過，API 35／36 失敗。
+- 兩個失敗日誌皆在 `tools/android_smoke.py` 啟動就緒等待迴圈、原本第 85 行的 `adb logcat -d -v threadtime` 遇到返回碼 **255**，未進入既有的測試結束診斷容錯。API 36 日誌已出現 UI 及 Keystore 就緒標記，但仍不能因此宣稱服務與全部 Smoke 測項已成功。
+- 修正：啟動期間的 `adb logcat` 暫時中斷先記錄並重試，累積已觀察到的正向就緒標記，等待時間為 150 秒；**未看到全部標記仍會在期限到時失敗**。新增對 255、執行逾時、分段標記及真正就緒逾時的回歸測試。
+- 本次只調整 CI 測試程式及文件，保留 `v0.0.7`、原生啟動畫面設定、IPC 與遊戲邏輯。驗證結果以修正後新 Actions Run 為準。
+
 ## v0.0.7：原生啟動畫面客製化
 
 - 使用者手機截圖仍顯示 Kivy 預設黑色 `Loading...`。查明 `buildozer.spec` 原本只有 `icon.filename`，沒有 `presplash.filename`；Kivy 內部 UI 圓角與主題不會影響 SDL2 原生載入畫面。

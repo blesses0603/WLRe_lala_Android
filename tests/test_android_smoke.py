@@ -29,6 +29,40 @@ class AndroidSmokeDiagnosticsTests(unittest.TestCase):
         self.assertIn('AndroidRuntime: retained', log)
         self.assertIn('service present', services)
 
+    def test_readiness_retries_android_15_logcat_255(self):
+        code = subprocess.CompletedProcess(
+            ['adb', 'logcat'], 255, '', 'transient device offline')
+        success = subprocess.CompletedProcess(
+            ['adb', 'logcat'], 0, '\n'.join(android_smoke.MARKERS), '')
+        with patch('tools.android_smoke.subprocess.run',
+                   side_effect=[code, success]) as run, patch(
+                   'tools.android_smoke.time.sleep') as sleep:
+            self.assertIsNone(android_smoke.wait_for_readiness(timeout=4))
+        self.assertEqual(run.call_count, 2)
+        sleep.assert_called_once_with(2)
+
+    def test_readiness_preserves_markers_across_logcat_reads(self):
+        with patch('tools.android_smoke.readiness_log', side_effect=[
+                android_smoke.MARKERS[0], None,
+                '\n'.join(android_smoke.MARKERS[1:])]), patch(
+                'tools.android_smoke.time.sleep'):
+            self.assertIsNone(android_smoke.wait_for_readiness(timeout=5))
+
+    def test_readiness_timeout_is_still_a_real_failure(self):
+        with patch('tools.android_smoke.readiness_log', return_value=None), patch(
+                'tools.android_smoke.time.monotonic', side_effect=[10, 11, 12]), patch(
+                'tools.android_smoke.time.sleep'):
+            with self.assertRaisesRegex(RuntimeError, 'readiness markers missing'):
+                android_smoke.wait_for_readiness(timeout=1)
+
+    def test_readiness_subprocess_timeout_recovers(self):
+        with patch('tools.android_smoke.subprocess.run', side_effect=[
+                subprocess.TimeoutExpired(['adb', 'logcat'], 15),
+                subprocess.CompletedProcess(['adb', 'logcat'], 0,
+                                             '\n'.join(android_smoke.MARKERS), '')]), patch(
+                'tools.android_smoke.time.sleep'):
+            self.assertIsNone(android_smoke.wait_for_readiness(timeout=5))
+
     def test_optional_diagnostics_all_fail_without_throwing(self):
         with tempfile.TemporaryDirectory() as folder:
             with chdir(folder), patch('tools.android_smoke.subprocess.run',
@@ -61,6 +95,7 @@ class AndroidSmokeDiagnosticsTests(unittest.TestCase):
                 Path('bin').mkdir()
                 Path('bin/app.apk').write_bytes(b'apk fixture')
                 with patch.object(android_smoke, 'adb', side_effect=fake_adb), patch(
+                        'tools.android_smoke.readiness_log', return_value=markers), patch(
                         'tools.android_smoke.subprocess.run', side_effect=failure), patch(
                         'tools.android_smoke.time.sleep'):
                     self.assertIsNone(android_smoke.main())
@@ -87,6 +122,7 @@ class AndroidSmokeDiagnosticsTests(unittest.TestCase):
                 Path('bin').mkdir()
                 Path('bin/app.apk').write_bytes(b'apk fixture')
                 with patch.object(android_smoke, 'adb', side_effect=fake_adb), patch(
+                        'tools.android_smoke.readiness_log', return_value=markers), patch(
                         'tools.android_smoke.subprocess.run', side_effect=failure), patch(
                         'tools.android_smoke.time.sleep'):
                     with self.assertRaisesRegex(AssertionError, 'Activity process exited'):

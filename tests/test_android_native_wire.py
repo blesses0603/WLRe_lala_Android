@@ -1,5 +1,7 @@
 """Opt-in native-wire candidate must not weaken APK packaging safety."""
+import importlib.util
 import io
+import marshal
 from pathlib import Path
 import struct
 import tarfile
@@ -64,11 +66,17 @@ class NativeWireTests(unittest.TestCase):
             stage(self.repo, self.base / "native")
         self.assertFalse((self.base / "native").exists())
 
-    def apk(self, inner, include_native=True):
+    def apk(self, inner, include_native=True, include_shim=True):
         path = self.base / "app.apk"
         buffer = io.BytesIO()
+        valid_shim = (
+            importlib.util.MAGIC_NUMBER + b"\x00" * 12
+            + marshal.dumps(compile(SHIM, "wlre/network/wire.py", "exec"))
+        )
+        contents = ({"wlre/network/wire.pyc": valid_shim} if include_shim else {})
+        contents.update(inner)
         with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
-            for name, payload in inner.items():
+            for name, payload in contents.items():
                 info = tarfile.TarInfo(name)
                 info.size = len(payload)
                 tar.addfile(info, io.BytesIO(payload))
@@ -80,8 +88,11 @@ class NativeWireTests(unittest.TestCase):
 
     def elf(self, machine=183):
         payload = bytearray(64)
-        payload[:6] = b"\x7fELF\x02\x01"
+        payload[:7] = b"\x7fELF\x02\x01\x01"
+        struct.pack_into("<H", payload, 16, 3)  # ET_DYN
         struct.pack_into("<H", payload, 18, machine)
+        struct.pack_into("<I", payload, 20, 1)
+        struct.pack_into("<H", payload, 52, 64)
         return bytes(payload)
 
     def test_arm64_elf_and_linux_binary_distinguished(self):
@@ -89,7 +100,7 @@ class NativeWireTests(unittest.TestCase):
             "site-packages/_wlre_wire_native.cpython-311-aarch64-linux-android.so":
                 self.elf()
         })
-        self.assertEqual(verify_apk(path)["source_leaks"], 0)
+        self.assertEqual(verify_apk(path)["verified_wire_shims"], 1)
         path = self.apk({
             "_wlre_wire_native.cpython-311-x86_64-linux-gnu.so": self.elf(62)
         })
@@ -110,6 +121,25 @@ class NativeWireTests(unittest.TestCase):
             }))
         with self.assertRaisesRegex(ValueError, "does not contain Android ARM64"):
             verify_apk(self.apk({"_wlre_wire_native.so": self.elf()}, include_native=False))
+
+    def test_native_without_exact_shim_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Missing verified wire import shim"):
+            verify_apk(self.apk({"_wlre_wire_native.so": self.elf()}, include_shim=False))
+        old_module = compile(
+            "class Reader: pass\nclass FrameDecoder: pass\n",
+            "wlre/network/wire.py", "exec"
+        )
+        old_bytecode = importlib.util.MAGIC_NUMBER + b"\x00" * 12 + marshal.dumps(old_module)
+        with self.assertRaisesRegex(ValueError, "unverified wire bytecode"):
+            verify_apk(self.apk({
+                "_wlre_wire_native.so": self.elf(),
+                "wlre/network/__pycache__/wire.cpython-311.pyc": old_bytecode,
+            }))
+    def test_weak_elf_header_is_rejected(self):
+        broken = bytearray(self.elf())
+        struct.pack_into("<H", broken, 16, 2)  # ET_EXEC, not a shared object
+        with self.assertRaisesRegex(ValueError, "Non-ARM64"):
+            verify_apk(self.apk({"_wlre_wire_native.so": bytes(broken)}))
 
 
 if __name__ == "__main__":

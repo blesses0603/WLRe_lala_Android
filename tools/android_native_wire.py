@@ -161,17 +161,81 @@ def verify_apk(path: Path) -> dict:
     return {"arm64_wire_extensions": found, "source_leaks": 0}
 
 
+
+def host_smoke(root: Path = ROOT) -> None:
+    """Run the exact native shim through a host Cython build in disposable dirs.
+
+    This test does NOT establish Android NDK compatibility and cannot be used
+    to satisfy the ARM64 APK acceptance gate.
+    """
+    import json
+    import os
+    import subprocess
+    import sys
+    import tempfile
+
+    root = root.resolve(strict=True)
+    _assert_clean_source(root)
+    with tempfile.TemporaryDirectory(prefix="lalawire-native-host-") as tmp:
+        test_root = Path(tmp)
+        native = test_root / "recipe"
+        native.mkdir()
+        shutil.copy2(root / WIRE_REL, native / f"{NATIVE_BASENAME}.pyx")
+        shutil.copy2(root / RECIPE_ROOT / "setup.py", native / "setup.py")
+        subprocess.run(
+            [sys.executable, "setup.py", "build_ext", "--inplace"],
+            cwd=native, check=True, capture_output=True, text=True, timeout=180,
+        )
+        built = list(native.glob(f"{NATIVE_BASENAME}*.so"))
+        if len(built) != 1:
+            raise RuntimeError("Expected exactly one compiled host Cython extension")
+        stage_root = test_root / "app"
+        (stage_root / "wlre/network").mkdir(parents=True)
+        (stage_root / "wlre/__init__.py").write_text("", encoding="utf-8")
+        (stage_root / "wlre/network/__init__.py").write_text("", encoding="utf-8")
+        (stage_root / WIRE_REL).write_text(SHIM, encoding="utf-8")
+        shutil.copy2(built[0], stage_root / built[0].name)
+        code = (
+            "from tools.android_cython_wire import snapshot\n"
+            "import importlib, importlib.machinery, json, sys\n"
+            "sys.path.insert(0, sys.argv[1])\n"
+            "w = importlib.import_module('wlre.network.wire')\n"
+            "mod = importlib.import_module(w.Packet.__module__)\n"
+            "native = any(mod.__file__.endswith(x) for x in importlib.machinery.EXTENSION_SUFFIXES)\n"
+            "print(json.dumps({'native': native, 'contract': snapshot(w)}, sort_keys=True))\n"
+        )
+
+        def run(location):
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(root)
+            result = subprocess.run(
+                [sys.executable, "-c", code, str(location)],
+                cwd=test_root, env=env, capture_output=True, text=True, check=True, timeout=30,
+            )
+            return json.loads(result.stdout)
+
+        pure = run(root)
+        compiled = run(stage_root)
+        if pure["native"] or not compiled["native"]:
+            raise AssertionError("Native shim smoke imported an unexpected implementation")
+        if pure["contract"] != compiled["contract"]:
+            raise AssertionError("Cython shim changed wire protocol contract")
+    print("PASS: host Cython extension + production-style shim parity. Android ARM64 NOT verified.")
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="operation", required=True)
     staging = sub.add_parser("stage")
     staging.add_argument("--source", type=Path, default=ROOT)
     staging.add_argument("--output", type=Path, required=True)
+    sub.add_parser("host-smoke")
     audit = sub.add_parser("verify-apk")
     audit.add_argument("apk", type=Path)
     opts = parser.parse_args(argv)
     if opts.operation == "stage":
         print(stage(opts.source, opts.output))
+    elif opts.operation == "host-smoke":
+        host_smoke()
     else:
         print(verify_apk(opts.apk))
 

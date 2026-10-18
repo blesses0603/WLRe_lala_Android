@@ -1,14 +1,13 @@
 """Fail-closed Android packaging checks; not a substitute for source obfuscation.
 
 Checks for accidental private-key/credential distribution and unsafe Buildozer
-options. No private data is ever printed. This does not protect public GitHub
-source or make Python code inside a debug APK difficult to reverse engineer.
+options. No private data is ever printed. This does not hide bytecode in APKs or establish repository access controls.
 """
 import configparser
-import os
 from pathlib import Path
 import re
 import sys
+import tarfile
 import zipfile
 
 
@@ -92,38 +91,76 @@ def check_files(root=ROOT):
     return True
 
 
-def check_apk(apk):
-    """Reject accidentally bundled signing keys and plaintext credential files."""
+def inspect_apk(apk):
+    """Audit APK and the python-for-android private.tar payload by member names.
+
+    The private.tar is usually gzip-compressed despite its .tar suffix.
+    Never extract untrusted members to disk, nor print member contents.
+    """
     apk = Path(apk)
     if not apk.is_file():
         raise ValueError("Android APK not found")
+    counts = {"python_source": 0, "python_bytecode": 0,
+              "private_tar": False, "native_arm64_libraries": 0}
+    def record(name):
+        if _sensitive_filename(name):
+            raise ValueError("APK contains a possible private credential file: " + name)
+        lower = name.lower()
+        if lower.endswith(".py"):
+            counts["python_source"] += 1
+        elif lower.endswith(".pyc") or lower.endswith(".pyo"):
+            counts["python_bytecode"] += 1
+
     with zipfile.ZipFile(apk) as archive:
-        invalid = [info.filename for info in archive.infolist()
-                   if not info.is_dir() and _sensitive_filename(info.filename)]
-        if invalid:
-            # Paths are sufficient for fixing build; never read private contents.
-            raise ValueError("APK contains a possible private credential file: "
-                             + invalid[0])
+        for info in archive.infolist():
+            if info.is_dir():
+                continue
+            record(info.filename)
+            if info.filename.startswith("lib/arm64-v8a/") and info.filename.endswith(".so"):
+                counts["native_arm64_libraries"] += 1
+        if "assets/private.tar" in archive.namelist():
+            counts["private_tar"] = True
+            with archive.open("assets/private.tar") as payload:
+                try:
+                    # Streaming mode supports both plain TAR and gzip-compressed TAR.
+                    with tarfile.open(fileobj=payload, mode="r|*") as members:
+                        for member in members:
+                            if member.isfile():
+                                record(member.name)
+                except (tarfile.TarError, EOFError, OSError) as exc:
+                    raise ValueError("Unable to audit embedded assets/private.tar") from exc
+    return counts
+
+
+def check_apk(apk):
+    """Reject sensitive file names, including inside assets/private.tar."""
+    inspect_apk(apk)
     return True
 
 
 def report(apk):
-    check_apk(apk)
+    counts = inspect_apk(apk)
     output = Path(apk).parent / "PROTECTION_INFO.txt"
     output.write_text(
         "WLRe_LaLa Android build security summary\n"
-        "APK private-key/credential filename audit: PASSED\n"
-        "Source include/exclude configuration: checked before build\n"
+        "APK credential filename audit (including private.tar): PASSED\n"
+        "Embedded private.tar inspected: " + str(counts["private_tar"]) + "\n"
+        "Bundled Python source (.py): " + str(counts["python_source"]) + "\n"
+        "Bundled Python bytecode (.pyc/.pyo): " + str(counts["python_bytecode"]) + "\n"
+        "ARM64 shared libraries (not proof of Cython): " +
+            str(counts["native_arm64_libraries"]) + "\n"
+        "Python bytecode can be extracted and analyzed; no obfuscation is claimed.\n"
         "Account vault at rest: Android Keystore with AES-GCM\n"
         "Build flavor: DEBUG test APK (NOT a store-ready release)\n"
         "Python code obfuscation/Cython: NOT enabled\n"
         "Anti-tamper runtime protection: NOT enabled\n"
         "APK signature certificate: see SIGNING_INFO.txt\n"
         "Build checksum: see SHA256SUMS.txt\n"
-        "A public GitHub source repository exposes its code regardless of APK protection.\n",
+        "This audit inspects member names, not all secrets inside nested ZIPs or binaries.\n"
+        "Repository visibility must be verified separately in GitHub settings.\n",
         encoding="utf-8",
     )
-    print("APK security packaging audit passed; no code obfuscation claimed.")
+    print("APK packaging audit passed; bundled Python bytecode is not protected.")
     return output
 
 

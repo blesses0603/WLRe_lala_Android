@@ -1,13 +1,14 @@
 """Test the debug APK's real security boundaries, without distributing keys."""
 from pathlib import Path
-import os
+from io import BytesIO
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
 
 from tools.android_hardening import (
-    check_apk, check_configuration, check_files, report, ROOT,
+    check_apk, check_configuration, check_files, inspect_apk, report, ROOT,
 )
 
 
@@ -64,6 +65,55 @@ class AndroidHardeningTests(unittest.TestCase):
                 check_apk(archive)
             self.assertFalse((Path(temp) / "PROTECTION_INFO.txt").exists())
 
+    @staticmethod
+    def private_tar(entries):
+        output = BytesIO()
+        with tarfile.open(fileobj=output, mode="w:gz") as stream:
+            for name, contents in entries.items():
+                data = contents.encode() if isinstance(contents, str) else contents
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                stream.addfile(info, BytesIO(data))
+        return output.getvalue()
+
+    def test_packaged_python_bytecode_is_reported_not_claimed_protected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            archive = Path(temp) / "demo.apk"
+            payload = self.private_tar({
+                "android_app/app.pyc": b"compiled",
+                "wlre/network/wire.pyc": b"compiled",
+                "main.pyc": b"compiled",
+            })
+            with zipfile.ZipFile(archive, "w") as stream:
+                stream.writestr("assets/private.tar", payload)
+                stream.writestr("lib/arm64-v8a/libpython3.so", b"binary")
+            result = inspect_apk(archive)
+            self.assertEqual(result["python_bytecode"], 3)
+            self.assertEqual(result["python_source"], 0)
+            self.assertEqual(result["native_arm64_libraries"], 1)
+            self.assertTrue(result["private_tar"])
+            report_text = report(archive).read_text()
+            self.assertIn("Bundled Python bytecode (.pyc/.pyo): 3", report_text)
+            self.assertIn("bytecode can be extracted", report_text)
+            self.assertNotIn("protected by Cython", report_text)
+
+    def test_embedded_tar_rejects_hidden_signing_key(self):
+        with tempfile.TemporaryDirectory() as temp:
+            archive = Path(temp) / "demo.apk"
+            with zipfile.ZipFile(archive, "w") as stream:
+                stream.writestr("assets/private.tar",
+                                self.private_tar({"android_app/hidden/release.keystore": b"dummy"}))
+            with self.assertRaisesRegex(ValueError, "credential file"):
+                check_apk(archive)
+
+    def test_broken_embedded_tar_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            archive = Path(temp) / "demo.apk"
+            with zipfile.ZipFile(archive, "w") as stream:
+                stream.writestr("assets/private.tar", b"not a tar")
+            with self.assertRaisesRegex(ValueError, "Unable to audit"):
+                check_apk(archive)
+
     def test_protection_report_does_not_claim_reverse_engineering_prevention(self):
         with tempfile.TemporaryDirectory() as temp:
             archive = Path(temp) / "demo.apk"
@@ -71,8 +121,8 @@ class AndroidHardeningTests(unittest.TestCase):
                 stream.writestr("classes.dex", b"dex\n")
             output = report(archive).read_text()
             self.assertIn("NOT enabled", output)
-            self.assertIn("public GitHub", output)
-            self.assertIn("APK private-key/credential filename audit: PASSED", output)
+            self.assertIn("Repository visibility must be verified", output)
+            self.assertIn("APK credential filename audit (including private.tar): PASSED", output)
 
 
 if __name__ == "__main__":

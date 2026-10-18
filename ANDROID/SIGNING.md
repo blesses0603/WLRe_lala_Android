@@ -5,7 +5,7 @@
 ## 目前兩種建置模式
 
 - **未設定 GitHub Secret**：只有日常 `android-smoke.yml` 可以繼續使用臨時 Debug keystore 測試；**版本 Tag／手動版本建置會拒絕產出 APK**，避免把無法持續更新的臨時簽章誤當成正式版本。
-- **設定 GitHub Secret**：Smoke ARM64、Smoke x86_64 及 Git Tag／手動手機 APK **共用同一把私有 Debug keystore**，未更換 package ID 且版本允許升級時，能使用相同簽章更新。
+- **設定 GitHub Secret**：日常 ARM64 及 Git Tag／手動手機 APK **共用同一把私有 Debug keystore**，未更換 package ID 且版本允許升級時，能使用相同簽章更新。
 
 每份 APK Artifact 都包含 SIGNING_INFO.txt，其 Certificate SHA256 是**公開憑證指紋**，方便確認簽名金鑰相同。SHA256SUMS.txt 是 APK 檔案完整性校驗，原始碼變更後數值通常不同，即使簽章保持一致。
 
@@ -42,7 +42,7 @@ base64 < WLRe_LaLa.debug.keystore | tr -d '\n'
 - 名稱：`ANDROID_DEBUG_KEYSTORE_BASE64`
 - 值：上面產生的完整 Base64 文字（不要加引號或換行）。
 
-然後重新執行 Android Smoke 或更新 `main`。在成功 Actions 執行頁下載 `Android-arm64-apk`，ZIP 中開啟 `SIGNING_INFO.txt`，確認 `Mode: persistent`，並比較不同版本的 `Certificate SHA256` 是否相同。
+然後重新執行 Android ARM64 建置 或更新 `main`。在成功 Actions 執行頁下載 `Android-arm64-apk`，ZIP 中開啟 `SIGNING_INFO.txt`，確認 `Mode: persistent`，並比較不同版本的 `Certificate SHA256` 是否相同。
 
 **這個 Secret 目前無法由連接的 GitHub 讀寫工具替你設定，需要你在 GitHub 網頁完成。**
 
@@ -52,5 +52,5 @@ base64 < WLRe_LaLa.debug.keystore | tr -d '\n'
 - 若手機既有 APK 是先前 CI 的**臨時簽章**，新設定的金鑰不能回頭變成舊簽章。除非持有當時那把私鑰，否則無法直接覆蓋；解除安裝會移除 App 私有帳號設定與 Keystore 資料，請先備份你能備份的設定。
 - 即使簽名一致，若 Android package name 不同、版本降級、APK 架構不相容或 SDK 不支援，依然可能無法直接安裝。
 - 請永久保留自己的 `WLRe_LaLa.debug.keystore` 原檔安全備份。更換或遺失私鑰，日後就無法維持這條升級簽名鏈。
-- GitHub Actions 的 **Smoke 測試 APK** 在沒有設定 Secret 時仍會建置，`SIGNING_INFO.txt` 顯示 `Mode: ephemeral`，不保證簽名一致；**版本 Tag 與手動版本建置則要求 `Mode: persistent`**，未設 Secret 會在建置前失敗。
+- GitHub Actions 的 **日常 ARM64 測試 APK** 在沒有設定 Secret 時仍會建置，`SIGNING_INFO.txt` 顯示 `Mode: ephemeral`，不保證簽名一致；**版本 Tag 與手動版本建置則要求 `Mode: persistent`**，未設 Secret 會在建置前失敗。
 - 此處的 `androiddebugkey` 使用公認的 Debug 別名與金鑰密碼，僅適合測試和自行分發；真正公開正式發行應採獨立、具強密碼的 Release 簽署配置。

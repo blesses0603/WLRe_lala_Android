@@ -11,6 +11,19 @@ on:
       - 'buildozer.spec'
       - 'tools/**'
       - '.github/workflows/android-smoke.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'android_app/**'
+      - 'main.py'
+      - 'wlre/**'
+      - 'tests/**'
+      - 'requirements-dev.txt'
+      - 'buildozer.spec'
+      - 'tools/**'
+      - 'ANDROID/SECURITY.md'
+      - 'ANDROID/SIGNING.md'
+      - '.github/workflows/android-smoke.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -63,7 +76,9 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-wlre-arm64-${{ hashFiles('buildozer.spec') }}
           restore-keys: ${{ runner.os }}-wlre-arm64-
+      # Signing Secrets must not be provided to unmerged pull request code.
       - name: Restore persistent debug signing key when configured
+        if: github.event_name != 'pull_request'
         env:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
         run: python tools/android_signing.py prepare

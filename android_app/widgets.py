@@ -42,7 +42,10 @@ def row(*views):
 def field(box, title, text='', numeric=False):
     box.add_widget(label(title))
     view = TextInput(text=str(text), multiline=False, size_hint_y=None, height=dp(48),
-                     input_filter='int' if numeric else None, font_size='15sp')
+                     input_filter='int' if numeric else None,
+                     # Kivy defaults to 'null', which restricts Android IMEs
+                     # to key events instead of Chinese composition/commit.
+                     input_type='number' if numeric else 'text', font_size='15sp')
     style_input(view)
     box.add_widget(view)
     return view

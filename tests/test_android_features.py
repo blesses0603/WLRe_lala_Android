@@ -193,3 +193,50 @@ class MobilePages(unittest.TestCase):
         d.show('聊天'); chat.send(); sent = self.session.commands.get_nowait()
         d.chat_ack({'status':'sent','request_id':sent['request_id'],'text':'測試聊天'})
         self.assertFalse(chat.pending); self.assertEqual(chat.text.text,'')
+
+    def test_chat_emoji_selection_preserves_draft_and_sends_token(self):
+        from android_app.dashboard import Dashboard
+        from kivy.uix.button import Button
+        from kivy.uix.image import Image
+        from android_app.widgets import pick
+        d = Dashboard(self.app, 'fixture'); self.addCleanup(d.dismissed)
+        d.data = self.app.manager.session_detail('fixture'); d.show('聊天')
+        chat = d.page; chat.text.text = '你好 '
+        popups = []
+        def open_picker(*args, **kwargs):
+            popup = pick(*args, **kwargs); popups.append(popup)
+            return popup
+        with patch('android_app.pages.social.pick', side_effect=open_picker):
+            chat.emojis()
+        popup = popups[0]; self.addCleanup(popup.dismiss)
+        self.assertTrue(any(isinstance(w, Image) and w.texture is not None for w in popup.walk()))
+        choice = next(w for w in popup.walk() if isinstance(w, Button) and w.text == '[Emoji1]')
+        choice.dispatch('on_release')
+        self.assertEqual(chat.text.text, '你好 [Emoji1]')
+        self.assertTrue(self.session.commands.empty())
+        chat.send()
+        command = self.session.commands.get_nowait()
+        self.assertEqual(command['text'], '你好 [Emoji1]')
+
+    def test_chat_accepts_chinese_ime_composition_and_commit(self):
+        from android_app.dashboard import Dashboard
+        from kivy.clock import Clock
+        from android_app.widgets import column, field
+        d = Dashboard(self.app, 'fixture'); self.addCleanup(d.dismissed)
+        d.data = self.app.manager.session_detail('fixture'); d.show('聊天')
+        chat = d.page
+        self.assertEqual(chat.text.input_type, 'text')
+        self.assertEqual(chat.target.input_type, 'text')
+        self.assertIsNone(chat.text.input_filter)
+        chat.text.window_on_textedit(None, '中文')
+        for _ in range(2): Clock.tick()
+        self.assertEqual(chat.text.text, '中文')
+        chat.text.window_on_textedit(None, '')
+        for _ in range(2): Clock.tick()
+        chat.text.keyboard_on_textinput(None, '中文聊天')
+        self.assertEqual(chat.text.text, '中文聊天')
+        chat.send()
+        self.assertEqual(self.session.commands.get_nowait()['text'], '中文聊天')
+        numeric = field(column(), '角色 ID', numeric=True)
+        self.assertEqual(numeric.input_type, 'number')
+        self.assertEqual(numeric.input_filter, 'int')

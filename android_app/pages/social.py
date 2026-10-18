@@ -82,7 +82,7 @@ class Chat(Page):
         def icon(index):
             value = emoji_texture(index)
             return Image(texture=value, size_hint=(None, None), size=(dp(40),dp(40))) if value else None
-        pick('選擇表情', entries, lambda i: setattr(self.text, 'text', self.text.text.text + f'[Emoji{i}]'), icon=icon)
+        pick('選擇表情', entries, lambda i: setattr(self.text, 'text', self.text.text + f'[Emoji{i}]'), icon=icon)
     def send(self):
         if self.pending: return
         import uuid

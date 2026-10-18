@@ -17,14 +17,6 @@ PYTHON="${PYTHON:-python3}"
 for tool in "$PYTHON" buildozer file; do
   command -v "$tool" >/dev/null || { echo "Missing tool: $tool" >&2; exit 2; }
 done
-if [[ -z "${ANDROID_PYC_PYTHON:-}" ]]; then
-  echo "Set ANDROID_PYC_PYTHON to the matching p4a hostpython (target Python 3.14.2)." >&2
-  exit 2
-fi
-if ! command -v "$ANDROID_PYC_PYTHON" >/dev/null && [[ ! -x "$ANDROID_PYC_PYTHON" ]]; then
-  echo "Missing target-compatible hostpython: $ANDROID_PYC_PYTHON" >&2
-  exit 2
-fi
 echo "== Phase04: validate host Python vectors (not ARM64 proof) =="
 (cd "$ROOT" && "$PYTHON" -m unittest tests.test_android_cython_wire tests.test_android_native_wire -q)
 echo "== Phase04: stage native-wire Android source in $STAGE =="
@@ -37,6 +29,24 @@ if [[ ${#APK_FILES[@]} -ne 1 ]]; then
   exit 1
 fi
 APK="${APK_FILES[0]}"
+# The p4a hostpython is normally created DURING this first build; do not
+# require it before the NDK toolchain has run.
+if [[ -z "${ANDROID_PYC_PYTHON:-}" ]]; then
+  mapfile -t PYTHON_CANDIDATES < <(
+    find "$STAGE/.buildozer" -type f \( -name 'python3.14' -o -name 'python3.14m' \) -perm /111 2>/dev/null | sort
+  )
+  if [[ ${#PYTHON_CANDIDATES[@]} -eq 1 ]]; then
+    ANDROID_PYC_PYTHON="${PYTHON_CANDIDATES[0]}"
+  else
+    echo "Could not uniquely locate pinned p4a hostpython3.14; specify ANDROID_PYC_PYTHON." >&2
+    echo "APK candidate was built but native bytecode verification remains INCOMPLETE: $APK" >&2
+    exit 1
+  fi
+fi
+if ! command -v "$ANDROID_PYC_PYTHON" >/dev/null && [[ ! -x "$ANDROID_PYC_PYTHON" ]]; then
+  echo "Cannot run target-compatible hostpython: $ANDROID_PYC_PYTHON" >&2
+  exit 1
+fi
 echo "== Phase04: ELF, bytecode and native-shim inspection =="
 "$PYTHON" "$ROOT/tools/android_native_wire.py" verify-apk "$APK" --pyc-python "$ANDROID_PYC_PYTHON"
 "$PYTHON" "$ROOT/tools/android_hardening.py" report "$APK"

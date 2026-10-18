@@ -208,6 +208,56 @@ class AndroidUI(unittest.TestCase):
         self.assertIn('SP 0/30', self.status.text)
         self.assertIn('位置待同步', self.status.text)
 
+    def test_resume_restores_visible_ui_and_existing_service_sessions(self):
+        from kivy.core.window import Window
+        from kivy.clock import Clock
+        self.app.root = self.root
+        Window.add_widget(self.root)
+        self.addCleanup(lambda: Window.remove_widget(self.app.root)
+                        if self.app.root in Window.children else None)
+        self.addCleanup(lambda: Clock.unschedule(self.app._restore_foreground_ui))
+        self.app._ui_started = True
+        self.app.manager.background = True
+        self.app.manager.available = True
+        self.app.manager.metrics = {}
+        self.app.account.text = 'preserved-user'
+        self.app.password.text = 'must-not-survive'
+        old_root = self.app.root
+        self.assertTrue(self.app.on_pause())
+        self.app.on_resume()
+        Clock.unschedule(self.app._restore_foreground_ui)
+        self.app._restore_foreground_ui()
+
+        self.assertIsNot(self.app.root, old_root)
+        self.assertIn(self.app.root, Window.children)
+        self.assertNotIn(old_root, Window.children)
+        self.assertEqual(self.app.account.text, 'preserved-user')
+        self.assertEqual(self.app.password.text, '')
+        self.assertIn('fixture', self.app.cards)
+        self.assertIs(self.app.manager.sessions['fixture'], self.session)
+        self.assertFalse(self.session.stop_event.is_set())
+        self.assertIsNotNone(self.app._drain_timer)
+
+    def test_resume_reattaches_ui_after_window_lost_root(self):
+        from kivy.core.window import Window
+        from kivy.clock import Clock
+        self.app.root = self.root
+        Window.add_widget(self.root)
+        self.addCleanup(lambda: Window.remove_widget(self.app.root)
+                        if self.app.root in Window.children else None)
+        self.app._ui_started = True
+        self.app.manager.background = True
+        self.app.manager.available = True
+        self.app.manager.metrics = {}
+        Window.remove_widget(self.root)
+        self.app.on_resume()
+        Clock.unschedule(self.app._restore_foreground_ui)
+        self.app._restore_foreground_ui()
+        self.assertIn(self.app.root, Window.children)
+        self.assertIsNot(self.app.root, self.root)
+        self.assertEqual(len(self.app.cards), 1)
+        self.assertFalse(self.session.stop_event.is_set())
+
     def test_pause_clears_password_and_prevents_late_role_enable(self):
         self.app.password.text = 'not-persisted'
         self.assertTrue(self.app.on_pause())

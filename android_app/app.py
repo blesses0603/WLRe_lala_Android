@@ -48,8 +48,13 @@ class LaLaApp(App):
         self.android_ready_reported = False
         self.overlay_permission_pending = False
         self.overlay_permission_checks = 0
+        self._ui_started = False
+        self._ui_restoring = False
+        self._resume_restore_event = None
+        self._drain_timer = None
 
     def on_start(self):
+        self._ui_started = True
         print('WLRE_ANDROID_UI_READY', flush=True)
         if platform == 'android':
             Clock.schedule_once(self.prepare_android, 0.5)
@@ -240,9 +245,12 @@ class LaLaApp(App):
             style_button(stop, danger=True); monitor.add_widget(stop)
         base.add_widget(monitor)
         self.list_box.bind(children=self.update_empty_state)
-        Clock.schedule_interval(self.drain_events, 0.25)
+        if self._drain_timer is not None:
+            self._drain_timer.cancel()
+        self._drain_timer = Clock.schedule_interval(self.drain_events, 0.25)
         outer = ScrollView(do_scroll_x=False, bar_width=dp(3))
         outer.add_widget(base)
+        self._main_content = base
         return outer
 
     def update_empty_state(self, *_):
@@ -470,8 +478,66 @@ class LaLaApp(App):
             self.overlay_permission_pending = False
             self.message.text = '服務尚未就緒，請稍後再開啟懸浮小球'
 
+    def _restore_foreground_ui(self, *_):
+        """Restore Kivy's visible widget tree; never restart game sessions."""
+        self._resume_restore_event = None
+        if not self._ui_started or self._ui_restoring or self.root is None:
+            return
+        self._ui_restoring = True
+        old_root = self.root
+        old_cards = self.cards
+        old_dashboard = self.dashboard
+        account = self.account.text
+        server = self.server.text
+        message = self.message.text
+        remember = bool(self.remember.active)
+        scroll_y = old_root.scroll_y if isinstance(old_root, ScrollView) else 1
+        dashboard_sid = old_dashboard.sid if old_dashboard and not old_dashboard.closed else None
+        dashboard_page = old_dashboard.page_name if dashboard_sid else None
+        try:
+            # A long background pause can leave SDL's foreground widget tree
+            # detached or unpainted even while the independent service survives.
+            if old_dashboard:
+                old_dashboard.close()
+                old_dashboard.dismissed()
+            new_root = self.build()
+            Window.add_widget(new_root)
+            if old_root in Window.children:
+                Window.remove_widget(old_root)
+            self.root = new_root
+            self.cards = {}
+            if server in self.lookup:
+                self.server.text = server
+            self.account.text = account
+            self.password.text = ''  # Never restore a password after backgrounding.
+            self.remember.active = remember and not self.remember.disabled
+            self.message.text = message
+            new_root.scroll_y = scroll_y
+            # Recreate cards from the existing service snapshot, without login.
+            self.drain_events()
+            if dashboard_sid in self.manager.sessions:
+                self.open_dashboard(dashboard_sid)
+                if dashboard_page and dashboard_page != self.dashboard.page_name:
+                    self.dashboard.navigation.text = dashboard_page
+            new_root.canvas.ask_update()
+            Window.canvas.ask_update()
+            print('WLRE_ANDROID_UI_RESTORED', flush=True)
+        except Exception as exc:
+            # Do not log credentials or exception messages.
+            print('WLRE_ANDROID_UI_RESTORE_ERROR ' + type(exc).__name__, flush=True)
+            if old_root not in Window.children and old_root.parent is None:
+                Window.add_widget(old_root)
+            if self.root is old_root:
+                self.cards = old_cards
+        finally:
+            self._ui_restoring = False
+
     def on_resume(self):
         if hasattr(self.manager, 'set_paused'): self.manager.set_paused(False)
+        if self._resume_restore_event is not None:
+            self._resume_restore_event.cancel()
+        # Wait for the Android GL surface to become usable before reattaching UI.
+        self._resume_restore_event = Clock.schedule_once(self._restore_foreground_ui, 0.15)
         if self.overlay_permission_pending:
             Clock.schedule_once(self.finish_overlay_permission, 0.7)
 

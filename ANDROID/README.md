@@ -13,7 +13,7 @@
 
 本文件集中說明 Android 客戶端的**操作流程、權限、背景機制、APK 建置及驗收限制**。首次安裝與下載入口請先閱讀 [專案首頁 README](../README.md)；功能逐項對照請參考 [FEATURE_PARITY.md](FEATURE_PARITY.md)。
 
-**開發中版本：v0.0.7** ｜ **最低 Android 12（API 31）** ｜ **ARM64 手機與 x86_64 模擬器分別建置** ｜ **Debug 測試用途**
+**開發中版本：v0.0.7** ｜ **最低 Android 12（API 31）** ｜ **只建置 ARM64 手機 APK** ｜ **Debug 測試用途**
 
 > 請勿安裝早期 v0.0.2／v0.0.3 的舊 APK：歷史紀錄曾確認 Keystore／PyJNIUS JNI 初始化崩潰。v0.0.7 新增的懸浮小球與遊戲自動化操作仍需真機驗收；「Actions 成功」不等於正式遊戲連線驗收。
 
@@ -27,7 +27,7 @@
 
 ### 1. 安裝及開始登入
 
-1. 在 [Smoke Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-smoke.yml) 的**成功執行紀錄**下載 `Android-arm64-apk`，或於 [Phone APK Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml) 取得指定版本的 ARM64 APK。
+1. 在 [ARM64 Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-smoke.yml) 的**成功執行紀錄**下載 `Android-arm64-apk`，或於 [Phone APK Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml) 取得指定版本的 ARM64 APK。
 2. 解壓後確認 APK 與 `SHA256SUMS.txt`，在 ARM64 Android 12 以上手機安裝測試包。
 3. 啟動程式、選擇地球／水星及分流，輸入帳號與密碼後登入。帳號驗證、角色清單與角色入場須等待伺服器實際回覆。
 4. 可新增多個獨立連線；各帳號各自擁有停止旗標、指令佇列與狀態，不將一個帳號的操作轉送給另一個帳號。
@@ -36,6 +36,8 @@
 停止某個帳號不等於停止其他帳號；「停止全部連線與服務」會關閉整個連線服務。若服務尚未就緒或已失去回應，UI 應顯示未知或失聯，不以先前快照冒充目前在線。
 
 ### 2. 前景通知及背景連線
+
+App 回到前景時會重新建立 Kivy 畫面，恢復帳號／伺服器欄位與原角色功能頁，再從仍在執行的連線服務讀取帳號快照。此動作不重新登入、不重啟遊戲服務，亦不保存背景期間輸入的明文密碼。若手機仍出現全空白主畫面，請提供當次 Logcat 的 `WLRE_ANDROID_UI_RESTORE_` 診斷標記。
 
 本專案不是單靠 Kivy 畫面維持連線。`android_app/service.py` 啟動獨立的 Python 前景服務程序，在服務端管理多帳號連線；`android_app/runtime.py` 使用 App 私有 Unix socket 將畫面操作交給服務處理。
 
@@ -92,19 +94,16 @@
 
 | 工作流程 | 觸發 | 執行範圍 | 下載項目 |
 | --- | --- | --- | --- |
-| [`android-smoke.yml`](../.github/workflows/android-smoke.yml) | `main` 指定程式碼有更新，或手動執行 | 版本欄位一致性、完整測試、Python 語法、獨立編譯 x86_64 與 ARM64，再測 API 31～36 模擬器啟動 | `Android-emulator-apk`、`Android-arm64-apk`；各有 APK + SHA256 |
+| [`android-smoke.yml`](../.github/workflows/android-smoke.yml) | `main` 指定程式碼有更新，或手動執行 | 單元測試、Python 語法、版本一致性、安全檢查、ARM64 APK 編譯與 SHA256 | `Android-arm64-apk`（APK + SHA256） |
 | [`android-apk.yml`](../.github/workflows/android-apk.yml) | 推送 `vX.Y.Z` Git Tag，或從 `main` 手動執行 | 驗證 Tag／程式版號、測試、ARM64 編譯、SHA256 | `WLRe_LaLa-Android-vX.Y.Z-debug` |
 
-### Smoke 產物（不帶版本號）
+### ARM64 日常建置產物（不帶版本號）
 
 | Artifact | ZIP 內容 | 裝置 | 保存期限 |
 | --- | --- | --- | --- |
 | `Android-arm64-apk` | `WLRe_LaLa-Android-arm64-debug.apk`、`SHA256SUMS.txt`、`SIGNING_INFO.txt` | 一般 ARM64 Android 手機測試 | 7 天 |
-| `Android-emulator-apk` | `WLRe_LaLa-Android-emulator-debug.apk`、`SHA256SUMS.txt`、`SIGNING_INFO.txt` | x86_64 Android 模擬器 | 7 天 |
 
-Smoke 的模擬器測試矩陣為 API **31、32、33、34、35、36**，涵蓋 Android **12、12L、13、14、15、16**。測試會等待 UI／前景服務／Keystore 就緒、切至 Home 約 15 秒、鎖屏約 30 秒並返回畫面；**不使用真實遊戲帳密，也不驗證懸浮視窗的全部觸控行為**。
-
-Smoke 的 ARM64 是另外一份 Debug APK 建置，**不是在 x86_64 模擬器上測 ARM64 ABI**；其存在不代表手機真實登入、戰鬥或長時間背景運行已通過。
+原 API 31～36、x86_64 模擬器建置與啟動測試已依需求停用；編譯仍使用 Android API 35、最低支援 API 31。ARM64 APK 建置成功不等於所有 Android 版本實機驗證通過。
 
 ### Phone APK 產物（帶版本號）
 
@@ -130,11 +129,11 @@ python -m compileall -q main.py android_app wlre tools
 buildozer -v android debug
 ```
 
-**修改 Android 版本**時，需同步調整 `buildozer.spec` 的 `version` 與 `android_app/version.py` 的 `ANDROID_VERSION`；一般 `main` 更新會跑 Smoke，但**不會自動觸發版本 APK 流程**。只有準備發布指定版本時才建立 Git Tag。不要把桌面版的 Nuitka、BAT、Tkinter 建置步驟混入 Android 專案。
+**修改 Android 版本**時，需同步調整 `buildozer.spec` 的 `version` 與 `android_app/version.py` 的 `ANDROID_VERSION`；一般 `main` 更新會跑 ARM64 建置，但**不會自動觸發版本 APK 流程**。只有準備發布指定版本時才建立 Git Tag。不要把桌面版的 Nuitka、BAT、Tkinter 建置步驟混入 Android 專案。
 
 ## 驗收項目及限制
 
-可從每次 [GitHub Actions](https://github.com/blesses0603/WLRe_lala_Android/actions) 的執行結果確認打包與模擬器測試；歷史測試細節收錄於 [VALIDATION.md](VALIDATION.md)。目前**仍須 Android 真機確認**的項目包括：
+可從每次 [GitHub Actions](https://github.com/blesses0603/WLRe_lala_Android/actions) 的執行結果確認 ARM64 打包與測試；歷史測試細節收錄於 [VALIDATION.md](VALIDATION.md)。目前**仍須 Android 真機確認**的項目包括：
 
 - ARM64 手機的安裝、啟動、登入、選角，以及不同伺服器／分流下的狀態同步。
 - 同時多帳號登入；中斷 A 帳號時不影響 B 帳號，網路切換與重新連線狀態是否正確。

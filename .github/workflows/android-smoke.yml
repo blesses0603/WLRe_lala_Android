@@ -67,10 +67,17 @@ jobs:
           python -m compileall -q main.py android_app wlre tools
           python tools/android_presplash.py check-spec
           python tools/android_hardening.py preflight
-      - name: Restore persistent debug signing key when configured
+      - name: Require pinned persistent signing for main APKs
         if: github.event_name != 'pull_request'
         env:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+          ANDROID_EXPECTED_SIGNER_SHA256: ${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
+          ANDROID_REQUIRE_PERSISTENT_SIGNING: '1'
+        run: python tools/android_signing.py prepare
+      - name: Mark PR builds as ephemeral and keep signing secrets isolated
+        if: github.event_name == 'pull_request'
+        env:
+          ANDROID_REQUIRE_PERSISTENT_SIGNING: '0'
         run: python tools/android_signing.py prepare
       - name: Verify ARM64 target
         run: grep -Fqx 'android.archs = arm64-v8a' buildozer.spec
@@ -79,6 +86,9 @@ jobs:
           rm -rf .buildozer/android/app bin
           buildozer -v android debug
       - name: Prepare ARM64 phone APK with SHA256 checksum
+        env:
+          ANDROID_REQUIRE_PERSISTENT_SIGNING: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+          ANDROID_EXPECTED_SIGNER_SHA256: ${{ github.event_name == 'pull_request' && '' || vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
         run: |
           mkdir -p phone-output
           apk_path="$(find bin -maxdepth 1 -type f -name '*.apk' -print -quit)"
@@ -92,7 +102,7 @@ jobs:
       - name: Upload ARM64 phone test APK and checksum
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: Android-arm64-apk
+          name: ${{ github.event_name == 'pull_request' && 'Android-arm64-pr-ephemeral-apk' || 'Android-arm64-apk' }}
           path: phone-output/*
           if-no-files-found: error
           retention-days: 7

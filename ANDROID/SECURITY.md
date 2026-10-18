@@ -36,7 +36,7 @@
 
 | 風險 | 優先處理項目 |
 | --- | --- |
-| 固定簽章未驗證（基準 APK 為 ephemeral） | 第 02 項：固定金鑰設定及更新測試 |
+| 固定簽章未驗證（基準 APK 為 ephemeral） | 第 02 項：CI 已加入固定憑證 SHA256 pin；仍須使用者設定 Secret + Variable、兩次 main APK 比對及真機更新驗收 |
 | 多個 Python `.pyc` 可分析 | 第 03～05 項：敏感核心選擇及 ARM64 Cython 編譯 |
 | 潛在憑證藏在其他巢狀 ZIP、二進位及動態記憶體 | 第 06、08 項：分層檢查、帳密與 IPC 安全檢視 |
 | 沒有執行時反篡改 | 第 07 項：驗證可行性及錯誤處理 |
@@ -52,3 +52,7 @@
 - `xvfb-run -a python -m unittest discover -s tests -q`、ARM64 Actions 全部成功，才可合併修改。
 
 簽章設定見 [SIGNING.md](SIGNING.md)，Android 功能與實機驗收見 [ACCEPTANCE.md](ACCEPTANCE.md)。
+
+## 第 02 項：固定簽章保護（2026-10-18）
+
+程式與 CI 已加入固定 Keystore 與 **另一個公開憑證指紋 Variable** 的交叉比對。推送 main／版本 Tag 的 APK 一律要求兩者存在並一致；PR 才容許臨時簽章（不使用私有 Secret）。兩次正式 main 建置的指紋一致性與真機覆蓋更新尚須實際設定與驗收，不可宣稱已完成。詳見 [SIGNING.md](SIGNING.md)。

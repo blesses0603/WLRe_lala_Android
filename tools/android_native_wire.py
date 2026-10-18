@@ -115,6 +115,11 @@ def _candidate(member: str) -> bool:
     return bool(re.fullmatch(r"_wlre_wire_native(?:\.[A-Za-z0-9_+.-]+)?\.so", name))
 
 
+def _host_only_so_name(member: str) -> bool:
+    lower = member.lower()
+    return any(part in lower for part in ("x86_64", "i686", "linux-gnu", "darwin", "win_amd64"))
+
+
 def _arm64_elf(blob: bytes) -> bool:
     # This is a strict ELF-header sanity check, not proof of Android loader
     # compatibility. A live Android import is still mandatory for acceptance.
@@ -141,10 +146,11 @@ def _is_exact_shim_bytecode(blob: bytes) -> bool:
     if len(blob) < 16 or len(blob) > 1048576 or blob[:4] != importlib.util.MAGIC_NUMBER:
         return False
     try:
-        code = marshal.loads(blob[16:])
+        input_stream = io.BytesIO(blob[16:])
+        code = marshal.load(input_stream)
     except (ValueError, EOFError, TypeError):
         return False
-    if not isinstance(code, types.CodeType):
+    if input_stream.tell() != len(blob) - 16 or not isinstance(code, types.CodeType):
         return False
     signature = lambda obj: (
         obj.co_code, obj.co_names, obj.co_consts, obj.co_varnames,
@@ -165,7 +171,7 @@ def verify_apk(path: Path) -> dict:
             raise ValueError("APK does not contain Android ARM64 libraries")
         for name in members:
             if _candidate(name):
-                if not _arm64_elf(apk.read(name)):
+                if _host_only_so_name(name) or not _arm64_elf(apk.read(name)):
                     raise ValueError(f"Non-ARM64 native wire binary: {name}")
                 found.append(name)
             if name.endswith(("_wlre_wire_native.py", "_wlre_wire_native.pyc", "_wlre_wire_native.pyx", "wlre/network/wire.py")):
@@ -188,7 +194,7 @@ def verify_apk(path: Path) -> dict:
                     continue
                 if _candidate(name):
                     blob = bundle.extractfile(info).read()
-                    if not _arm64_elf(blob):
+                    if _host_only_so_name(name) or not _arm64_elf(blob):
                         raise ValueError(f"Non-ARM64 native wire binary: {name}")
                     found.append(name)
                 if name.endswith(("_wlre_wire_native.py", "_wlre_wire_native.pyc",

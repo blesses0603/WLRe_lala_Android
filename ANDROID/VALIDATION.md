@@ -1,3 +1,10 @@
+## v0.0.7：Android 15（API 35）Smoke 診斷補丁
+
+- [Actions 39106328993](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39106328993) 的 API 35 工作：UI、前景服務、Home、鎖屏 30 秒、恢復畫面皆已通過，日誌明確出現 `smoke passed`；但 `tools/android_smoke.py` 最後在 `finally` 讀取 `adb logcat -d -v threadtime` 時發生退出碼 **255**，觸發 `CalledProcessError`，因此工作結果為失敗。其餘 API 31、32、33、34、36 均成功。
+- 修正重點：將測試完成後的 logcat 與 services dump 定位為**非必要診斷**，採兩次擷取並支援少量日誌備援，失敗時寫入原因與保留其他診斷，不覆蓋主測試的成功或失敗結果。
+- 增補自動回歸案例：模擬 logcat 255、診斷完全失效、正常啟動成功與真正的 Activity 退出失敗，確保不把真正崩潰當作通過。
+- 此項屬於 CI 測試腳本修復，**未修改遊戲功能、Android APK 版號或編譯設定**。此處僅記錄 39106328993 的失敗及補丁目的；後續流程結果需以新 Actions 執行紀錄為準。
+
 # Android v0.0.1 開發驗證 — 2026-10-18
 
 檢查基準：`c6ec340` 的 Kivy／Buildozer 實作。

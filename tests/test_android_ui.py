@@ -119,11 +119,16 @@ class AndroidUI(unittest.TestCase):
         self.assertIs(field.canvas.before.children[0], backdrop)
         self.assertEqual(field.font_name, INPUT_FONT)
         self.assertEqual(field.hint_text, '輸入帳號')
+        from android_app.theme import INPUT_HINT, INPUT_TEXT
+        for actual, expected in zip(field._lala_input_glyph_color.rgba, INPUT_HINT):
+            self.assertAlmostEqual(actual, expected, places=5)
         field.size = (320, 52)
         # A detached, unfocused Kivy TextInput deliberately ignores
         # insert_text(); set its value just as saved-account autofill does.
         field.text = 'abc中文'
         self.assertEqual(field.text, 'abc中文')
+        for actual, expected in zip(field._lala_input_glyph_color.rgba, INPUT_TEXT):
+            self.assertAlmostEqual(actual, expected, places=5)
         for _ in range(4):
             Clock.tick()
         self.assertIs(field.canvas.before.children[0], backdrop)
@@ -138,6 +143,12 @@ class AndroidUI(unittest.TestCase):
         password.text = 'pass123'
         self.assertEqual(password.text, 'pass123')
         self.assertEqual(password.font_name, INPUT_FONT)
+        for actual, expected in zip(password._lala_input_glyph_color.rgba, INPUT_TEXT):
+            self.assertAlmostEqual(actual, expected, places=5)
+        field.disabled = True
+        for actual, expected in zip(
+                field._lala_input_glyph_color.rgba, field.disabled_foreground_color):
+            self.assertAlmostEqual(actual, expected, places=5)
         self.assertIs(self.app.account.canvas.before.children[0],
                       self.app.account._lala_input_background_group)
         self.assertIs(self.app.password.canvas.before.children[0],

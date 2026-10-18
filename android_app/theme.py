@@ -52,6 +52,12 @@ def _rounded(view, fill, border, radius, under_existing=False):
     for instruction in (outer_tint, outer, inner_tint, inner):
         group.add(instruction)
     if under_existing:
+        # TextInput can inherit the GL color left by custom canvas.before
+        # instructions. The next text/hint glyphs must never inherit
+        # the light background color, or they disappear on a light input.
+        glyph_color = Color(*view.foreground_color)
+        group.add(glyph_color)
+        view._lala_input_glyph_color = glyph_color
         view.canvas.before.insert(0, group)
     else:
         view.canvas.before.add(group)
@@ -145,7 +151,23 @@ def style_input(view, radius=16):
 
         view._lala_input_refresh = update
         view.bind(focus=update)
+
+        def update_text_tint(*_):
+            if view.disabled:
+                tint = view.disabled_foreground_color
+            elif view.text:
+                tint = view.foreground_color
+            else:
+                tint = view.hint_text_color
+            view._lala_input_glyph_color.rgba = tint
+
+        view._lala_input_tint_refresh = update_text_tint
+        view.bind(text=update_text_tint, disabled=update_text_tint,
+                  foreground_color=update_text_tint,
+                  hint_text_color=update_text_tint,
+                  disabled_foreground_color=update_text_tint)
     view._lala_input_refresh()
+    view._lala_input_tint_refresh()
     return view
 
 

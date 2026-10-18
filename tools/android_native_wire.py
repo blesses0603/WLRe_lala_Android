@@ -179,57 +179,85 @@ def _is_exact_shim_bytecode(blob: bytes, *, pyc_python: Path | None = None) -> b
 
 
 def verify_apk(path: Path, *, pyc_python: Path | None = None) -> dict:
-    """Validate the actual native payload. Never accept a host Linux .so."""
-    found, suspicious, shim_count = [], [], 0
-    with zipfile.ZipFile(path) as apk:
-        members = apk.namelist()
-        if not any(name.startswith("lib/arm64-v8a/") for name in members):
-            raise ValueError("APK does not contain Android ARM64 libraries")
-        for name in members:
-            if _candidate(name):
-                if _host_only_so_name(name) or not _arm64_elf(apk.read(name)):
-                    raise ValueError(f"Non-ARM64 native wire binary: {name}")
-                found.append(name)
-            if name.endswith(("_wlre_wire_native.py", "_wlre_wire_native.pyc", "_wlre_wire_native.pyx", "wlre/network/wire.py")):
-                suspicious.append(name)
-            if _is_wire_bytecode(name):
-                if _is_exact_shim_bytecode(apk.read(name), pyc_python=pyc_python):
-                    shim_count += 1
-                else:
-                    suspicious.append(name + " (unverified wire bytecode)")
-        if "assets/private.tar" not in members:
-            raise ValueError("Missing expected private.tar")
-        with tarfile.open(fileobj=io.BytesIO(apk.read("assets/private.tar")), mode="r:*") as bundle:
-            for info in bundle:
-                name = info.name.replace("\\", "/")
-                if info.issym() or info.islnk():
-                    raise ValueError("Link entry in APK private.tar")
-                if any(segment == ".." for segment in name.split("/")):
-                    raise ValueError("Traversal in APK private.tar")
-                if not info.isfile():
-                    continue
-                if _candidate(name):
-                    blob = bundle.extractfile(info).read()
-                    if _host_only_so_name(name) or not _arm64_elf(blob):
-                        raise ValueError(f"Non-ARM64 native wire binary: {name}")
-                    found.append(name)
-                if name.endswith(("_wlre_wire_native.py", "_wlre_wire_native.pyc",
-                                  "_wlre_wire_native.pyx", "wlre/network/wire.py")):
-                    suspicious.append(name)
-                if _is_wire_bytecode(name):
-                    body = bundle.extractfile(info).read()
-                    if _is_exact_shim_bytecode(body, pyc_python=pyc_python):
-                        shim_count += 1
-                    else:
-                        suspicious.append(name + " (unverified wire bytecode)")
-        if suspicious:
-            raise ValueError("Native wire bundle leaks implementation: " + ", ".join(suspicious))
-        if not found:
-            raise ValueError("Missing Android ARM64 native wire extension")
-        if not shim_count:
-            raise ValueError("Missing verified wire import shim bytecode")
-    return {"arm64_wire_extensions": found, "verified_wire_shims": shim_count, "source_leaks": 0}
+    """Audit actual p4a SDL2 package layout, not just outer APK files.
 
+    The pinned python-for-android 8ef9d1d makes two gzip TAR archives:
+      * assets/private.tar: application Python files, including the wire shim
+      * lib/arm64-v8a/libpybundle.so: bundled site-packages, including native .so
+    The second path is NOT an ELF shared library despite its .so suffix.
+    """
+    found, suspicious, shim_count = [], [], 0
+    native_in_bundle = []
+
+    def inspect_member(name: str, blob: bytes, *, bundle: str = ""):
+        nonlocal shim_count
+        location = f"{bundle}:{name}" if bundle else name
+        if _candidate(name):
+            if _host_only_so_name(name) or not _arm64_elf(blob):
+                raise ValueError(f"Non-ARM64 native wire binary: {location}")
+            found.append(location)
+            if bundle == "lib/arm64-v8a/libpybundle.so":
+                # This is the only supported importable location for this
+                # pinned SDL2 python-for-android bootstrap.
+                normalized = name.replace("\\", "/")
+                if re.search(r"(?:^|/)site-packages/_wlre_wire_native(?:\.[a-zA-Z0-9_+.-]+)?\.so$", normalized):
+                    native_in_bundle.append(location)
+        if name.endswith(("_wlre_wire_native.py", "_wlre_wire_native.pyc",
+                          "_wlre_wire_native.pyx", "wlre/network/wire.py")):
+            suspicious.append(location)
+        if _is_wire_bytecode(name):
+            if _is_exact_shim_bytecode(blob, pyc_python=pyc_python):
+                shim_count += 1
+            else:
+                suspicious.append(location + " (unverified wire bytecode)")
+
+    with zipfile.ZipFile(path) as apk:
+        names = apk.namelist()
+        if not any(name.startswith("lib/arm64-v8a/") for name in names):
+            raise ValueError("APK does not contain Android ARM64 libraries")
+        required = ("assets/private.tar", "lib/arm64-v8a/libpybundle.so")
+        for name in required:
+            if name not in names:
+                raise ValueError(f"Missing required p4a archive: {name}")
+
+        for info in apk.infolist():
+            name = info.filename
+            if name in required or info.is_dir():
+                continue
+            if _candidate(name) or _is_wire_bytecode(name) or name.endswith(
+                    ("_wlre_wire_native.py", "_wlre_wire_native.pyc",
+                     "_wlre_wire_native.pyx", "wlre/network/wire.py")
+            ):
+                inspect_member(name, apk.read(info))
+
+        for archive_name in required:
+            try:
+                with tarfile.open(fileobj=io.BytesIO(apk.read(archive_name)), mode="r:*") as archive:
+                    for member in archive:
+                        name = member.name.replace("\\", "/")
+                        if (member.issym() or member.islnk()
+                                or name.startswith("/")
+                                or any(part == ".." for part in name.split("/"))):
+                            raise ValueError(f"Unsafe TAR member: {archive_name}:{name}")
+                        if not member.isfile():
+                            continue
+                        # Read only members relevant to native/shim security, not
+                        # every large application dependency in the Python bundle.
+                        if (_candidate(name) or _is_wire_bytecode(name)
+                                or name.endswith(("_wlre_wire_native.py", "_wlre_wire_native.pyc",
+                                                   "_wlre_wire_native.pyx", "wlre/network/wire.py"))):
+                            inspect_member(name, archive.extractfile(member).read(),
+                                           bundle=archive_name)
+            except tarfile.TarError as exc:
+                raise ValueError(f"Invalid python-for-android archive: {archive_name}") from exc
+
+    if suspicious:
+        raise ValueError("Native wire bundle leaks implementation: " + ", ".join(suspicious))
+    if not native_in_bundle:
+        raise ValueError("Missing Android ARM64 native wire extension in libpybundle.so site-packages")
+    if not shim_count:
+        raise ValueError("Missing verified wire import shim bytecode")
+    return {"arm64_wire_extensions": found, "verified_wire_shims": shim_count, "source_leaks": 0}
 
 
 def host_smoke(root: Path = ROOT) -> None:

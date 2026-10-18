@@ -91,8 +91,8 @@ class NativeWireTests(unittest.TestCase):
         with zipfile.ZipFile(path, "w") as archive:
             if include_native:
                 archive.writestr("lib/arm64-v8a/libpython3.14.so", b"stub")
+                archive.writestr("lib/arm64-v8a/libpybundle.so", gzip_tar(python_bundle))
             archive.writestr("assets/private.tar", gzip_tar(contents))
-            archive.writestr("lib/arm64-v8a/libpybundle.so", gzip_tar(python_bundle))
         return path
 
     def elf(self, machine=183):

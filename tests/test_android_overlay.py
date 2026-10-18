@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from android_app.overlay_state import snapshot
+from android_app.overview_model import overview_model, overview_lines
 from android_app.runtime import Runtime
 
 
@@ -40,6 +41,78 @@ class OverlayStateTests(unittest.TestCase):
         self.assertEqual(snapshot(self.manager)["accounts"][0]["battle"], "AI 等待補給")
         session.automation["battle"]["status"] = "armed"
         self.assertEqual(snapshot(self.manager)["accounts"][0]["battle"], "AI 已啟用／待命")
+
+    def test_character_overview_reuses_live_battle_stats_and_labels(self):
+        first = self.manager.sessions["1"]
+        first.game_state = {
+            "player": {"name": "赤寧", "role_id": 11},
+            "knowledge": {
+                "player": {"stats": {"level": 172, "hp": 1400, "max_hp": 2000, "sp": 250, "max_sp": 500}},
+                "companions": {"1": {"npc_id": 999999, "stats": {
+                    "level": 128, "hp": 500, "max_hp": 1000, "sp": 80, "max_sp": 200}}},
+                "active_npc_id": 999999},
+            "battle": {"active": True},
+            "battle_units": {"1": {"pid": 11, "hp": 1000, "sp": 180}},
+            "auto_battle": {"status": "armed", "reason": "玩家已登入"},
+            "roaming": {"status": "disabled"},
+            "event_flow": {"blocked": True},
+            "alchemy": {"status": "煉金中"},
+            "crafting": {"status": "製作中"},
+            "inventory": {"field_supply": {"reason": "待補給"}},
+        }
+        full = overview_model(first.game_state)
+        rows = overview_lines(first.game_state)
+        self.assertEqual(full["character"], "赤寧")
+        self.assertIn("角色 Lv.172\nHP 1000/2000 · SP 180/500", rows)
+        self.assertIn("夥伴（出戰） Lv.128\nHP 500/1000 · SP 80/200", rows)
+        self.assertIn("自動戰鬥：AI待命｜玩家已登入", rows)
+        self.assertIn("事件：等待伺服器事件結束", rows)
+        projected = snapshot(self.manager)
+        overview = projected["accounts"][0]["overview"]
+        self.assertEqual(overview["character"], "赤寧")
+        self.assertEqual(overview["profiles"][0]["hp"], "1000")
+        self.assertEqual(overview["profiles"][0]["sp"], "180")
+        self.assertEqual(overview["statuses"]["battle"], full["statuses"]["battle"])
+        self.assertEqual(overview["statuses"]["alchemy"], "煉金中")
+        self.assertEqual(overview["statuses"]["crafting"], "製作中")
+        self.assertEqual(overview["statuses"]["supply"], "待補給")
+        serialized = json.dumps(projected, ensure_ascii=False)
+        self.assertNotIn("my-account", serialized)
+        self.assertNotIn("another-account", serialized)
+        self.assertNotIn(self.password, serialized)
+
+    def test_disconnected_account_does_not_leak_old_character(self):
+        first = self.manager.sessions["1"]
+        first.game_state = {"player": {"name": "過期角色"}}
+        first.active = False
+        result = snapshot(self.manager)
+        self.assertIsNone(result["accounts"][0]["overview"])
+        self.assertNotIn("過期角色", json.dumps(result, ensure_ascii=False))
+
+    def test_overview_is_bounded_and_sanitized(self):
+        first = self.manager.sessions["1"]
+        first.game_state = {
+            "player": {"name": "星" * 100 + "\n不應顯示"},
+            "knowledge": {"companions": {
+                str(i): {"npc_id": i, "stats": {"level": i}} for i in range(24)}},
+            "alchemy": {"status": "煉" * 200},
+        }
+        result = snapshot(self.manager)["accounts"][0]["overview"]
+        self.assertEqual(len(result["profiles"]), 5)
+        self.assertEqual(result["remaining_profiles"], 20)
+        self.assertEqual(len(result["character"]), 32)
+        self.assertLessEqual(len(result["statuses"]["alchemy"]), 64)
+        self.assertNotIn("\n", result["character"])
+
+    def test_native_bubble_uses_same_app_icon_and_role_overview(self):
+        root = Path(__file__).resolve().parents[1]
+        java = (root / "android_app/java/org/lala/client/FloatingOverlay.java").read_text("utf-8")
+        page = (root / "android_app/pages/general.py").read_text("utf-8")
+        self.assertIn("getApplicationIcon(context.getPackageName())", java)
+        self.assertIn('overview.optJSONArray("profiles")', java)
+        self.assertIn("addVital(context, card", java)
+        self.assertIn('addStatus(context, card, "補給"', java)
+        self.assertIn("overview_lines(self.state)", page)
 
     def test_no_account_and_many_accounts(self):
         self.manager.sessions.clear()

@@ -4,6 +4,7 @@ The floating window appears over other apps, so it must NEVER expose login
 passwords, raw account names, authentication payloads or chat messages.
 """
 from __future__ import annotations
+from android_app.overview_model import overview_model
 
 
 def _mask(value):
@@ -45,6 +46,21 @@ def _battle(session):
     return "AI 已啟用"
 
 
+def _overview(state):
+    """Expose only the fields from the mobile role overview page."""
+    value = overview_model(state)
+    profiles = [{
+        "name": _text(profile["name"], 32),
+        **{key: _text(profile[key], 14) for key in ("level", "hp", "max_hp", "sp", "max_sp")},
+    } for profile in value["profiles"][:5]]
+    return {
+        "character": _text(value["character"], 32),
+        "profiles": profiles,
+        "remaining_profiles": max(0, len(value["profiles"]) - len(profiles)),
+        "statuses": {key: _text(text, 64) for key, text in value["statuses"].items()},
+    }
+
+
 def snapshot(manager):
     """Read actual service-owned state, never UI-cached/optimistic state."""
     rows = []
@@ -63,5 +79,8 @@ def snapshot(manager):
                         "server": _text(session.label),
                         "connection": _connection(session),
                         "battle": _battle(session),
+                        "overview": _overview(getattr(session, "game_state", {}))
+                            if session.active and not session.stop_event.is_set()
+                            and session.phase == "world_ready" else None,
                     })
     return {"total": total, "active": active, "online": online, "accounts": rows}

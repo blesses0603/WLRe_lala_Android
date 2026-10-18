@@ -2,7 +2,7 @@ from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from android_app.widgets import column, label, button, select, row
 from wlre.core.efficiency import rates, progress, forecast, STAGES
-from wlre.services.items.combat_resources import CAT
+from android_app.overview_model import overview_lines
 
 
 class Page(BoxLayout):
@@ -23,28 +23,7 @@ class Overview(Page):
                             button('切換自動徘徊', lambda: toggle(d.app, d.sid, 'roaming'))))
         self.add_widget(button('開啟完整 AI／補給設定', lambda: setattr(d.navigation, 'text', 'AI與補給設定')))
     def refresh(self):
-        s = self.state; k = s.get('knowledge', {}); p = s.get('player', {})
-        rows = [p.get('name', '等待角色同步')]
-        profiles = [('角色', k.get('player', {}))] + [
-            (CAT['npcs'].get(str(v.get('npc_id')), {}).get('name', '夥伴') +
-             ('（出戰）' if v.get('npc_id') == k.get('active_npc_id') else ''), v)
-            for v in k.get('companions', {}).values()]
-        for name, profile in profiles:
-            stats = dict(profile.get('stats', {}))
-            if s.get('battle', {}).get('active'):
-                identity = profile.get('npc_id', p.get('role_id'))
-                unit = next((u for u in s.get('battle_units', {}).values() if identity is not None and u.get('pid') == identity), {})
-                stats.update({key:unit[key] for key in ('hp','max_hp','sp','max_sp','level') if key in unit})
-            rows.append(name + ' Lv.' + str(stats.get('level', '—')) + '\n' +
-                'HP {}/{} · SP {}/{}'.format(*(stats.get(key, '—') for key in ('hp', 'max_hp', 'sp', 'max_sp'))))
-        from wlre.services.battle.auto_battle import summary as battle
-        from wlre.services.world.roaming import summary as roaming
-        rows += ['自動戰鬥：'+battle(s.get('auto_battle', {})), '自動徘徊：'+roaming(s.get('roaming', {})),
-                 '事件：'+('等待伺服器事件結束' if s.get('event_flow', {}).get('blocked') else '待機'),
-                 '煉金：'+s.get('alchemy', {}).get('status', '待同步'),
-                 '製作：'+s.get('crafting', {}).get('status', '待同步'),
-                 '補給：'+str(s.get('inventory', {}).get('field_supply', {}).get('reason', '尚無紀錄'))]
-        self.info.text = '\n\n'.join(rows)
+        self.info.text = '\n\n'.join(overview_lines(self.state))
 
 
 class Events(Page):

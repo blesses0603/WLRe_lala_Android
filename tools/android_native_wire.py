@@ -24,6 +24,7 @@ EXCLUDE_ROOTS = frozenset({
     "bin", "android-output", "phone-output", "tests", "tools", "docs",
     "dist_nuitka", "p4a-recipes", "__pycache__", ".pytest_cache",
 })
+PRIVATE_EXTS = frozenset({".keystore", ".jks", ".p12", ".pfx", ".pem", ".p8", ".key"})
 SHIM = '''"""Android-native wire API. Implementation lives in an ARM64 Cython extension."""\nfrom _wlre_wire_native import ProtocolError, Reader, Writer, Packet, encode, FrameDecoder\n\n__all__ = ["ProtocolError", "Reader", "Writer", "Packet", "encode", "FrameDecoder"]\n'''
 
 
@@ -45,7 +46,8 @@ def _copy_source(source: Path, destination: Path) -> None:
         ignored = []
         for name in names:
             path = Path(directory) / name
-            if name in EXCLUDE_ROOTS or name.startswith(".") or path.is_symlink():
+            if (name in EXCLUDE_ROOTS or name.startswith(".") or path.is_symlink()
+                    or path.suffix.lower() in PRIVATE_EXTS):
                 ignored.append(name)
         return ignored
     shutil.copytree(source, destination, ignore=ignore, symlinks=False)

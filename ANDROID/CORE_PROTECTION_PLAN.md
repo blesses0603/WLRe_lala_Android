@@ -31,7 +31,7 @@
 - 使用 Android NDK 針對 ARM64 真正編譯指定核心，並在成品內驗證 **模組名稱、ABI、Python import 及原始／bytecode 缺席**；不能用 Linux `.so` 充當 Android 產物。
 - 先驗證 `wire.py` 及其既有 Python tests 的原生／純 Python 行為一致，再擴及 P0／P1。
 - 確認主 App 與前景服務皆能載入相同原生擴充套件；包含 Android Keystore JNI、登入及背景 IPC。
-- PR 的 Python 回歸、ARM64 APK 打包、產物檢查通過；固定簽章僅於 main 的受信任工作流程驗證。
+- 一般 PR 快速 Python 回歸先通過；實際涉及 Cython、NDK、APK 封裝的變更，需另外手動於 main 或發佈對應版本 Tag 執行 ARM64 APK 建置與產物檢查後才宣稱原生保護驗收完成。固定簽章僅在受信任的手動 main／Tag 工作流程驗證。
 
 ## 未解決風險
 

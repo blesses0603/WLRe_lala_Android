@@ -278,12 +278,20 @@ class AndroidUI(unittest.TestCase):
         records = [dict(server=self.app.server.text, account=name, password=name + '-secret')
                    for name in ('A', 'B')]
         class Vault:
-            def save(self, value): self.records = value
+            def __init__(self):
+                self.records = [dict(record) for record in records]
+            def load(self):
+                return [dict(record) for record in self.records]
+            def save(self, value):
+                self.records = [dict(record) for record in value]
         self.app.vault = Vault()
-        self.app.saved_accounts = records
+        from android_app.credentials import public_accounts
+        self.app.saved_accounts = public_accounts(records)
         self.app.saved.values = self.app.saved_names()
         self.app.saved.text = self.app.saved_names()[0]
         self.assertEqual(self.app.account.text, 'A')
+        self.assertEqual(self.app.password.text, 'A-secret')
+        self.assertTrue(all('password' not in r for r in self.app.saved_accounts))
         self.app.delete_saved()
         self.assertEqual([r['account'] for r in self.app.vault.records], ['B'])
         self.assertEqual(self.app.password.text, '')

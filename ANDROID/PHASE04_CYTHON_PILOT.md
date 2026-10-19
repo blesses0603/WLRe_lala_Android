@@ -148,3 +148,12 @@ python tools/android_native_wire.py verify-apk /tmp/lalawire-phase04/bin/<實驗
 
 **結論：第 04 項 Android ARM64 Cython `wire.py`「試點」已達到原生編譯、靜態封裝與使用者回報的實機驗證門檻。** 但這不代表整個 App 所有 P0/P1 都已原生化，更不代表已完成固定簽章正式升級。後續正式推送 native 模式時，必須另外使 main 的受信任簽章工作流程使用已通過測試的 staging／recipe，再確認固定憑證 fingerprint、安裝升級及前景服務。
 
+
+## v0.0.8 正式打包整合（2026-10-19）
+
+此前隔離 Phase04 APK 已完成 GitHub NDK/ARM64 Cython 編譯、APK 原生封裝稽核及使用者回報的實機驗證。本次接入官方 `.github/workflows/android-apk.yml`：`main` 手動執行或相符版本 Tag 時，先用 `tools/android_native_wire.py stage` 產生隔離原生建置資料夾，再以 p4a Cython recipe 真正打包 Android ARM64 APK。將 APK 複製至 `android-output/` 後，依現有固定金鑰與公開指紋 `resign`，在**最終已簽署 APK** 上執行 `report-apk` 的 ARM64 ELF／shim／原始核心殘留稽核，並執行原有 presplash、signing、hardening、SHA256 檢查。
+
+- 程式碼本體 `wlre/network/wire.py` 留在 Git main，Android 發布 staging 才替換為小型 `wire.pyc` import shim，並編入 `libpybundle.so` 的 `_wlre_wire_native.so`。
+- 正式 APK Artifact 增加 `NATIVE_WIRE_INFO.txt`。未通過本次原生稽核不得上傳；PR 測試不讀取 GitHub Secret。
+- 正式版本同步升為 **v0.0.8**；沿用原本 package.name/domain、Android API、ARM64-only 及固定簽章流程。一般 PR/main push 仍只跑快速 Python CI。
+- **狀態界線**：接線及 CI 代碼通過不等於已產出固定簽章 v0.0.8 APK；需要 main 手動／Tag 完整 Buildozer Run 成功並在手機上驗證原地升級（注意早期臨時簽章 APK 不可覆蓋）後，才可宣布正式發布驗收完畢。

@@ -1,0 +1,45 @@
+name: Android Phase05 P0-P1 host Cython compile (no APK)
+
+# Validate native compilation while coding, WITHOUT any Android SDK, NDK,
+# signed APK, artifact, or access to repository signing secrets.
+on:
+  push:
+    branches:
+      - security/android-phase05-native-vault-pilot
+    paths:
+      - 'tools/android_native_cores.py'
+      - 'p4a-recipes/lalaruntime/**'
+      - 'p4a-recipes/lalasessions/**'
+      - 'p4a-recipes/lalaclient/**'
+      - 'p4a-recipes/lalaprotocol/**'
+      - 'p4a-recipes/lalaautobattle/**'
+      - 'p4a-recipes/lalaexpedition/**'
+      - '.github/workflows/android-phase05-host.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase05-host-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cython:
+    if: github.ref == 'refs/heads/security/android-phase05-native-vault-pilot'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.11'
+      - name: Install host compiler and Cython
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+          python -m pip install --upgrade pip
+          python -m pip install "Cython==3.0.12" "setuptools>=68" wheel
+      - name: Compile all 6 newly protected P0/P1 modules on host
+        run: python tools/android_native_cores.py host-compile
+      - name: Verify Phase05 staging and tamper rejection
+        run: python -m unittest discover -s tests -p 'test_android_native_cores.py' -v

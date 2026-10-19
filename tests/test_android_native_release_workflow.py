@@ -33,7 +33,7 @@ class NativeReleasePolicyTests(unittest.TestCase):
         )
 
     def test_native_stage_precedes_access_to_signing_secret(self):
-        stage = self.text.index("python tools/android_native_wire.py stage")
+        stage = self.text.index("python tools/android_native_cores.py stage")
         private_key = self.text.index("secrets.ANDROID_DEBUG_KEYSTORE_BASE64")
         prepare = self.text.index("python tools/android_signing.py prepare")
         build = self.text.index("buildozer -v android debug")
@@ -48,16 +48,25 @@ class NativeReleasePolicyTests(unittest.TestCase):
         build = self.text.index("buildozer -v android debug")
         resign = self.text.index("python tools/android_signing.py resign")
         verified_native = self.text.index("python tools/android_native_wire.py report-apk")
+        verified_vault = self.text.index("python tools/android_native_vault.py report-apk")
+        verified_all = self.text.index("python tools/android_native_cores.py report-apk")
         sign_check = self.text.index("python tools/android_signing.py report")
         hardening = self.text.index("python tools/android_hardening.py report")
         checksum = self.text.index('sha256sum "$output" > SHA256SUMS.txt')
         uploaded = self.text.index("uses: actions/upload-artifact")
-        self.assertTrue(build < resign < verified_native < sign_check
-                        < hardening < checksum < uploaded)
+        self.assertTrue(build < resign < verified_native < verified_vault
+                        < verified_all < sign_check < hardening < checksum < uploaded)
+        self.assertIn("all eight P0/P1", self.text)
         self.assertIn('ANDROID_REQUIRE_PERSISTENT_SIGNING: \'1\'', self.text)
         self.assertIn("vars.ANDROID_EXPECTED_SIGNER_SHA256", self.text)
         self.assertIn("libpybundle", (ROOT / "tools/android_native_wire.py").read_text())
         self.assertIn("NATIVE_WIRE_INFO.txt", (ROOT / "tools/android_native_wire.py").read_text())
+        self.assertIn("NATIVE_VAULT_INFO.txt", (ROOT / "tools/android_native_vault.py").read_text())
+        self.assertIn("PHASE05_ALL_CORES_INFO.txt", (ROOT / "tools/android_native_cores.py").read_text())
+        from tools.android_native_cores import CORE_LIST
+        self.assertEqual(len(CORE_LIST), 6)
+        self.assertIn("android_app/runtime.py", [row[0] for row in CORE_LIST])
+        self.assertIn("wlre/services/expedition.py", [row[0] for row in CORE_LIST])
 
     def test_python_sources_are_not_replaced_in_default_checkout(self):
         config = (ROOT / "buildozer.spec").read_text(encoding="utf-8")

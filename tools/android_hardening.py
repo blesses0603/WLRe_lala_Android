@@ -10,6 +10,11 @@ import sys
 import tarfile
 import zipfile
 
+if __package__ in (None, ""):
+    from android_archive_audit import audit_apk
+else:
+    from .android_archive_audit import audit_apk
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DANGEROUS_NAMES = {
@@ -179,6 +184,18 @@ def inspect_apk(apk):
                                 record(member.name)
                 except (tarfile.TarError, EOFError, OSError) as exc:
                     raise ValueError("Unable to audit embedded assets/private.tar") from exc
+    # Phase06 second pass: inspect nested ZIP/TAR, p4a site-packages archive,
+    # known private credential headers and rejected archive paths/types.
+    # Native (.so) content and oversized binary blobs remain out of scope.
+    def nested_name(name):
+        normalized = name.replace("\\", "/").removeprefix("./")
+        if _sensitive_filename(normalized):
+            raise ValueError("Nested APK contains potential credential filename")
+        if (normalized.startswith(APP_SOURCE_PREFIXES) or normalized == "main.py"):
+            if normalized.endswith(".py"):
+                raise ValueError("Uncompiled application Python in nested APK archive")
+
+    counts.update(audit_apk(apk, inspect_name=nested_name))
     return counts
 
 
@@ -206,11 +223,15 @@ def report(apk):
         "Account vault at rest: Android Keystore with AES-GCM\n"
         "Build flavor: DEBUG test APK (NOT a store-ready release)\n"
         "Cython ARM64 wire core: see NATIVE_WIRE_INFO.txt for independent native audit\n"
-        "Other high-risk P0/P1 Cython migrations: NOT enabled\n"
+        "Phase05 P0/P1 core protection: see independent PHASE05_ALL_CORES_INFO.txt audit\n"
         "Anti-tamper runtime protection: NOT enabled\n"
         "APK signature certificate: see SIGNING_INFO.txt\n"
         "Build checksum: see SHA256SUMS.txt\n"
-        "This audit inspects member names, not all secrets inside nested ZIPs or binaries.\n"
+        "Phase06 nested archives audited: " + str(counts["audited_containers"]) + "\n"
+        "Phase06 nested archive members: " + str(counts["inspected_entries"]) + "\n"
+        "Phase06 small textual payloads scanned: " + str(counts["scanned_text_files"]) + "\n"
+        "Phase06 ZIP/TAR nesting and credential signature gate: PASSED\n"
+        "Large binaries, runtime memory and unknown encrypted/obfuscated secrets are not audited.\n"
         "Repository visibility must be verified separately in GitHub settings.\n",
         encoding="utf-8",
     )

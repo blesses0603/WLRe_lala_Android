@@ -71,3 +71,16 @@
 ## 2026-10-19：降低 Actions 消耗，不降低發行安全門檻
 
 `android-smoke.yml` 改為 PR／main Python 回歸、語法及安全預檢；不下載私鑰、不執行 Buildozer、不上傳 APK。`android-apk.yml` 維持僅在 main 手動執行或推送符合程式版號的 `vX.Y.Z` Tag 才完整打包，既有固定簽章指紋鎖定、重簽、SHA256、啟動畫面與 APK 成員稽核維持不變。最新既有的主分支完整成功證據：[Run 39141939393](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39141939393)（commit `dda1719`）。
+
+
+## 第 06 項：巢狀封裝、帳密及 IPC 加固（2026-10-19）
+
+**實作**：
+
+- tools/android_archive_audit.py：在既有 Phase03 檔名／ARM64 檢查以外，受限遞迴掃描 APK ZIP、p4a private.tar、libpybundle.so TAR、內嵌 ZIP/TAR；拒絕危險路徑、連結、重複成員、已知私鑰樣式和超過深度/大小限制的巢狀封裝。掃描前不會將成員解開到磁碟，錯誤不顯示匹配到的機密內容。
+- android_app/runtime.py：相同 Android UID 的 AF_UNIX SO_PEERCRED 驗證；最大 1MiB、完整換行、JSON 物件、重複 key／非法 UTF-8／NaN 拒絕，回覆沿用同一格式。
+- android_app/vault.py：帳號密文原格式／Android Keystore alias 不變；讀檔 O_NOFOLLOW、普通檔檢驗，寫入 O_EXCL|O_NOFOLLOW、0600 與目錄 0700 保護。
+- tools/android_hardening.py 的 APK report 會執行新增巢狀驗證，更新 PROTECTION_INFO.txt，八核心狀態以 PHASE05_ALL_CORES_INFO.txt 獨立稽核為準。
+- 新增 tests/test_android_phase06_security.py 與更新既有回歸；Phase06 PR 快速 CI #39269444172：**290 tests OK**，Python 預檢通過；屬主機/CI 功能驗收，**非**新正式 APK 編譯或真機證據。
+
+**邊界**：不能保證偵測所有金鑰，未遍歷未知加密封裝及所有大型二進位內容；靜態檢查也不阻擋運行中的 hook/記憶體攻擊。SO_PEERCRED 驗證相同 UID，不等於防止同 UID 的惡意程式碼。真機登入、Keystore 資料搬移／覆蓋更新仍以發行後安裝驗收為準。完整測項見 [PHASE06_SECURITY.md](PHASE06_SECURITY.md)。

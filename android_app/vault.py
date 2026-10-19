@@ -2,6 +2,7 @@
 import base64
 import json
 import os
+import stat
 from pathlib import Path
 
 
@@ -45,16 +46,34 @@ class AccountVault:
         self.path, self.cipher = Path(path), cipher
 
     def load(self):
-        if not self.path.exists(): return []
-        return json.loads(self.cipher.decrypt(json.loads(self.path.read_text())).decode('utf-8'))
+        # Never resolve a symlink into an external cleartext/attacker file.
+        if not self.path.exists() and not self.path.is_symlink():
+            return []
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(self.path, flags)
+        with os.fdopen(fd, "r", encoding="utf-8") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise ValueError("Unsafe account vault file type")
+            record = json.load(stream)
+        return json.loads(self.cipher.decrypt(record).decode("utf-8"))
 
     def save(self, records):
-        encrypted = self.cipher.encrypt(json.dumps(records, ensure_ascii=False).encode('utf-8'))
+        encrypted = self.cipher.encrypt(json.dumps(records, ensure_ascii=False).encode("utf-8"))
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        temporary = self.path.with_suffix('.tmp')
-        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, 'w') as stream:
-            json.dump(encrypted, stream)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, self.path)
+        if self.path.parent.is_symlink():
+            raise ValueError("Unsafe account vault directory")
+        os.chmod(self.path.parent, 0o700)
+        temporary = self.path.with_suffix(".tmp")
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        # Exclusive temporary file creation rejects pre-planted links and
+        # stale incomplete transactions rather than truncating them.
+        fd = os.open(temporary, flags, 0o600)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as stream:
+                json.dump(encrypted, stream)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, self.path)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise

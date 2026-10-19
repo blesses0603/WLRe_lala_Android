@@ -7,6 +7,7 @@ import json
 import os
 import queue
 import socket
+import struct
 import threading
 import time
 from pathlib import Path
@@ -15,17 +16,52 @@ from types import SimpleNamespace
 MAX_FRAME = 1024 * 1024
 
 
+def _unique_pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Invalid IPC frame")
+        result[key] = value
+    return result
+
+
 def receive(stream):
+    """Only accept one bounded, unambiguous JSON object per request."""
     line = stream.readline(MAX_FRAME + 1)
-    if not line or len(line) > MAX_FRAME: raise ValueError('Invalid IPC frame')
-    return json.loads(line)
+    if not line or len(line) > MAX_FRAME or not line.endswith(b'\n'):
+        raise ValueError("Invalid IPC frame")
+    try:
+        value = json.loads(
+            line,
+            object_pairs_hook=_unique_pairs,
+            parse_constant=lambda _: (_ for _ in ()).throw(ValueError("Invalid IPC frame")),
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Invalid IPC frame") from exc
+    if not isinstance(value, dict):
+        raise ValueError("Invalid IPC frame")
+    return value
 
 
 def send(stream, value):
-    data = json.dumps(value, ensure_ascii=False).encode() + b'\n'
-    if len(data) > MAX_FRAME: raise ValueError('IPC frame too large')
+    data = json.dumps(value, ensure_ascii=False, allow_nan=False).encode() + b'\n'
+    if len(data) > MAX_FRAME:
+        raise ValueError("IPC frame too large")
     stream.write(data)
     stream.flush()
+
+
+def _trusted_peer(client):
+    """Only another process with our Android application UID may issue commands."""
+    if not hasattr(socket, "SO_PEERCRED"):
+        return False
+    try:
+        pid, uid, gid = struct.unpack(
+            "3i", client.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
+        )
+        return pid > 0 and uid == os.getuid()
+    except (OSError, ValueError, struct.error):
+        return False
 
 
 class Runtime:
@@ -117,6 +153,8 @@ class Runtime:
                     self._safe_monitor()
                     continue
                 with client:
+                    if not _trusted_peer(client):
+                        continue
                     client.settimeout(2)
                     try:
                         with client.makefile('rwb') as stream:

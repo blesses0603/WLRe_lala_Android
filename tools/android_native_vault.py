@@ -205,12 +205,108 @@ def report_apk(apk: Path, *, pyc_python: Path | None = None) -> Path:
     return output
 
 
+
+def host_smoke(source: Path = ROOT) -> None:
+    """Compare pure Python against a REAL host Cython vault extension.
+
+    The JNI-backed AndroidCipher constructor intentionally remains a device test.
+    This checks AccountVault file persistence, tamper handling and class exports.
+    """
+    import json
+    import os
+    import tempfile
+
+    source = source.resolve(strict=True)
+    with tempfile.TemporaryDirectory(prefix="lalavault-host-smoke-") as temp:
+        folder = Path(temp)
+        build = folder / "build"
+        build.mkdir()
+        shutil.copy2(source / VAULT_REL, build / (EXTENSION + ".pyx"))
+        shutil.copy2(source / RECIPE_REL / "setup.py", build / "setup.py")
+        command = subprocess.run(
+            [sys.executable, "setup.py", "build_ext", "--inplace"],
+            cwd=build, text=True, capture_output=True, timeout=180, check=False,
+        )
+        if command.returncode:
+            raise RuntimeError("Host vault Cython compilation failed: "
+                               + command.stderr[-1600:])
+        built = list(build.glob(EXTENSION + "*.so"))
+        if len(built) != 1:
+            raise RuntimeError("Expected exactly one host native vault extension")
+        package = folder / "app"
+        (package / "android_app").mkdir(parents=True)
+        (package / "android_app/__init__.py").write_text("", encoding="utf-8")
+        (package / VAULT_REL).write_text(SHIM, encoding="utf-8")
+        shutil.copy2(built[0], package / built[0].name)
+
+        snapshot_code = r'''
+import base64
+import hashlib
+import json
+from pathlib import Path
+import sys
+import tempfile
+sys.path.insert(0, sys.argv[1])
+from android_app.vault import AccountVault, AndroidCipher
+
+class DeterministicCipher:
+    def encrypt(self, plain):
+        return {"data": base64.b64encode(plain).decode("ascii"),
+                "digest": hashlib.sha256(plain).hexdigest()}
+    def decrypt(self, record):
+        plain = base64.b64decode(record["data"])
+        if hashlib.sha256(plain).hexdigest() != record["digest"]:
+            raise ValueError("tampered")
+        return plain
+
+with tempfile.TemporaryDirectory() as temp:
+    path = Path(temp) / "vault.json"
+    vault = AccountVault(path, DeterministicCipher())
+    before = vault.load()
+    records = [{"account": "測試-甲", "line": 3}, {"account": "B", "line": 0}]
+    vault.save(records)
+    after = vault.load()
+    fresh = AccountVault(path, DeterministicCipher()).load()
+    vault.save([])
+    cleared = vault.load()
+    path.write_text('{"data":"YWJj","digest":"wrong"}', encoding="utf-8")
+    tamper = False
+    try:
+        vault.load()
+    except ValueError:
+        tamper = True
+    print(json.dumps({
+        "native": AndroidCipher.__module__ == "_wlre_vault_native",
+        "before": before, "after": after, "fresh": fresh,
+        "cleared": cleared, "tamper_rejected": tamper,
+        "classes": sorted([AndroidCipher.__name__, AccountVault.__name__])
+    }, ensure_ascii=False, sort_keys=True))
+'''
+        def run(location: Path):
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(source)
+            result = subprocess.run(
+                [sys.executable, "-c", snapshot_code, str(location)],
+                cwd=folder, env=env, capture_output=True, text=True,
+                timeout=30, check=True,
+            )
+            return json.loads(result.stdout)
+
+        pure, compiled = run(source), run(package)
+        if pure.pop("native") is not False or compiled.pop("native") is not True:
+            raise AssertionError("Vault smoke did not import the expected implementation")
+        if pure != compiled or not pure["tamper_rejected"]:
+            raise AssertionError("Cython changed the P0 vault storage contract")
+    print("PASS: P0 vault host Cython/native shim parity; Android JNI unverified.")
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     if argv == ["_verify-vault-pyc"]:
         return 0 if _exact_shim(sys.stdin.buffer.read()) else 1
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="action", required=True)
+    sub.add_parser("host-smoke")
     cmd_stage = sub.add_parser("stage")
     cmd_stage.add_argument("--source", type=Path, default=ROOT)
     cmd_stage.add_argument("--output", type=Path, required=True)
@@ -221,6 +317,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.action == "stage":
         print(stage(args.source, args.output))
+    elif args.action == "host-smoke":
+        host_smoke()
     elif args.action == "verify-apk":
         print(verify_apk(args.apk, pyc_python=args.pyc_python))
     else:

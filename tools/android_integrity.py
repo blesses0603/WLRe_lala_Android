@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import zipfile
 
 if __package__ in ("", None):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -73,14 +74,46 @@ def verify_stage(stage: Path, public_pin: str | None = None) -> bool:
     return True
 
 
+def verify_compiled_guard(apk: Path, public_pin: str | None = None) -> bool:
+    """Require the public pin in the compiled DEX (not only staged Java).
+
+    Does not replace apksigner verification or Android real-device acceptance.
+    """
+    pin = _fingerprint(os.environ.get("ANDROID_EXPECTED_SIGNER_SHA256", "")
+                       if public_pin is None else public_pin)
+    with zipfile.ZipFile(apk) as contents:
+        dex = [item for item in contents.infolist()
+               if item.filename == "classes.dex"
+               or (item.filename.startswith("classes")
+                   and item.filename.endswith(".dex")
+                   and item.filename[7:-4].isdigit())]
+        if not dex:
+            raise ValueError("APK has no compiled Android DEX")
+        found = False
+        for member in dex:
+            data = contents.read(member)
+            if PLACEHOLDER.encode("ascii") in data:
+                raise ValueError("APK contains unpinned runtime integrity placeholder")
+            if pin.encode("ascii") in data:
+                found = True
+        if not found:
+            raise ValueError("Compiled Android APK lacks Phase07 runtime certificate pin")
+    return True
+
+
 def report(output_directory: Path, stage: Path, public_pin: str | None = None) -> Path:
     """Evidence of source-level pinning, not a substitute for device tests."""
     verify_stage(stage, public_pin)
+    built = list(Path(output_directory).glob("*.apk"))
+    if len(built) != 1:
+        raise ValueError("Expected one signed APK for Phase07 compiled guard audit")
+    verify_compiled_guard(built[0], public_pin)
     output = Path(output_directory) / "RUNTIME_INTEGRITY_INFO.txt"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
         "WLRe_LaLa Android Phase07 runtime integrity\n"
         "Staged Java package and public signer certificate pin: VERIFIED\n"
+        "Compiled APK DEX contains runtime signer pin: VERIFIED\n"
         "Final APK certificate identity: independently verified in SIGNING_INFO.txt\n"
         "Activity and foreground service invoke runtime signer verification before sessions.\n"
         "No private key is embedded in the runtime verifier.\n"

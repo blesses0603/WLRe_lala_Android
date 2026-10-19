@@ -241,6 +241,39 @@ def report_apk(apk: Path, *, pyc_python: Path | None = None) -> Path:
     return output
 
 
+
+def host_compile(source: Path = ROOT) -> None:
+    """Compile each P0/P1 implementation with Cython 3 on HOST, no APK.
+
+    Build/ELF import on the Android phone is independently checked later.
+    Does not touch the main checkout or any persistent signing secrets.
+    """
+    import tempfile
+
+    source = source.resolve(strict=True)
+    _source_check(source)
+    with tempfile.TemporaryDirectory(prefix="lalaphase05-host-") as scratch:
+        for rel, recipe, extension, priority in CORE_LIST:
+            work = Path(scratch) / recipe
+            work.mkdir()
+            shutil.copy2(source / rel, work / (extension + ".pyx"))
+            shutil.copy2(source / "p4a-recipes" / recipe / "setup.py", work / "setup.py")
+            proc = subprocess.run(
+                [sys.executable, "setup.py", "build_ext", "--inplace"],
+                cwd=work, capture_output=True, text=True, timeout=300, check=False,
+            )
+            if proc.returncode:
+                raise RuntimeError(
+                    "Phase05 host Cython build failed for " + rel +
+                    ": " + (proc.stdout + proc.stderr)[-2200:]
+                )
+            candidates = list(work.glob(extension + "*.so"))
+            if len(candidates) != 1:
+                raise RuntimeError("Expected one host Cython extension: " + rel)
+            print(f"PASS {priority} host Cython compile: {rel}", flush=True)
+    print("Host compile all P0/P1: PASS; Android ARM64 and live behavior NOT verified.")
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     if len(argv) == 2 and argv[0] == "_verify-core-pyc":
@@ -249,6 +282,7 @@ def main(argv=None):
         return 0 if _exact_shim(sys.stdin.buffer.read(), argv[1]) else 1
     parser = argparse.ArgumentParser(description=__doc__)
     actions = parser.add_subparsers(dest="action", required=True)
+    actions.add_parser("host-compile")
     stage_cmd = actions.add_parser("stage")
     stage_cmd.add_argument("--source", type=Path, default=ROOT)
     stage_cmd.add_argument("--output", type=Path, required=True)
@@ -257,7 +291,9 @@ def main(argv=None):
         cmd.add_argument("apk", type=Path)
         cmd.add_argument("--pyc-python", type=Path)
     opt = parser.parse_args(argv)
-    if opt.action == "stage":
+    if opt.action == "host-compile":
+        host_compile()
+    elif opt.action == "stage":
         print(stage(opt.source, opt.output))
     elif opt.action == "verify-apk":
         print(verify_apk(opt.apk, pyc_python=opt.pyc_python))

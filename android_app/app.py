@@ -18,6 +18,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.checkbox import CheckBox
 from kivy.utils import platform
 
+from android_app.credentials import public_accounts, saved_password, store_account, delete_account
 from android_app.sessions import SessionManager
 from android_app.version import ANDROID_VERSION
 
@@ -100,7 +101,7 @@ class LaLaApp(App):
                 if cipher.decrypt(cipher.encrypt(probe)) != probe:
                     raise ValueError('Keystore roundtrip failed')
                 self.vault = AccountVault(directory / 'accounts.enc', cipher)
-                self.saved_accounts = self.vault.load()
+                self.saved_accounts = public_accounts(self.vault.load())
                 self.saved.values = self.saved_names()
                 self.remember.disabled = False
                 print('WLRE_ANDROID_KEYSTORE_READY', flush=True)
@@ -276,11 +277,10 @@ class LaLaApp(App):
             return
         self.password.text = ""
         if self.remember.active and self.vault:
-            records = [r for r in self.saved_accounts if (r['server'], r['account']) != (self.server.text, account)]
-            records.append(dict(server=self.server.text, account=account, password=password))
             try:
-                self.vault.save(records)
-                self.saved_accounts = records
+                self.saved_accounts = store_account(
+                    self.vault, self.server.text, account, password
+                )
                 self.saved.values = self.saved_names()
             except Exception:
                 self.message.text = '安全保存失敗，未建立連線'
@@ -336,21 +336,35 @@ class LaLaApp(App):
         return [r['account'] + ' | ' + r['server'] for r in self.saved_accounts]
 
     def switch_saved(self, _spinner, name):
+        # Previously the Activity cached ALL decrypted passwords indefinitely.
+        # Keep only the selected password inside the UI input until used/paused.
+        self.password.text = ''
         for record, label in zip(self.saved_accounts, self.saved_names()):
             if label == name:
+                if self.vault is None:
+                    self.message.text = '帳密保管庫未就緒，請手動輸入密碼'
+                    return
+                try:
+                    secret = saved_password(self.vault, record['server'], record['account'])
+                except Exception:
+                    self.message.text = '讀取保存帳密失敗，請手動輸入密碼'
+                    return
                 self.account.text = record['account']
                 self.server.text = record['server']
-                self.password.text = record['password']
+                self.password.text = secret
                 return
 
     def delete_saved(self, *_):
         if not self.vault: return
-        records = [r for r, label in zip(self.saved_accounts, self.saved_names()) if label != self.saved.text]
-        try: self.vault.save(records)
+        chosen = next((r for r, label in zip(self.saved_accounts, self.saved_names())
+                       if label == self.saved.text), None)
+        if chosen is None: return
+        try:
+            self.saved_accounts = delete_account(
+                self.vault, chosen['server'], chosen['account'])
         except Exception:
             self.message.text = '安全刪除失敗，原資料已保留'
             return
-        self.saved_accounts = records
         self.saved.values = self.saved_names()
         self.saved.text = '已保存帳號'
         self.password.text = ''

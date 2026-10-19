@@ -13,7 +13,7 @@ class AndroidReleaseVersionTests(unittest.TestCase):
         folder = Path(self.temp.name)
         self.spec = folder / "buildozer.spec"
         self.version = folder / "version.py"
-        self.set_versions("0.0.7", "0.0.7")
+        self.set_versions("0.0.8", "0.0.8")
 
     def set_versions(self, spec, source):
         self.spec.write_text(f"[app]\nversion = {spec}\n", encoding="utf-8")
@@ -23,23 +23,23 @@ class AndroidReleaseVersionTests(unittest.TestCase):
         return resolve_version(self.spec, self.version, ref, event)
 
     def test_emulator_source_versions_match_without_git_tag(self):
-        self.assertEqual(source_version(self.spec, self.version), "v0.0.7")
+        self.assertEqual(source_version(self.spec, self.version), "v0.0.8")
 
     def test_emulator_source_mismatch_fails(self):
-        self.set_versions("0.0.7", "0.0.8")
+        self.set_versions("0.0.8", "0.0.8")
         with self.assertRaisesRegex(ValueError, "Version mismatch"):
             source_version(self.spec, self.version)
 
     def test_emulator_source_invalid_version_fails(self):
-        self.set_versions("0.0.7-beta", "0.0.7-beta")
+        self.set_versions("0.0.8-beta", "0.0.8-beta")
         with self.assertRaisesRegex(ValueError, "Expected numeric"):
             source_version(self.spec, self.version)
 
     def test_matching_git_tag(self):
-        self.assertEqual(self.check("refs/tags/v0.0.7"), "v0.0.7")
+        self.assertEqual(self.check("refs/tags/v0.0.8"), "v0.0.8")
 
     def test_manual_build_from_main(self):
-        self.assertEqual(self.check("refs/heads/main", "workflow_dispatch"), "v0.0.7")
+        self.assertEqual(self.check("refs/heads/main", "workflow_dispatch"), "v0.0.8")
 
     def test_wrong_tag_rejected(self):
         with self.assertRaisesRegex(ValueError, "does not match"):
@@ -50,14 +50,14 @@ class AndroidReleaseVersionTests(unittest.TestCase):
             self.check("refs/heads/feature", "workflow_dispatch")
 
     def test_mismatching_version_files_rejected(self):
-        self.set_versions("0.0.7", "0.0.6")
+        self.set_versions("0.0.8", "0.0.7")
         with self.assertRaisesRegex(ValueError, "Version mismatch"):
-            self.check("refs/tags/v0.0.7")
+            self.check("refs/tags/v0.0.8")
 
     def test_invalid_version_rejected(self):
-        self.set_versions("0.0.7-beta", "0.0.7-beta")
+        self.set_versions("0.0.8-beta", "0.0.8-beta")
         with self.assertRaisesRegex(ValueError, "Expected numeric"):
-            self.check("refs/tags/v0.0.7-beta")
+            self.check("refs/tags/v0.0.8-beta")
 
     def test_unsupported_event_rejected(self):
         with self.assertRaisesRegex(ValueError, "Unsupported"):

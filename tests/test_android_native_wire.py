@@ -10,7 +10,7 @@ import unittest
 import zipfile
 from unittest.mock import patch
 
-from tools.android_native_wire import SHIM, _is_exact_shim_bytecode, stage, verify_apk
+from tools.android_native_wire import SHIM, _is_exact_shim_bytecode, stage, verify_apk, report_apk
 
 
 class NativeWireTests(unittest.TestCase):
@@ -154,6 +154,17 @@ class NativeWireTests(unittest.TestCase):
                 apk.writestr(name, payload)
         with self.assertRaisesRegex(ValueError, "Non-ARM64"):
             verify_apk(data)
+
+    def test_native_wire_release_report_only_after_successful_verification(self):
+        apk = self.apk({})
+        info = report_apk(apk)
+        self.assertEqual(info.name, "NATIVE_WIRE_INFO.txt")
+        self.assertIn("_wlre_wire_native.so", info.read_text())
+        self.assertIn("Original wire implementation source/bytecode leaks: 0", info.read_text())
+        info.unlink()
+        with self.assertRaisesRegex(ValueError, "Missing"):
+            report_apk(self.apk({}, bundle_native=False))
+        self.assertFalse(info.exists())
 
     def test_native_without_exact_shim_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "Missing verified wire import shim"):

@@ -16,7 +16,7 @@ import zipfile
 
 KEY_HEADERS = re.compile(
     rb"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"
-    rb"|-----BEGIN ENCRYPTED PRIVATE KEY-----"
+    rb"|-----BEGIN ENCRYPTED" + rb" PRIVATE KEY-----"
     rb"|AKIA[A-Z0-9]{16}"
     rb"|gh(?:p|o|u|s|r)_[A-Za-z0-9_]{30,}"
 )

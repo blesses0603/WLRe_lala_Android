@@ -7,10 +7,10 @@ source.include_exts = py,kv,json,zip,png,jpg,jpeg,webp,ttf,ttc,txt
 source.exclude_dirs = .git,.github,docs,tests,tools,.buildozer,bin,dist_nuitka
 version = 0.0.8
 requirements = python3,kivy==2.3.1,pyjnius,charset-normalizer==3.4.2
-# Use the SAME LaLa logo on the native SDL2 startup screen.
-# App().build() cannot style this screen: it runs before Python/Kivy starts.
+# Native SDL2 splash: 512px canvas with a ~38%-width centered LaLa mark.
+# Run tools/android_presplash.py check-spec before staging/buildozer.
 icon.filename = android_app/assets/app.png
-presplash.filename = android_app/assets/app.png
+presplash.filename = android_app/assets/presplash.png
 android.presplash_color = #081626
 orientation = portrait
 fullscreen = 0

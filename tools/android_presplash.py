@@ -22,6 +22,18 @@ PRESPLASH_ENTRY = re.compile(
 )
 
 
+def _draw_compact_splash(icon_path, destination, color):
+    """Keep the icon itself unchanged, but show it smaller at app bootstrap."""
+    with Image.open(icon_path) as original:
+        mark = original.convert("RGBA")
+    mark.thumbnail((196, 196), Image.Resampling.LANCZOS)
+    background = Image.new("RGBA", (512, 512), tuple(
+        int(color[i:i+2], 16) for i in (1, 3, 5)) + (255,))
+    background.alpha_composite(mark, ((512-mark.width)//2, (512-mark.height)//2))
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    background.save(destination, format="PNG")
+
+
 def validate_spec(spec=SPEC):
     spec = Path(spec)
     config = configparser.ConfigParser(interpolation=None)
@@ -31,13 +43,15 @@ def validate_spec(spec=SPEC):
     source = app.get("presplash.filename", "").strip()
     icon = app.get("icon.filename", "").strip()
     color = app.get("android.presplash_color", "").strip()
-    if not source or source != icon:
-        raise ValueError("Native presplash must explicitly use the LaLa launcher icon")
+    if not source or source == icon or Path(source).name != "presplash.png":
+        raise ValueError("Native presplash must explicitly use a separate compact presplash.png")
     if not re.fullmatch(r"#[0-9A-Fa-f]{6}", color) or color.lower() == "#000000":
         raise ValueError("Native presplash must use a nonblack six-digit background color")
+    source_icon = spec.parent / icon
+    if not source_icon.is_file():
+        raise ValueError("Configured launcher icon PNG is missing")
     asset = spec.parent / source
-    if not asset.is_file():
-        raise ValueError("Configured native presplash PNG is missing")
+    _draw_compact_splash(source_icon, asset, color)
     with Image.open(asset) as picture:
         if picture.format != "PNG":
             raise ValueError("Native presplash must be a PNG image")
@@ -66,13 +80,13 @@ def verify_apk(apk, spec=SPEC):
         logo = original.convert("RGBA")
         logo.load()
     if native.size != logo.size:
-        raise ValueError("Bundled native presplash has a different size from LaLa icon")
+        raise ValueError("Bundled native presplash dimensions do not match generated splash")
     # Some Android resource compilers recompress PNGs. Compare decoded pixel
     # colors rather than file hashes, allowing tiny re-encoding differences.
     difference = ImageChops.difference(logo, native)
     mean_difference = sum(ImageStat.Stat(difference).mean) / 4
     if mean_difference > 3:
-        raise ValueError("Bundled native presplash differs from the LaLa app icon")
+        raise ValueError("Bundled native presplash differs from the compact LaLa splash")
     return {
         "resource": resource,
         "image": asset.name,
@@ -87,7 +101,8 @@ def report(apk, spec=SPEC):
     output = Path(apk).parent / "PRESPLASH_INFO.txt"
     lines = [
         "WLRe_LaLa native Android startup screen verification",
-        "LaLa app icon: " + result["image"],
+        "LaLa compact native splash: " + result["image"],
+        "Launcher icon is unchanged; logo occupies no more than 196/512 of splash width.",
         "Bundled resource: " + result["resource"],
         "Background: " + result["background"],
         "Image dimensions: " + result["resolution"],

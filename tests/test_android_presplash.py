@@ -10,11 +10,15 @@ from tools.android_presplash import validate_spec, verify_apk, report, SPEC
 
 
 class AndroidPresplashTests(unittest.TestCase):
-    def test_project_uses_same_app_icon_for_native_splash(self):
-        icon, color = validate_spec(SPEC)
-        self.assertEqual(icon.as_posix().split("/")[-2:], ["assets", "app.png"])
+    def test_project_uses_compact_centered_native_splash(self):
+        splash, color = validate_spec(SPEC)
+        self.assertEqual(splash.as_posix().split("/")[-2:], ["assets", "presplash.png"])
         self.assertEqual(color.lower(), "#081626")
-        self.assertTrue(icon.is_file())
+        with Image.open(splash) as image:
+            self.assertEqual(image.size, (512, 512))
+            self.assertEqual(image.convert("RGB").getpixel((0, 0)), (8, 22, 38))
+            # Upper third and outer border must be dark, not a full-bleed portrait.
+            self.assertEqual(image.convert("RGB").getpixel((256, 100)), (8, 22, 38))
 
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -27,8 +31,9 @@ class AndroidPresplashTests(unittest.TestCase):
         self.spec = self.root / "buildozer.spec"
         self.spec.write_text(
             "[app]\nicon.filename = assets/app.png\n"
-            "presplash.filename = assets/app.png\n"
+            "presplash.filename = assets/presplash.png\n"
             "android.presplash_color = #081626\n", encoding="utf-8")
+        self.splash, _ = validate_spec(self.spec)
 
     def apk_with_image(self, picture=None, resource="res/drawable/presplash.png"):
         apk = self.root / "test.apk"
@@ -38,17 +43,17 @@ class AndroidPresplashTests(unittest.TestCase):
         return apk
 
     def test_matching_bundled_icon_and_report(self):
-        apk = self.apk_with_image(self.asset)
+        apk = self.apk_with_image(self.splash)
         result = verify_apk(apk, self.spec)
         self.assertEqual(result["background"], "#081626")
-        self.assertEqual(result["resolution"], "256x256")
+        self.assertEqual(result["resolution"], "512x512")
         path = report(apk, self.spec)
         self.assertIn("Bundled icon comparison: PASSED", path.read_text())
         self.assertEqual(path.name, "PRESPLASH_INFO.txt")
 
     def test_kivy_stock_or_other_logo_is_rejected(self):
         wrong = self.root / "default_kivy.png"
-        Image.new("RGBA", (256, 256), (0, 0, 0, 255)).save(wrong)
+        Image.new("RGBA", (512, 512), (0, 0, 0, 255)).save(wrong)
         with self.assertRaisesRegex(ValueError, "differs"):
             verify_apk(self.apk_with_image(wrong), self.spec)
 
@@ -64,7 +69,7 @@ class AndroidPresplashTests(unittest.TestCase):
             validate_spec(self.spec)
         self.spec.write_text(
             "[app]\nicon.filename = assets/app.png\n"
-            "presplash.filename = assets/app.png\n"
+            "presplash.filename = assets/presplash.png\n"
             "android.presplash_color = #000000\n", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "nonblack"):
             validate_spec(self.spec)

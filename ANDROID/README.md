@@ -21,9 +21,9 @@
 
 ### Android 原生啟動畫面
 
-手機開啟 APK 時，Kivy 主畫面還沒建立，會先顯示 python-for-android SDL2 的原生 `presplash`。原本 `buildozer.spec` 只有設定 App ICON，沒有設定 `presplash.filename`，因此手機仍顯示 Kivy 預設黑底 `Loading...`。目前已指定與 App 相同的 `android_app/assets/app.png`，並設定深藍背景 `#081626`。
+手機開啟 APK 時，Kivy 主畫面還沒建立，會先顯示 python-for-android SDL2 的原生 `presplash`。原本 `buildozer.spec` 只有設定 App ICON，沒有設定 `presplash.filename`，因此手機仍顯示 Kivy 預設黑底 `Loading...`。目前啟動圖改由 `tools/android_presplash.py check-spec` 使用原始 App 圖示即時產生獨立 `android_app/assets/presplash.png`（512×512 深藍畫布，原圖置中縮至 196px），避免啟動畫面整張人物圖佔滿手機寬度。App 圖示本身不變，背景仍為 `#081626`。
 
-完整 APK 建置流程會在編譯後檢查 APK 內的 `res/drawable*/presplash` 圖片是否與 LaLa ICON 相符，通過後才上傳；Artifact 中另附 `PRESPLASH_INFO.txt`。**此修改只改啟動圖案，並不能修復真正卡在 Loading 的崩潰或初始化失敗**。若新版本停留在啟動畫面超過一分鐘，請提供手機 Logcat 供進一步定位。
+完整 APK 建置流程會在編譯後檢查 APK 內的 `res/drawable*/presplash` 圖片是否與產生的 LaLa 精簡啟動圖相符，通過後才上傳；Artifact 中另附 `PRESPLASH_INFO.txt`。**此修改只改啟動圖案，並不能修復真正卡在 Loading 的崩潰或初始化失敗**。若新版本停留在啟動畫面超過一分鐘，請提供手機 Logcat 供進一步定位。
 
 ### 1. 安裝及開始登入
 

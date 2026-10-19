@@ -5,13 +5,7 @@ passwords, raw account names, authentication payloads or chat messages.
 """
 from __future__ import annotations
 from android_app.overview_model import overview_model
-
-
-def _mask(value):
-    value = str(value or "")
-    if len(value) < 3:
-        return "••"
-    return value[:1] + "•••" + value[-1:]
+from wlre.core.efficiency import rates
 
 
 def _text(value, limit=20):
@@ -46,6 +40,28 @@ def _battle(session):
     return "AI 已啟用"
 
 
+def _efficiency(state):
+    """Read-only, sample-backed EXP rates (per hour)."""
+    rows = ((state or {}).get("efficiency") or {}).get("rows") or {}
+    summary = []
+    for key in sorted(rows, key=lambda value: (value != "self", str(value)))[:3]:
+        row = rows.get(key) or {}
+        try:
+            values = rates(row)
+        except (KeyError, IndexError, TypeError, ValueError, ZeroDivisionError):
+            continue
+        def speed(sample):
+            value, count = sample
+            return f"{value * 60:,.0f} EXP/時" if value is not None and count else "等待樣本"
+        summary.append({
+            "name": "角色" if key == "self" else _text(row.get("name") or "夥伴", 24),
+            "average": speed(values[0]),
+            "recent10": speed(values[1]),
+            "recent30": speed(values[2]),
+        })
+    return summary
+
+
 def _overview(state):
     """Expose only the fields from the mobile role overview page."""
     value = overview_model(state)
@@ -57,6 +73,7 @@ def _overview(state):
         "character": _text(value["character"], 32),
         "profiles": profiles,
         "remaining_profiles": max(0, len(value["profiles"]) - len(profiles)),
+        "efficiency": _efficiency(state),
         "statuses": {key: _text(value["statuses"][key], 64)
                      for key in ("battle", "roaming", "event")},
     }
@@ -75,13 +92,17 @@ def snapshot(manager):
                     if session.phase == "world_ready":
                         online += 1
                 if len(rows) < 6:
+                    ready = (session.active and not session.stop_event.is_set()
+                             and session.phase == "world_ready")
+                    overview = _overview(getattr(session, "game_state", {})) if ready else None
+                    character = overview["character"] if overview else ""
                     rows.append({
-                        "name": "帳號 " + str(total) + " (" + _mask(session.account) + ")",
+                        # Never reveal login credentials in an overlay.
+                        "name": character if character and character != "等待角色同步"
+                                else "角色 " + str(total) + "（等待登入）",
                         "server": _text(session.label),
                         "connection": _connection(session),
                         "battle": _battle(session),
-                        "overview": _overview(getattr(session, "game_state", {}))
-                            if session.active and not session.stop_event.is_set()
-                            and session.phase == "world_ready" else None,
+                        "overview": overview,
                     })
     return {"total": total, "active": active, "online": online, "accounts": rows}

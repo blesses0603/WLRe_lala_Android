@@ -375,7 +375,7 @@ public final class FloatingOverlay {
         lp.bottomMargin = dp(context, 10);
         list.addView(card, lp);
 
-        TextView accountName = text(context, account.optString("name", "帳號"), 13, CYAN);
+        TextView accountName = text(context, account.optString("name", "角色狀態"), 16, CYAN);
         accountName.setTypeface(null, 1);
         card.addView(accountName);
         TextView server = text(context,
@@ -393,10 +393,6 @@ public final class FloatingOverlay {
             card.addView(battle);
             return;
         }
-        TextView character = text(context,
-            overview.optString("character", "等待角色同步"), 17, Color.WHITE);
-        character.setTypeface(null, 1);
-        card.addView(character);
         JSONArray profiles = overview.optJSONArray("profiles");
         if (profiles != null) {
             for (int i = 0; i < profiles.length(); i++) {
@@ -416,6 +412,23 @@ public final class FloatingOverlay {
             addStatus(context, card, "自動戰鬥", statuses.optString("battle", "待同步"), CYAN);
             addStatus(context, card, "自動徘徊", statuses.optString("roaming", "待同步"), CYAN);
             addStatus(context, card, "事件", statuses.optString("event", "待同步"), MUTED);
+        }
+        addRule(context, card);
+        TextView expTitle = text(context, "經驗效率", 13, CYAN);
+        expTitle.setTypeface(null, 1);
+        card.addView(expTitle);
+        JSONArray efficiency = overview.optJSONArray("efficiency");
+        if (efficiency == null || efficiency.length() == 0) {
+            addStatus(context, card, "統計", "等待有效戰鬥樣本", MUTED);
+        } else {
+            for (int i = 0; i < efficiency.length(); i++) {
+                JSONObject entry = efficiency.optJSONObject(i);
+                if (entry == null) continue;
+                addStatus(context, card, entry.optString("name", "角色"),
+                    entry.optString("average", "等待樣本"), MUTED);
+                addStatus(context, card, "近10場", entry.optString("recent10", "等待樣本"), MUTED);
+                addStatus(context, card, "近30場", entry.optString("recent30", "等待樣本"), MUTED);
+            }
         }
     }
 

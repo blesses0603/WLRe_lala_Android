@@ -55,7 +55,10 @@ def stage(source: Path, output: Path) -> Path:
         native = output / RECIPE_REL / "src" / (EXTENSION + ".pyx")
         native.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(staged, native)
-        shutil.copy2(output / RECIPE_REL / "setup.py", native.parent / "setup.py")
+        # Wire staging excludes all recipes from the application copy; explicitly
+        # restore this local recipe into its out-of-app build-input directory.
+        shutil.copy2(source / RECIPE_REL / "__init__.py", output / RECIPE_REL / "__init__.py")
+        shutil.copy2(source / RECIPE_REL / "setup.py", native.parent / "setup.py")
         staged.write_text(SHIM, encoding="utf-8")
         spec = output / "buildozer.spec"
         contents = spec.read_text(encoding="utf-8")

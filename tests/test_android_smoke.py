@@ -25,9 +25,11 @@ class AndroidSmokeDiagnosticsTests(unittest.TestCase):
                 android_smoke.collect_diagnostics()
             log = (Path(folder) / 'android-smoke-logcat.txt').read_text()
             services = (Path(folder) / 'android-smoke-services.txt').read_text()
-        self.assertIn('full logcat unavailable', log)
-        self.assertIn('AndroidRuntime: retained', log)
-        self.assertIn('service present', services)
+        self.assertIn('fallback_last_300: true', log)
+        self.assertIn('androidruntime_entries: 1', log)
+        self.assertNotIn('AndroidRuntime: retained', log)
+        self.assertIn('raw contents omitted for privacy', services)
+        self.assertNotIn('service present', services)
 
     def test_readiness_retries_android_15_logcat_255(self):
         code = subprocess.CompletedProcess(

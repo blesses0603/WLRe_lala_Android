@@ -92,8 +92,16 @@ class Runtime:
     def dispatch(self, request):
         operation = request.get('op')
         if operation == 'start':
-            session = self.manager.start(**request['args'])
-            return {'id': session.session_id}
+            args = request['args']
+            try:
+                session = self.manager.start(**args)
+                return {'id': session.session_id}
+            finally:
+                # Drop a mutable reference immediately after passing it to
+                # SessionManager, including failed login attempts. Python
+                # strings in the worker remain until no longer referenced.
+                if isinstance(args, dict):
+                    args.pop('password', None)
         if operation == 'game': return self.manager.game_command(request['id'], request['command'])
         if operation == 'detail': return self.manager.session_detail(request['id'])
         if operation == 'preferences': return self.manager.save_preferences(request['id'], request['preferences'])
@@ -233,14 +241,20 @@ class ServiceManager:
         self.events.put(("", "error", label))
 
     def call(self, request):
-        with socket.socket(socket.AF_UNIX) as client:
-            client.settimeout(2)
-            client.connect(self.path)
-            with client.makefile('rwb') as stream:
-                send(stream, request)
-                reply = receive(stream)
-        if not reply['ok']: raise ValueError(reply['error'])
-        return reply['value']
+        try:
+            with socket.socket(socket.AF_UNIX) as client:
+                client.settimeout(2)
+                client.connect(self.path)
+                with client.makefile('rwb') as stream:
+                    send(stream, request)
+                    reply = receive(stream)
+            if not reply['ok']: raise ValueError(reply['error'])
+            return reply['value']
+        finally:
+            if request.get('op') == 'start' and isinstance(request.get('args'), dict):
+                # Avoid leaving credentials on the consumed background IPC
+                # queue item after success, timeout or connection refusal.
+                request['args'].pop('password', None)
 
     def _work(self):
         while True:

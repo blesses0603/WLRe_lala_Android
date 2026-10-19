@@ -71,6 +71,12 @@ jobs:
         run: |
           python tools/android_native_cores.py stage --source "$GITHUB_WORKSPACE" --output "$NATIVE_STAGE"
           python -c 'import os; from pathlib import Path; from tools.android_hardening import check_configuration; from tools.android_release_version import source_version; stage = Path(os.environ["NATIVE_STAGE"]); check_configuration(stage); assert source_version(stage / "buildozer.spec", stage / "android_app/version.py") == "v0.0.8"'
+      - name: Pin public signer into Phase07 runtime Java guard (no private key)
+        env:
+          ANDROID_EXPECTED_SIGNER_SHA256: ${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
+        run: |
+          python tools/android_integrity.py prepare-stage "$NATIVE_STAGE"
+          python tools/android_integrity.py verify-stage "$NATIVE_STAGE"
       - name: Require persistent Android signing for version-tag APK
         env:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
@@ -106,6 +112,7 @@ jobs:
           python tools/android_native_cores.py report-apk "android-output/$output" --pyc-python "$hostpython"
           python tools/android_presplash.py check-apk "android-output/$output"
           python tools/android_signing.py report android-output
+          python tools/android_integrity.py report "$NATIVE_STAGE" android-output
           python tools/android_hardening.py report "android-output/$output"
           (cd android-output && sha256sum "$output" > SHA256SUMS.txt)
       - name: Upload APK (only after successful build)

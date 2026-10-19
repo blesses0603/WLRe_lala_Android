@@ -68,9 +68,11 @@ jobs:
           python tools/android_presplash.py check-spec
           python tools/android_hardening.py preflight
       - name: Stage all eight P0/P1 ARM64 native cores before accessing signing secrets
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
         run: |
           python tools/android_native_cores.py stage --source "$GITHUB_WORKSPACE" --output "$NATIVE_STAGE"
-          python -c 'import os; from pathlib import Path; from tools.android_hardening import check_configuration; from tools.android_release_version import source_version; stage = Path(os.environ["NATIVE_STAGE"]); check_configuration(stage); assert source_version(stage / "buildozer.spec", stage / "android_app/version.py") == "v0.0.8"'
+          python -c 'import os; from pathlib import Path; from tools.android_hardening import check_configuration; from tools.android_release_version import source_version; stage = Path(os.environ["NATIVE_STAGE"]); check_configuration(stage); assert source_version(stage / "buildozer.spec", stage / "android_app/version.py") == os.environ["RELEASE_VERSION"], "Staged Android version differs from source release version"'
       - name: Pin public signer into Phase07 runtime Java guard (no private key)
         env:
           ANDROID_EXPECTED_SIGNER_SHA256: ${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
@@ -115,6 +117,16 @@ jobs:
           python tools/android_integrity.py report "$NATIVE_STAGE" android-output
           python tools/android_hardening.py report "android-output/$output"
           (cd android-output && sha256sum "$output" > SHA256SUMS.txt)
+          # Phase09 publication gate: validate actual APK package/version/API,
+          # all seven signed/native/security audit reports and their checksums.
+          # Never add signing material to release evidence or upload on failure.
+          python tools/android_release_gate.py android-output \
+            --version "$RELEASE_VERSION" \
+            --source-root "$NATIVE_STAGE" \
+            --sha "$GITHUB_SHA" \
+            --ref "$GITHUB_REF" \
+            --event "$GITHUB_EVENT_NAME" \
+            --signer "$ANDROID_EXPECTED_SIGNER_SHA256"
       - name: Upload APK (only after successful build)
         uses: actions/upload-artifact@v7.0.2
         with:

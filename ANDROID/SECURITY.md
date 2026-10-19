@@ -93,3 +93,12 @@
 - Python 與 Java 測試（含 JVM 執行模擬簽署者不符、多簽署者、錯誤 package、SDK 不符與 JNI 異常）已加入 PR 快速 CI；第 07 項程式測試 Run #39334752525：**300 tests OK**。
 - **尚未聲稱** Android 正式固定簽章新版 APK 及 Android 12+ ARM64 真機重新打包防護測試成功。未經固定簽章發行程序 pin 的本機測試 APK 預設拒絕進入敏感功能。
 - 這是客户端 defense-in-depth，**不是 Play Integrity/伺服器驗證或不可繞過的反 Hook 技術**。客戶端能被具備修改能力的攻擊者 patch，Root/Hook 威脅仍未根除。詳見 [PHASE07_INTEGRITY.md](PHASE07_INTEGRITY.md)。
+
+
+## 第 08 項：帳密參照縮短與診斷隱私（2026-10-20）
+
+- 已保存帳號清單僅在長期 UI State 保留帳號/伺服器，按需解密所選帳號，保存/刪除仍使用既有 Android Keystore AES-GCM 與相同資料格式；不再把全部明文密碼長期保留於 \`self.saved_accounts\`。
+- Android UI→service 的 start 命令和 service 端收到的 start 命令，在成功/失敗後移除其 mutable request 內的 password 欄位，降低佇列裡長時間保留密碼參照的風險。
+- Android smoke 測試將下載用診斷改成**固定事件/錯誤碼/計數摘要**。原始 \`logcat\` 與 \`dumpsys\` 內容不會寫入 GitHub Actions 產物或失敗 console；須在可信任裝置上另外以明確同意收集詳細日誌。
+- 無法承諾 Python/Kivy/JNI 字串在記憶體真正零化，亦無法保護已遭 Root、Hook 或 OS 層級入侵的手機；正式 ARM64 APK / Android 12+ 真機完整回歸仍是後續發布驗收。
+- 依照 [PHASE08_CREDENTIAL_PRIVACY.md](PHASE08_CREDENTIAL_PRIVACY.md) 的單元與 Kivy 回歸測試紀錄驗收；日常 PR 不觸發完整 APK。

@@ -26,7 +26,7 @@ class AndroidReleaseVersionTests(unittest.TestCase):
         self.assertEqual(source_version(self.spec, self.version), "v0.0.8")
 
     def test_emulator_source_mismatch_fails(self):
-        self.set_versions("0.0.8", "0.0.8")
+        self.set_versions("0.0.8", "0.0.7")
         with self.assertRaisesRegex(ValueError, "Version mismatch"):
             source_version(self.spec, self.version)
 
@@ -43,7 +43,7 @@ class AndroidReleaseVersionTests(unittest.TestCase):
 
     def test_wrong_tag_rejected(self):
         with self.assertRaisesRegex(ValueError, "does not match"):
-            self.check("refs/tags/v0.0.8")
+            self.check("refs/tags/v0.0.7")
 
     def test_manual_build_from_other_branch_rejected(self):
         with self.assertRaisesRegex(ValueError, "must use main"):

@@ -23,7 +23,7 @@ jobs:
       KIVY_NO_ARGS: '1'
       KIVY_NO_CONSOLELOG: '1'
       PYTHONUNBUFFERED: '1'
-      NATIVE_STAGE: ${{ runner.temp }}/wlre-android-native-release
+      NATIVE_STAGE: /tmp/wlre-android-native-release
     steps:
       - uses: actions/checkout@v7.0.1
         with:

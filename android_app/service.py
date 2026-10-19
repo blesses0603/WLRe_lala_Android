@@ -11,6 +11,15 @@ from android_app.overlay_state import snapshot as overlay_snapshot
 def main():
     from jnius import autoclass, cast
     service = autoclass('org.kivy.android.PythonService').mService
+    from android_app.integrity import require_integrity, IntegrityRejected
+    try:
+        # The service runs in an independent Python process; never trust that
+        # the Activity checked the signature already.
+        require_integrity(service)
+    except IntegrityRejected:
+        print('WLRE_ANDROID_INTEGRITY_BLOCKED SERVICE', flush=True)
+        service.stopSelf()
+        return
     context = autoclass('android.content.Context')
     power = cast('android.os.PowerManager', service.getSystemService(context.POWER_SERVICE))
     wake = power.newWakeLock(1, 'WLRe_LaLa:connections')

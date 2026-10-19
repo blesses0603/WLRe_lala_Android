@@ -1,0 +1,10 @@
+PHASE05_FULL_P0P1_ARM64_INTEGRATION_READY
+Date: 2026-10-19
+Reason: user requested completion of ALL P0/P1 native staging and Python regression before ONE experimental Android APK.
+Baseline: main c4dfbb8c0e06e8b14186c86f0f286e9863bd3e95
+Ready head: c142833e414fba8584c17d07bb3f4649759f4dfc
+Host Cython 6 P0/P1 compile: success, Actions 39261841574
+Full Python 274 tests plus Android security preflight: success, Actions 39262125426
+Experiment: Phase04 wire + Phase05 vault + remaining six cores = 8 ARM64 native extensions.
+Gate: experimental-only, no signing secrets; do NOT merge before ARM64 APK audit and Android device validation.
+This marker intentionally triggers the sole Phase05 integrated APK experiment workflow.

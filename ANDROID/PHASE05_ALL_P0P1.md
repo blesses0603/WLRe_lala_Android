@@ -28,13 +28,13 @@
 
 ## 驗收順序
 
-- [ ] 全部新增六個模組的 host Cython 編譯
-- [ ] PR 全套 Python 回歸、stage、假 APK 反洩漏與 ABI 篡改測試
-- [ ] 使用者要求的「整個第 05 項程式完成」評審與相容性檢查
-- [ ] **之後才**手動啟動 .github/workflows/android-native-vault.yml（已移除 push 觸發），一次整合 P0/P1 ARM64 實驗
-- [ ] 實驗 APK 同時通過 wire、vault、其餘六模組的 NDK / SHA256 / 源碼洩漏稽核
-- [ ] 最後驗收 Android 12+ ARM64 真機：Keystore AES-GCM、帳密保存/刪除、重啟、錯誤密文拒絕、登入、分段封包、雙帳號、前景服務 IPC、戰鬥、遠征 ACK 和斷線恢復
-- [ ] 以上成功後才准備正式固定簽章版發行接線、版本升級與 PR 合併 main
+- [x] 六個新增核心 Linux 主機 Cython 編譯完成，Actions #39261841574 Success。
+- [x] Python 274 項回歸與 APK 模擬封裝/ABI 篡改拒絕，Actions #39262125426 Success。
+- [x] 全部八核心 NDK ARM64 **實驗 APK**、wire/vault/all cores 原生稽核、來源洩漏阻擋、SHA256，Actions #39262487138 Success。
+- [x] 最新 PR 提交的快速安全回歸，Actions #39262495867 Success。
+- [x] 使用者於 2026-10-19 回報「好了」；此為使用者確認驗收完成，**沒有逐項測試日誌**，不能推論每個子功能均有裝置端測試證據。
+- [x] 正式固定簽章流程接入八核心 stage 及 wire/vault/all-core 三重 fail-closed APK 稽核。
+- [ ] **正式固定簽章八核心 APK**：須於合併後由 main 手動觸發建置、比對簽章與完整更新測試；實驗簽章 APK 不可作舊版覆蓋升級證據。
 
 目前不覆蓋現有 Android 客戶端、不新建/更換簽章、不改變 Python 專案、Android 12+ 或 arm64-v8a 的規則。
 Cython 僅增加逆向門檻，不可聲稱不可破解；敏感金鑰仍應交給 Android Keystore 持有。
@@ -47,4 +47,4 @@ Cython 僅增加逆向門檻，不可聲稱不可破解；敏感金鑰仍應交�
     # 下一階段 Android NDK 建置於 /tmp/lalaphase05-all
     python tools/android_native_cores.py report-apk /tmp/lalaphase05-all/bin/APP.apk --pyc-python /tmp/lalaphase05-all/.buildozer/android/platform/build-arm64-v8a/build/other_builds/hostpython3/desktop/hostpython3/native-build/root/usr/local/bin/python3.14
 
-PR #9 維持 Draft；具體成功/失敗應以實際 GitHub Actions Run 為準。
+PR #9 合併前須通過新增的發行流程回歸測試；正式八核心固定簽章 APK 與更新測試需以合併後新 Actions Run 為準，不能使用前期實驗版結果代替。

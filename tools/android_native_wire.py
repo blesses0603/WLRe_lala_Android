@@ -260,6 +260,29 @@ def verify_apk(path: Path, *, pyc_python: Path | None = None) -> dict:
     return {"arm64_wire_extensions": found, "verified_wire_shims": shim_count, "source_leaks": 0}
 
 
+
+def report_apk(path: Path, *, pyc_python: Path | None = None) -> Path:
+    """Fail closed and persist a concise native-wire audit for signed APKs."""
+    result = verify_apk(path, pyc_python=pyc_python)
+    native = result["arm64_wire_extensions"]
+    if len(native) != 1 or result["verified_wire_shims"] != 1 or result["source_leaks"] != 0:
+        raise ValueError("Expected precisely one ARM64 native wire and one verified shim")
+    output = Path(path).parent / "NATIVE_WIRE_INFO.txt"
+    output.write_text(
+        "WLRe_LaLa Android ARM64 Cython wire verification\\n"
+        "Native wire Cython extension: VERIFIED\\n"
+        "Module: _wlre_wire_native\\n"
+        "ABI: arm64-v8a (AArch64 ELF64 ET_DYN)\\n"
+        "Location: " + native[0] + "\\n"
+        "Verified import shim bytecode: 1\\n"
+        "Original wire implementation source/bytecode leaks: 0\\n"
+        "All other app Python bytecode remains extractable and is not Cython protected.\\n"
+        "Not proof of live Android foreground service compatibility.\\n",
+        encoding="utf-8",
+    )
+    return output
+
+
 def host_smoke(root: Path = ROOT) -> None:
     """Run the exact native shim through a host Cython build in disposable dirs.
 
@@ -330,14 +353,18 @@ def main(argv=None):
     staging.add_argument("--output", type=Path, required=True)
     sub.add_parser("host-smoke")
     audit = sub.add_parser("verify-apk")
-    audit.add_argument("apk", type=Path)
-    audit.add_argument("--pyc-python", type=Path,
-                       help="Matching hostpython for target p4a CPython bytecode (e.g. Python 3.14)")
+    report = sub.add_parser("report-apk")
+    for verifier in (audit, report):
+        verifier.add_argument("apk", type=Path)
+        verifier.add_argument("--pyc-python", type=Path,
+                              help="Matching hostpython for target p4a CPython bytecode (e.g. Python 3.14)")
     opts = parser.parse_args(argv)
     if opts.operation == "stage":
         print(stage(opts.source, opts.output))
     elif opts.operation == "host-smoke":
         host_smoke()
+    elif opts.operation == "report-apk":
+        print(report_apk(opts.apk, pyc_python=opts.pyc_python))
     else:
         print(verify_apk(opts.apk, pyc_python=opts.pyc_python))
 

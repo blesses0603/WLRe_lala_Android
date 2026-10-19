@@ -13,7 +13,7 @@
 
 本文件集中說明 Android 客戶端的**操作流程、權限、背景機制、APK 建置及驗收限制**。首次安裝與下載入口請先閱讀 [專案首頁 README](../README.md)；功能逐項對照請參考 [FEATURE_PARITY.md](FEATURE_PARITY.md)。
 
-**開發中版本：v0.0.7** ｜ **最低 Android 12（API 31）** ｜ **只建置 ARM64 手機 APK** ｜ **Debug 測試用途**
+**開發中版本：v0.0.8** ｜ **最低 Android 12（API 31）** ｜ **只建置 ARM64 手機 APK** ｜ **Debug 測試用途**
 
 > 請勿安裝早期 v0.0.2／v0.0.3 的舊 APK：歷史紀錄曾確認 Keystore／PyJNIUS JNI 初始化崩潰。v0.0.7 新增的懸浮小球與遊戲自動化操作仍需真機驗收；「Actions 成功」不等於正式遊戲連線驗收。
 
@@ -88,6 +88,16 @@ App 回到前景時會重新建立 Kivy 畫面，恢復帳號／伺服器欄位�
 
 資料尚未由遊戲伺服器確認時，核心應拒絕或暫停相關操作，例如未知位置、未學會的技能、未確認配方、未收到材料消耗結果等。不能用 UI 上存在某個按鈕，推論遊戲伺服器已接受該功能。
 
+## v0.0.8｜正式 ARM64 原生核心打包
+
+自 v0.0.8 起，手動／版本 Tag 完整 APK 工作流程改為 **先在隔離資料夾中把 `wlre/network/wire.py` 編譯成 `_wlre_wire_native.so`，再以既有固定 Debug 金鑰重新簽章**。正式儲存庫中的 Python 原始檔仍可用於回歸測試；原生替換只在 Android 打包暫存環境進行，桌面版不受影響。
+
+正式 APK 上傳前必須同時通過 `NATIVE_WIRE_INFO.txt`（ARM64 ELF、Cython 模組位置、只有 shim bytecode）、`SIGNING_INFO.txt`（`Mode: persistent`、公開簽署者指紋 VERIFIED）、`PROTECTION_INFO.txt` 及 SHA256SUMS。任一項不通過就不提供新的 APK Artifact。其他 Python 位元碼仍可能被分析，並非全部原生化。
+
+**更新注意**：如果手機目前安裝的是固定 Debug 簽章的舊版，同時 App package name 不變且系統判定 versionCode 可升級，v0.0.8 應能直接覆蓋更新；若安裝的是先前 Phase04 **臨時簽章的實驗 APK**，無法用固定簽章正式版直接覆蓋，且卸載可能刪除加密帳密／私有設定。請先確認簽署者，不要貿然卸載。
+
+這次 CI 正式編譯、固定簽章與舊版原地升級仍須以 **v0.0.8 main 工作流程實際成功執行及手機更新結果**驗證，不能用先前實驗 APK 的成功紀錄代替。
+
 ## GitHub Actions｜節省額度的兩階段模式（2026-10-19）
 
 因 GitHub-hosted Runner 免費分鐘數有限，已將日常 Python 測試與完整 Android 原生編譯分開。**一般 PR／main push 不再自動執行 Buildozer，也不會產生 APK。** 此模式不更改 Android 12（API 31）、ARM64-only、APK 版號、功能或既有固定簽章。
@@ -95,14 +105,14 @@ App 回到前景時會重新建立 Kivy 畫面，恢復帳號／伺服器欄位�
 | 工作流程 | 觸發方式 | 執行項目 | APK 產物 |
 | --- | --- | --- | --- |
 | [Android fast checks (no APK)](../.github/workflows/android-smoke.yml) | 指定路徑的 PR、main push，或手動 | Python 3.11 回歸、語法、版本一致性、安全預檢、ARM64 配置檢查 | **無** |
-| [Android phone APK (version tag)](../.github/workflows/android-apk.yml) | 在 **main 手動** Run workflow；或推送符合目前版本的 `vX.Y.Z` Tag | 相同測試 + Buildozer ARM64 APK + pinned persistent 簽章 + SHA256 + 啟動畫面與 APK 內容掃描 | `WLRe_LaLa-Android-vX.Y.Z-debug` |
+| [Android ARM64 native phone APK (pinned signing)](../.github/workflows/android-apk.yml) | 在 **main 手動** Run workflow；或推送符合目前版本的 `vX.Y.Z` Tag | 相同測試 + 隔離 staging 內 Cython 3.0.12／NDK ARM64 原生 wire + pinned persistent 簽章 + SHA256 + 原生 ELF／shim／啟動畫面檢查 | `WLRe_LaLa-Android-vX.Y.Z-debug` |
 
 ### 需要新 APK 時：手動建置
 
 1. 先確認 [快速測試 Actions](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-smoke.yml) 的最新 main 測試通過。
 2. 打開 [Android phone APK (version tag)](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml)，按 **Run workflow**。
 3. Branch 選擇 **main**，再按 **Run workflow**。其他分支會被版號檢查拒絕。
-4. 等待成功後下載 `WLRe_LaLa-Android-v0.0.7-debug`（版本升級後名稱會隨版本變更）。ZIP 包含 APK、`SHA256SUMS.txt`、`SIGNING_INFO.txt`、`PRESPLASH_INFO.txt` 及 `PROTECTION_INFO.txt`。
+4. 等待成功後下載 `WLRe_LaLa-Android-v0.0.8-debug`（版本升級後名稱會隨版本變更）。ZIP 包含 APK、`SHA256SUMS.txt`、`SIGNING_INFO.txt`、`NATIVE_WIRE_INFO.txt`、`PRESPLASH_INFO.txt` 及 `PROTECTION_INFO.txt`。
 5. 對照 `SIGNING_INFO.txt` 的 `Mode: persistent` 與 `Pinned public signer SHA256: VERIFIED`。不要把 PR 用的臨時簽章 APK 當作手機長期更新包。
 
 需要發佈下一個新版本時，須先同步更新 `buildozer.spec` 與 `android_app/version.py`，然後才建立相符的 `vX.Y.Z` Tag；Tag 必須指向 main 歷史中的 Commit。**既有 GitHub Secret `ANDROID_DEBUG_KEYSTORE_BASE64` 和 Variable `ANDROID_EXPECTED_SIGNER_SHA256` 保持原樣，不重新產生或輸出私鑰。**沒有它們，完整建置會拒絕發佈，不會悄悄改用臨時簽章。
@@ -128,7 +138,8 @@ python -m compileall -q main.py android_app wlre tools
 本地 ARM64 編譯（還需要 Android SDK／NDK 與 Buildozer 原生建置相依）：
 
 ```bash
-buildozer -v android debug
+python tools/android_native_wire.py stage --source . --output /tmp/wlre-android-native-release
+(cd /tmp/wlre-android-native-release && buildozer -v android debug)
 ```
 
 **修改 Android 版本**時，需同步調整 `buildozer.spec` 的 `version` 與 `android_app/version.py` 的 `ANDROID_VERSION`；一般 `main` 更新**只執行快速測試，不再編譯 ARM64 APK**。要測試安裝包時從 main 手動執行 `android-apk.yml`；準備發布新版本時才建立相符的 Git Tag。不要把桌面版的 Nuitka、BAT、Tkinter 建置步驟混入 Android 專案。

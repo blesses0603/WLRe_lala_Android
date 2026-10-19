@@ -183,7 +183,8 @@ class AndroidHardeningTests(unittest.TestCase):
             self.assertEqual(counts["high_risk_bytecode"], 2)
             text = report(apk).read_text()
             self.assertIn("High-risk core bytecode still exposed: 2", text)
-            self.assertIn("Cython: NOT enabled", text)
+            self.assertIn("Cython ARM64 wire core: see NATIVE_WIRE_INFO.txt", text)
+            self.assertIn("Other high-risk P0/P1 Cython migrations: NOT enabled", text)
 
     def test_broken_embedded_tar_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -87,3 +87,12 @@ PR 使用臨時簽章，不應該用正式版的公開憑證指紋檢查 PR APK�
 ### 2026-10-19：節省 Actions 額度的流程調整
 
 日常 PR／main 改成快速 Python 驗證，不向工作提供 APK 私鑰，也不產出 APK；版本 Tag 或在 main 手動執行 `android-apk.yml` 時，才使用原有 `ANDROID_DEBUG_KEYSTORE_BASE64` 與 `ANDROID_EXPECTED_SIGNER_SHA256` 完成重簽與驗證。金鑰、pin、別名、密碼和 APK 安全報告程式均未更動。歷史 Run 39141939393 已經通過 main 的固定簽章工作流程，不需僅為這次 CI 設定變更重新打包。
+
+### 2026-10-19｜v0.0.8 ARM64 Cython 正式打包
+
+正式 `android-apk.yml` 將先使用 `tools/android_native_wire.py stage` 在獨立路徑編譯 `_wlre_wire_native.so`，**不將私鑰放入 staging 專案**。建置後繼續使用同一組 `ANDROID_DEBUG_KEYSTORE_BASE64` 與 `ANDROID_EXPECTED_SIGNER_SHA256`，依次重新簽章、驗證 APK 中 ARM64 原生模組與 shim、檢查簽署者、生成 SHA256，全部通過才上傳可下載 Artifact。
+
+- 只有在 main 手動觸發或 main 版本 Tag 才執行完整 APK。PR 的快速驗證不會提供私鑰、不會上傳假正式 APK。
+- `NATIVE_WIRE_INFO.txt` 是原生封裝證據，`SIGNING_INFO.txt` 是固定簽章憑證證據，`SHA256SUMS.txt` 用於位元檔案完整性，三者不可混淆。
+- **先前 Phase04 試驗 APK 使用臨時 Debug 簽章**，如手機是安裝該試驗 APK，無法保證可直接覆蓋成固定簽章版本。不要在沒有備份方案前解除安裝，因為帳密和 Keystore 資料可能丟失。
+- 正式 v0.0.8 的固定簽章與原地更新狀態需要從該版本實際 GitHub Actions Run 的 Artifact 與手機覆蓋安裝來確認。此文件的「接線」本身不冒充已驗收簽署成品。

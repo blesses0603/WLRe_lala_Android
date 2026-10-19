@@ -1,4 +1,4 @@
-name: Android phone APK (version tag)
+name: Android ARM64 native phone APK (pinned signing)
 
 # Phone APK builds only on version tags or an explicit manual dispatch.
 on:
@@ -22,6 +22,8 @@ jobs:
       KIVY_HOME: /tmp/wlre-kivy
       KIVY_NO_ARGS: '1'
       KIVY_NO_CONSOLELOG: '1'
+      PYTHONUNBUFFERED: '1'
+      NATIVE_STAGE: /tmp/wlre-android-native-release
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -50,11 +52,11 @@ jobs:
           sudo apt-get install -y autoconf automake libtool pkg-config cmake \
             libffi-dev libssl-dev libsqlite3-dev zlib1g-dev \
             libncurses5-dev libncursesw5-dev libltdl-dev git zip unzip \
-            xvfb libmtdev1 libgl1-mesa-dri
+            xvfb xauth libmtdev1 libgl1-mesa-dri
       - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "buildozer>=1.5,<2" "cython<3" "kivy==2.3.1" Pillow cryptography pyjnius==1.7.0
+          python -m pip install "buildozer>=1.5,<2" "Cython==3.0.12" "kivy==2.3.1" Pillow cryptography pyjnius==1.7.0
       - name: Test Android isolation, IPC, encrypted storage and UI
         run: xvfb-run -a python -m unittest discover -s tests -q
       - name: Check Python syntax and native startup-screen configuration
@@ -62,15 +64,19 @@ jobs:
           python -m compileall -q main.py android_app wlre tools
           python tools/android_presplash.py check-spec
           python tools/android_hardening.py preflight
+      - name: Stage ARM64 native wire build without exposing signing secrets
+        run: |
+          python tools/android_native_wire.py stage --source "$GITHUB_WORKSPACE" --output "$NATIVE_STAGE"
+          python -c 'import os; from pathlib import Path; from tools.android_hardening import check_configuration; from tools.android_release_version import source_version; stage = Path(os.environ["NATIVE_STAGE"]); check_configuration(stage); assert source_version(stage / "buildozer.spec", stage / "android_app/version.py") == "v0.0.8"'
       - name: Require persistent Android signing for version-tag APK
         env:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
           ANDROID_REQUIRE_PERSISTENT_SIGNING: '1'
           ANDROID_EXPECTED_SIGNER_SHA256: ${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
         run: python tools/android_signing.py prepare
-      - name: Build Android debug APK
+      - name: Build Android ARM64 APK with Cython wire recipe
         run: |
-          rm -rf .buildozer/android/app bin
+          cd "$NATIVE_STAGE"
           buildozer -v android debug
       - name: Name APK and generate checksum
         env:
@@ -79,17 +85,24 @@ jobs:
           ANDROID_EXPECTED_SIGNER_SHA256: ${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
         run: |
           mkdir -p android-output
-          apk_path="$(find bin -maxdepth 1 -name '*.apk' -print -quit)"
-          test -n "$apk_path" || { echo "::error::APK not found"; exit 1; }
+          mapfile -t apk_paths < <(find "$NATIVE_STAGE/bin" -maxdepth 1 -type f -name '*.apk' | sort)
+          if [[ ${#apk_paths[@]} -ne 1 ]]; then
+            echo "::error::Expected exactly one native ARM64 APK; found ${#apk_paths[@]}"
+            exit 1
+          fi
           output="WLRe_LaLa-Android-${RELEASE_VERSION}-debug.apk"
-          cp "$apk_path" "android-output/$output"
+          cp "${apk_paths[0]}" "android-output/$output"
           python tools/android_signing.py resign "android-output/$output"
+          hostpython="$NATIVE_STAGE/.buildozer/android/platform/build-arm64-v8a/build/other_builds/hostpython3/desktop/hostpython3/native-build/root/usr/local/bin/python3.14"
+          test -x "$hostpython" || { echo "::error::Pinned p4a hostpython3.14 missing"; exit 1; }
+          "$hostpython" -I -c 'import sys; assert sys.version_info[:2] == (3, 14), sys.version'
+          # Fail closed before publishing: APK MUST contain the audited native
+          # ARM64 extension plus the expected shim, without Python implementation.
+          python tools/android_native_wire.py report-apk "android-output/$output" --pyc-python "$hostpython"
           python tools/android_presplash.py check-apk "android-output/$output"
-          cd android-output
-          sha256sum "$output" > SHA256SUMS.txt
-          cd ..
           python tools/android_signing.py report android-output
           python tools/android_hardening.py report "android-output/$output"
+          (cd android-output && sha256sum "$output" > SHA256SUMS.txt)
       - name: Upload APK (only after successful build)
         uses: actions/upload-artifact@v7.0.2
         with:

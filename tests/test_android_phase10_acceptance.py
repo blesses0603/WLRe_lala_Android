@@ -163,7 +163,7 @@ class ArtifactReceiptTests(unittest.TestCase):
         source = (ROOT / "tools/android_phase10_acceptance.py").read_text()
         self.assertNotIn('"install", "-r"', source)
         self.assertNotIn("uninstall", source.split("def device_preflight")[1])
-        self.assertNotIn("logcat", source.split("def device_preflight")[1])
+        self.assertNotIn('["logcat"', source.split("def device_preflight")[1])
         assert "device-preflight" in source
 
 

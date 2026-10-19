@@ -10,7 +10,10 @@ import sys
 import tarfile
 import zipfile
 
-from tools.android_archive_audit import audit_apk
+if __package__ in (None, ""):
+    from android_archive_audit import audit_apk
+else:
+    from .android_archive_audit import audit_apk
 
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -143,8 +143,26 @@ def _exact_shim(blob: bytes, extension: str, *, pyc_python: Path | None = None) 
         return False
 
     def signature(compiled):
-        return (compiled.co_code, compiled.co_names, compiled.co_consts,
-                compiled.co_varnames, compiled.co_cellvars, compiled.co_freevars)
+        # Nested generator/function code objects embed the build's source
+        # filename, which varies under p4a. Compare every executable payload,
+        # constant and binding recursively, but not ephemeral co_filename.
+        def constant(value):
+            if isinstance(value, types.CodeType):
+                return signature(value)
+            if isinstance(value, tuple):
+                return tuple(constant(item) for item in value)
+            if isinstance(value, frozenset):
+                return frozenset(constant(item) for item in value)
+            return value
+
+        return (
+            compiled.co_code, compiled.co_names,
+            tuple(constant(item) for item in compiled.co_consts),
+            compiled.co_varnames, compiled.co_cellvars, compiled.co_freevars,
+            compiled.co_argcount, compiled.co_posonlyargcount,
+            compiled.co_kwonlyargcount, compiled.co_flags,
+            compiled.co_exceptiontable,
+        )
     return any(signature(code) == signature(compile(shim(extension), "<native-core-shim>", "exec", optimize=opt))
                for opt in (0, 1, 2))
 

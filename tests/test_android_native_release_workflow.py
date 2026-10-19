@@ -32,7 +32,7 @@ class NativeReleasePolicyTests(unittest.TestCase):
         self.assertLess(stage, private_key)
         self.assertLess(private_key, prepare)
         self.assertLess(prepare, build)
-        self.assertIn('NATIVE_STAGE: ${{ runner.temp }}/wlre-android-native-release', self.text)
+        self.assertIn('NATIVE_STAGE: /tmp/wlre-android-native-release', self.text)
         self.assertIn('cd "$NATIVE_STAGE"', self.text)
         self.assertIn('"Cython==3.0.12"', self.text)
 

@@ -53,7 +53,7 @@ class AndroidPresplashTests(unittest.TestCase):
 
     def test_kivy_stock_or_other_logo_is_rejected(self):
         wrong = self.root / "default_kivy.png"
-        Image.new("RGBA", (256, 256), (0, 0, 0, 255)).save(wrong)
+        Image.new("RGBA", (512, 512), (0, 0, 0, 255)).save(wrong)
         with self.assertRaisesRegex(ValueError, "differs"):
             verify_apk(self.apk_with_image(wrong), self.spec)
 

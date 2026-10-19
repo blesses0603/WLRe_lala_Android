@@ -96,3 +96,10 @@ PR 使用臨時簽章，不應該用正式版的公開憑證指紋檢查 PR APK�
 - `NATIVE_WIRE_INFO.txt` 是原生封裝證據，`SIGNING_INFO.txt` 是固定簽章憑證證據，`SHA256SUMS.txt` 用於位元檔案完整性，三者不可混淆。
 - **先前 Phase04 試驗 APK 使用臨時 Debug 簽章**，如手機是安裝該試驗 APK，無法保證可直接覆蓋成固定簽章版本。不要在沒有備份方案前解除安裝，因為帳密和 Keystore 資料可能丟失。
 - 正式 v0.0.8 的固定簽章與原地更新狀態需要從該版本實際 GitHub Actions Run 的 Artifact 與手機覆蓋安裝來確認。此文件的「接線」本身不冒充已驗收簽署成品。
+
+### 2026-10-19｜手動簽署流程分支限制
+
+- `android-apk.yml` 的 `workflow_dispatch` 可在 GitHub 介面選擇分支；正式簽署工作現在新增 job-level gate，僅允許 **main 手動執行**，版本標籤則繼續由原有 main 祖先檢查把關。
+- 在非 main 分支手動啟動時，簽署工作會被跳過，不會執行 prepare／resign 或讀取固定金鑰。PR 快速測試仍不使用 Secrets。
+- 本限制防止意外選錯分支，但不能取代 GitHub 分支保護、Actions 審查與環境 Secret 政策；可修改工作流程的受信任寫入者仍須另行管控。
+- 第 04 項的實驗 ARM64 APK 成功紀錄不等同於 **v0.0.8 固定簽章成品**。完成 main 正式手動建置後，必須從該 Run 確認 `NATIVE_WIRE_INFO.txt`、`SIGNING_INFO.txt`、`SHA256SUMS.txt` 與真機原地更新，再標記完成正式發佈驗收。

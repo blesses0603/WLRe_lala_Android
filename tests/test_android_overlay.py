@@ -70,6 +70,7 @@ class OverlayStateTests(unittest.TestCase):
         projected = snapshot(self.manager)
         overview = projected["accounts"][0]["overview"]
         self.assertEqual(overview["character"], "赤寧")
+        self.assertEqual(projected["accounts"][0]["name"], "赤寧")
         self.assertEqual(overview["profiles"][0]["hp"], "1000")
         self.assertEqual(overview["profiles"][0]["sp"], "180")
         self.assertEqual(overview["statuses"]["battle"], full["statuses"]["battle"])
@@ -89,6 +90,7 @@ class OverlayStateTests(unittest.TestCase):
         first.active = False
         result = snapshot(self.manager)
         self.assertIsNone(result["accounts"][0]["overview"])
+        self.assertEqual(result["accounts"][0]["name"], "角色 1（等待登入）")
         self.assertNotIn("過期角色", json.dumps(result, ensure_ascii=False))
 
     def test_overview_is_bounded_and_sanitized(self):
@@ -114,9 +116,29 @@ class OverlayStateTests(unittest.TestCase):
         self.assertIn('overview.optJSONArray("profiles")', java)
         self.assertIn("addVital(context, card", java)
         self.assertIn('addStatus(context, card, "事件"', java)
+        self.assertIn('overview.optJSONArray("efficiency")', java)
+        self.assertNotIn('TextView character = text(context,', java)
         for hidden in ("煉金", "製作", "補給"):
             self.assertNotIn('addStatus(context, card, "' + hidden + '"', java)
         self.assertIn("overview_lines(self.state)", page)
+
+    def test_overlay_exp_efficiency_uses_confirmed_samples_only(self):
+        first = self.manager.sessions["1"]
+        first.game_state = {
+            "player": {"name": "星崆"},
+            "efficiency": {"rows": {"self": {
+                "name": "星崆", "count": 2, "earned": 600,
+                "first_time": 100., "last_time": 700.,
+                "history": [(0, 100.), (600, 700.)],
+            }}},
+        }
+        data = snapshot(self.manager)
+        self.assertEqual(data["accounts"][0]["name"], "星崆")
+        values = data["accounts"][0]["overview"]["efficiency"]
+        self.assertEqual(values[0]["name"], "角色")
+        self.assertEqual(values[0]["average"], "3,600 EXP/時")
+        self.assertEqual(values[0]["recent10"], "3,600 EXP/時")
+        self.assertNotIn("my-account", json.dumps(data, ensure_ascii=False))
 
     def test_no_account_and_many_accounts(self):
         self.manager.sessions.clear()

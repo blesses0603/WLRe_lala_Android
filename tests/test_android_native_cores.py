@@ -137,7 +137,7 @@ class NativeCoreTests(unittest.TestCase):
     def test_refuse_missing_native_source_leaks_and_wrong_abi(self, previous):
         rel, _, ext, _ = CORE_LIST[0]
         native_file = "_python_bundle/site-packages/" + ext + ".so"
-        with self.assertRaisesRegex(ValueError, "Missing/duplicate"):
+        with self.assertRaisesRegex(ValueError, "Non-ARM64"):
             verify_apk(self.apk(binary_overrides={native_file: b"garbage"}))
         with self.assertRaisesRegex(ValueError, "implementation leaked"):
             verify_apk(self.apk(additional_source={rel: b"private implementation"}))

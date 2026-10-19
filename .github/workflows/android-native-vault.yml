@@ -3,6 +3,12 @@ name: Android Phase05 all P0-P1 ARM64 native cores experiment (manual)
 # Opt-in single-branch experiment; no trusted signing secrets.
 # Per user request, no APK build until ALL Phase05 P0/P1 cores are prepared.
 on:
+  # One-time final integration only: do not build APK on ordinary code pushes.
+  push:
+    branches:
+      - security/android-phase05-native-vault-pilot
+    paths:
+      - 'ANDROID/PHASE05_BUILD_READY.txt'
   workflow_dispatch:
 
 permissions:

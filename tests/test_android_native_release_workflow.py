@@ -24,6 +24,14 @@ class NativeReleasePolicyTests(unittest.TestCase):
         self.assertIn("python tools/android_release_version.py", self.text)
         self.assertIn("git merge-base --is-ancestor HEAD origin/main", self.text)
 
+    def test_manual_dispatch_rejects_non_main_release_branches(self):
+        # Workflow dispatch allows choosing any ref; do not let a feature
+        # branch run the trusted pinned-signing release job.
+        self.assertIn(
+            "if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'",
+            self.text,
+        )
+
     def test_native_stage_precedes_access_to_signing_secret(self):
         stage = self.text.index("python tools/android_native_wire.py stage")
         private_key = self.text.index("secrets.ANDROID_DEBUG_KEYSTORE_BASE64")

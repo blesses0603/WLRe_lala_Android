@@ -55,6 +55,8 @@ jobs:
           python -m compileall -q main.py android_app wlre tools
           python tools/android_hardening.py preflight
           python tools/android_presplash.py check-spec
+      - name: Host Cython vault behavior comparison
+        run: python tools/android_native_vault.py host-smoke
       - name: Stage and NDK compile Phase04 wire plus Phase05 P0 vault
         run: |
           python tools/android_native_vault.py stage --source "$GITHUB_WORKSPACE" --output "$PILOT_STAGE"

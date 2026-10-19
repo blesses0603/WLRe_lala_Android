@@ -6,11 +6,13 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 
 from android_app.integrity import IntegrityRejected, require_integrity, verify
 from tools.android_integrity import (
     PACKAGE, PLACEHOLDER, RELATIVE_JAVA, pin_stage, verify_stage, report,
+    verify_compiled_guard,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,7 +39,12 @@ class StagePinTests(unittest.TestCase):
         self.assertEqual(before, (ROOT / RELATIVE_JAVA).read_bytes())
         self.assertEqual(self.guard.read_text().count(PIN), 1)
         self.assertNotIn(PLACEHOLDER, self.guard.read_text())
-        info = report(self.root / "output", self.stage, PIN).read_text()
+        output = self.root / "output"
+        output.mkdir()
+        with zipfile.ZipFile(output / "test.apk", "w") as package:
+            package.writestr("classes.dex", b"dex\\n035\\0" + PIN.encode("ascii"))
+        info = report(output, self.stage, PIN).read_text()
+        self.assertIn("Compiled APK DEX contains runtime signer pin: VERIFIED", info)
         self.assertIn("NOT VERIFIED", info)
         self.assertNotIn(PIN, info)
 
@@ -68,6 +75,20 @@ class StagePinTests(unittest.TestCase):
         self.guard.write_text(target.read_text().replace(PACKAGE, "org.different.name"))
         with self.assertRaisesRegex(ValueError, "package identifier mismatch"):
             pin_stage(self.stage, PIN, source=self.source)
+
+    def test_compiled_apk_must_contain_public_certificate_pin_in_dex(self):
+        apk = self.root / "compiled.apk"
+        with zipfile.ZipFile(apk, "w") as package:
+            package.writestr("classes.dex", b"irrelevant-bytecode")
+        with self.assertRaisesRegex(ValueError, "lacks Phase07"):
+            verify_compiled_guard(apk, PIN)
+        with zipfile.ZipFile(apk, "w") as package:
+            package.writestr("classes.dex", PLACEHOLDER.encode() + PIN.encode())
+        with self.assertRaisesRegex(ValueError, "placeholder"):
+            verify_compiled_guard(apk, PIN)
+        with zipfile.ZipFile(apk, "w") as package:
+            package.writestr("classes2.dex", PIN.encode())
+        self.assertTrue(verify_compiled_guard(apk, PIN))
 
     def test_absent_environment_pin_fails_closed(self):
         with patch.dict(os.environ, {"ANDROID_EXPECTED_SIGNER_SHA256": ""}):

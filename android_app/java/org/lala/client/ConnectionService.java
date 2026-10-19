@@ -14,6 +14,12 @@ public class ConnectionService extends PythonService {
             stopSelf();
             return START_NOT_STICKY;
         }
+        // Stop before PythonService starts if the installed signer/package
+        // does not match the public fingerprint pinned into this APK.
+        if (!"OK".equals(RuntimeIntegrity.status(this))) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         return super.onStartCommand(intent, flags, startId);
     }
     @Override protected void doStartForeground(Bundle extras) {

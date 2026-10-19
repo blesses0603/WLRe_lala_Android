@@ -80,6 +80,11 @@ class LaLaApp(App):
             from android_app.runtime import ServiceManager
             from android_app.vault import AndroidCipher, AccountVault
             activity = autoclass('org.kivy.android.PythonActivity').mActivity
+            # Check the installed certificate/package BEFORE starting any
+            # foreground connection service or opening the account vault.
+            stage = 'A07'
+            from android_app.integrity import require_integrity
+            require_integrity(activity)
             directory = Path(str(activity.getNoBackupFilesDir().getAbsolutePath()))
             stage = 'A02'
             service = autoclass('org.lala.client.wlrelala.ServiceConnections')

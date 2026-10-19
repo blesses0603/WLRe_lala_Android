@@ -84,3 +84,12 @@
 - 新增 tests/test_android_phase06_security.py 與更新既有回歸；Phase06 PR 快速 CI #39269444172：**290 tests OK**，Python 預檢通過；屬主機/CI 功能驗收，**非**新正式 APK 編譯或真機證據。
 
 **邊界**：不能保證偵測所有金鑰，未遍歷未知加密封裝及所有大型二進位內容；靜態檢查也不阻擋運行中的 hook/記憶體攻擊。SO_PEERCRED 驗證相同 UID，不等於防止同 UID 的惡意程式碼。真機登入、Keystore 資料搬移／覆蓋更新仍以發行後安裝驗收為準。完整測項見 [PHASE06_SECURITY.md](PHASE06_SECURITY.md)。
+
+
+## 第 07 項：安裝簽署憑證完整性與雙程序入口驗證（2026-10-20）
+
+- Java RuntimeIntegrity 使用 Android PackageManager SigningInfo 驗證已安裝的 package 與**當前唯一簽署憑證** SHA-256 是否吻合固定簽章的公開憑證 pin。Python Activity、Android Java ConnectionService、獨立 Python foreground service 在處理帳號、建立連線前分別驗證，失敗則中止操作，不印出私有資料或原始例外。
+- 正式 main/tag APK 工作流將公開指紋寫到隔離 stage Java 原始檔（原始 repo 保留 placeholder），**私鑰依然只進入原本簽署步驟**；即使編譯成功，也必須在最終 APK DEX 找到該 public pin 且 apksigner 確認簽署者身份，否則不上傳。
+- Python 與 Java 測試（含 JVM 執行模擬簽署者不符、多簽署者、錯誤 package、SDK 不符與 JNI 異常）已加入 PR 快速 CI；第 07 項程式測試 Run #39334752525：**300 tests OK**。
+- **尚未聲稱** Android 正式固定簽章新版 APK 及 Android 12+ ARM64 真機重新打包防護測試成功。未經固定簽章發行程序 pin 的本機測試 APK 預設拒絕進入敏感功能。
+- 這是客户端 defense-in-depth，**不是 Play Integrity/伺服器驗證或不可繞過的反 Hook 技術**。客戶端能被具備修改能力的攻擊者 patch，Root/Hook 威脅仍未根除。詳見 [PHASE07_INTEGRITY.md](PHASE07_INTEGRITY.md)。

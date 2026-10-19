@@ -38,7 +38,7 @@ def receive(stream):
         )
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError("Invalid IPC frame") from exc
-    if not isinstance(value, dict) or not isinstance(value.get("op"), str):
+    if not isinstance(value, dict):
         raise ValueError("Invalid IPC frame")
     return value
 

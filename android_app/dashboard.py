@@ -4,8 +4,9 @@ from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
-from android_app.widgets import button, label, select, column, GameIconTab
-from android_app.theme import TEXT, SURFACE, ACCENT, MUTED, SOFT, surface
+from kivy.uix.spinner import Spinner
+from android_app.widgets import button, label, select, column, GameIconTab, RoundedSpinnerOption
+from android_app.theme import TEXT, SURFACE, ACCENT, MUTED, SOFT, surface, style_button
 
 PAGES = ('角色概況', '包包與特技', '小地圖', '戰場陣形', '聊天', '組隊',
          '夥伴出戰', '遠征', '煉金', '製作', '經驗效率', '事件紀錄', 'AI與補給設定')
@@ -22,9 +23,16 @@ class Dashboard:
                        color=SURFACE, radius=24)
         self.status = surface(label('等待服務同步'), color=SOFT, radius=12)
         self.status.color = MUTED; base.add_widget(self.status)
-        nav = surface(column(), color=SOFT, radius=16)
-        nav.padding = dp(10)
-        self.navigation = select(nav, '功能', PAGES); base.add_widget(nav)
+        # Compact function chooser avoids a tall overlapping selector.
+        nav = surface(BoxLayout(orientation='horizontal', size_hint_y=None,
+                      height=dp(58), spacing=dp(8), padding=[dp(10), dp(7)]),
+                      color=SOFT, radius=16)
+        heading = label('功能', 44)
+        heading.size_hint_x = None; heading.width = dp(48)
+        nav.add_widget(heading)
+        self.navigation = style_button(Spinner(text=PAGES[0], values=PAGES,
+            option_cls=RoundedSpinnerOption, size_hint_y=None, height=dp(44)))
+        nav.add_widget(self.navigation); base.add_widget(nav)
         # Original game icons replace desktop multi-window navigation with a
         # horizontally scrollable, one-hand-friendly Android quick launcher.
         shortcuts = ('角色概況', '包包與特技', '組隊', '夥伴出戰',

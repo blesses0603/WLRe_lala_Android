@@ -1,6 +1,9 @@
 import copy
 import json
 from types import SimpleNamespace
+from kivy.metrics import dp
+from kivy.uix.boxlayout import BoxLayout
+from android_app.theme import surface, SOFT, MUTED
 from kivy.core.clipboard import Clipboard
 from android_app.pages.general import Page
 from android_app.widgets import column, label, button, row, field, select, dialog, pick
@@ -60,13 +63,17 @@ class Alchemy(Page):
 class Crafting(Page):
     def __init__(self, d):
         super().__init__(d); self.selected = None; self.offset = 0
+        heading = label('製作工坊 · 配方目錄', 38)
+        heading.font_size = '18sp'; self.add_widget(heading)
         self.add_widget(row(button('自訂清單', self.plan), button('進入自家帳篷', lambda: d.send(dict(type='craft', action='enter')))))
-        self.tool = select(self, '工作設備', ['全部', '我的最愛'])
-        self.only_owned = select(self, '設備篩選', ['全部已確認開放配方', '只列小屋已擺設備'])
         self.query = field(self, '搜尋配方名稱／ID')
-        self.catalog = column(); self.add_widget(self.catalog)
-        self.add_widget(row(button('上一頁', lambda: self.move(-1)), button('下一頁', lambda: self.move(1))))
-        self.queue_info = label(); self.add_widget(self.queue_info)
+        self.tool = select(self, '工作設備／收藏', ['全部', '我的最愛'])
+        self.only_owned = select(self, '顯示配方', ['全部已確認開放配方', '只列小屋已擺設備'])
+        self.catalog = column(); self.catalog.spacing = dp(9); self.add_widget(self.catalog)
+        self.add_widget(row(button('‹ 上一頁', lambda: self.move(-1)), button('下一頁 ›', lambda: self.move(1))))
+        title = label('製作佇列', 34); title.font_size = '17sp'
+        self.add_widget(title)
+        self.queue_info = label(); self.queue_info.color = MUTED; self.add_widget(self.queue_info)
         self.queue = column(); self.add_widget(self.queue)
         self.add_widget(row(button('開始／接續製作', lambda: d.send(dict(type='craft', action='start'))),
                             button('暫停製作', lambda: d.send(dict(type='craft', action='pause')))))
@@ -89,13 +96,29 @@ class Crafting(Page):
             and (self.tool.text != '我的最愛' or int(sid) in favorites)
             and (selected_tool is None or r['tool_id'] == selected_tool)
             and (self.only_owned.text != '只列小屋已擺設備' or tool_status(s, r['tool_id']) == '已擺放')]
-        pages = max(1, (len(recipes)+11)//12); self.offset = min(self.offset, pages-1)
-        self.catalog.add_widget(label(f'{self.offset+1}/{pages} 頁 · {len(recipes)} 項 · 收藏 {len(favorites)}/100'))
-        for recipe in recipes[self.offset*12:self.offset*12+12]:
+        pages = max(1, (len(recipes)+5)//6); self.offset = min(self.offset, pages-1)
+        counter = label(f'{self.offset+1}/{pages} 頁 · {len(recipes)} 項配方 · 收藏 {len(favorites)}/100', 35)
+        counter.color = MUTED; self.catalog.add_widget(counter)
+        if not recipes:
+            self.catalog.add_widget(label('沒有符合條件的配方，請調整搜尋或設備篩選。'))
+        for recipe in recipes[self.offset*6:self.offset*6+6]:
             sid = recipe['item_id']; status, _ = availability(s, recipe)
-            self.catalog.add_widget(row(item_image(sid), button(('♥ ' if sid in favorites else '')+item_name(sid)+'\n'+status,
-                lambda r=recipe: self.recipe(r), 64)))
-            self.catalog.children[0].height = 64
+            # Each component owns its height; names never overlap adjacent rows.
+            card = surface(BoxLayout(orientation='horizontal', spacing=dp(10),
+                padding=[dp(10), dp(8), dp(10), dp(8)],
+                size_hint_y=None, height=dp(88)), color=SOFT, radius=16)
+            card.add_widget(item_image(sid, 52))
+            info = BoxLayout(orientation='vertical', size_hint_x=1)
+            name = label(('♥ ' if sid in favorites else '') + item_name(sid), 32)
+            name.font_size = '14sp'
+            state_line = label(status + ' · ' + item_name(recipe['tool_id']), 32)
+            state_line.font_size = '11sp'; state_line.color = MUTED
+            info.add_widget(name); info.add_widget(state_line)
+            card.add_widget(info)
+            action = button('詳情 ›', lambda r=recipe: self.recipe(r), 48)
+            action.size_hint_x = None; action.width = dp(74)
+            card.add_widget(action)
+            self.catalog.add_widget(card)
         self.queue_info.text = craft.get('status', '等待排程同步')+f"\n完成 {craft.get('completed',0)} 項｜伺服器排程 {len(craft.get('queue',{}))} 項"
         for value in sorted(craft.get('queue', {}).values(), key=lambda r: r['index']):
             sid = value['item_id']; index = value['index']

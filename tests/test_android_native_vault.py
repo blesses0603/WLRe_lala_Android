@@ -141,9 +141,9 @@ class AndroidNativeVaultTests(unittest.TestCase):
                                     pyc(SHIM, "vault.py") + b"append-secret"}))
 
     def test_missing_native_or_shim_rejected(self):
-        with self.assertRaisesRegex(ValueError, "Expected one importable"):
+        with self.assertRaisesRegex(ValueError, "Non-ARM64 native vault"):
             verify_apk(self.apk(bundle={"site-packages/_wlre_vault_native.so": b"garbage"}))
-        with self.assertRaisesRegex(ValueError, "Expected one importable"):
+        with self.assertRaisesRegex(ValueError, "unverified vault bytecode"):
             verify_apk(self.apk(app={"android_app/vault.pyc": pyc("", "vault.py")}))
     def test_refuse_host_binary_even_if_fake_elf_header(self):
         with self.assertRaisesRegex(ValueError, "Non-ARM64"):

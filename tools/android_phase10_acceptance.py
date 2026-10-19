@@ -16,6 +16,10 @@ import re
 import shutil
 import subprocess
 import zipfile
+import sys
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.android_release_gate import (
     APK_HASHES, EVIDENCE, EVIDENCE_HASHES, PACKAGE, REQUIRED_REPORTS,

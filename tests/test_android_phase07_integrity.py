@@ -130,13 +130,13 @@ class RuntimeGateTests(unittest.TestCase):
                 "android/content/Context.java": (
                     "package android.content;\n"
                     "import android.content.pm.PackageManager;\n"
-                    "public class Context { public String getPackageName(){return \"\";} "
-                    "public PackageManager getPackageManager(){return null;} }\n"
+                    "public class Context { public String getPackageName(){return \"org.lala.client.wlrelala\";} "
+                    "public PackageManager getPackageManager(){return new PackageManager();} }\n"
                 ),
                 "android/content/pm/PackageManager.java": (
                     "package android.content.pm;\n"
-                    "public class PackageManager { public static final int GET_SIGNING_CERTIFICATES=134217728; "
-                    "public PackageInfo getPackageInfo(String p,int flags){return null;} }\n"
+                    "public class PackageManager { public static final int GET_SIGNING_CERTIFICATES=134217728; public static Signature[] signatures; public static boolean multiple; public static boolean crash; "
+                    "public PackageInfo getPackageInfo(String p,int flags){if(crash) throw new RuntimeException(); PackageInfo info=new PackageInfo(); info.signingInfo=new SigningInfo(); return info;} }\n"
                 ),
                 "android/content/pm/PackageInfo.java": (
                     "package android.content.pm;\n"
@@ -144,12 +144,12 @@ class RuntimeGateTests(unittest.TestCase):
                 ),
                 "android/content/pm/SigningInfo.java": (
                     "package android.content.pm;\n"
-                    "public class SigningInfo { public boolean hasMultipleSigners(){return false;} "
-                    "public Signature[] getApkContentsSigners(){return null;} }\n"
+                    "public class SigningInfo { public boolean hasMultipleSigners(){return PackageManager.multiple;} "
+                    "public Signature[] getApkContentsSigners(){return PackageManager.signatures;} }\n"
                 ),
                 "android/content/pm/Signature.java": (
                     "package android.content.pm;\n"
-                    "public class Signature { public byte[] toByteArray(){return null;} }\n"
+                    "public class Signature { private final byte[] bytes; public Signature(byte[] data){this.bytes=data;} public byte[] toByteArray(){return bytes;} }\n"
                 ),
                 "android/os/Build.java": (
                     "package android.os;\n"
@@ -165,13 +165,57 @@ class RuntimeGateTests(unittest.TestCase):
                 source.append(str(path))
             guard = temp / "org/lala/client/RuntimeIntegrity.java"
             guard.parent.mkdir(parents=True)
-            guard.write_text((ROOT / RELATIVE_JAVA).read_text())
+            guard.write_text((ROOT / RELATIVE_JAVA).read_text().replace(PLACEHOLDER, PIN))
             source.append(str(guard))
+            harness = temp / "SignerCases.java"
+            harness.write_text("""
+import android.content.Context;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import org.lala.client.RuntimeIntegrity;
+public final class SignerCases {
+    static void require(String expected, Context ctx) {
+        String actual = RuntimeIntegrity.status(ctx);
+        if (!expected.equals(actual)) throw new RuntimeException(expected + " != " + actual);
+    }
+    public static void main(String[] args) throws Exception {
+        PackageManager.signatures = new Signature[] {
+            new Signature("synthetic-public-certificate".getBytes("UTF-8")) };
+        require("OK", new Context());
+        PackageManager.signatures = new Signature[] {
+            new Signature("different-certificate".getBytes("UTF-8")) };
+        require("SIGNER_MISMATCH", new Context());
+        PackageManager.signatures = new Signature[] {
+            new Signature("synthetic-public-certificate".getBytes("UTF-8")),
+            new Signature("different-certificate".getBytes("UTF-8")) };
+        require("MULTIPLE_OR_MISSING_SIGNERS", new Context());
+        PackageManager.signatures = new Signature[] {
+            new Signature("synthetic-public-certificate".getBytes("UTF-8")) };
+        PackageManager.multiple = true;
+        require("MULTIPLE_OR_MISSING_SIGNERS", new Context());
+        PackageManager.multiple = false;
+        require("PACKAGE_MISMATCH", new Context() {
+            @Override public String getPackageName() {return "org.fake.package";}
+        });
+        PackageManager.crash = true;
+        require("VERIFY_FAILED", new Context());
+        PackageManager.crash = false;
+        android.os.Build.VERSION.SDK_INT = 27;
+        require("UNSUPPORTED_API", new Context());
+    }
+}
+""", encoding="utf-8")
+            source.append(str(harness))
             result = subprocess.run(
                 ["javac", "-d", str(temp / "classes"), *source],
                 capture_output=True, text=True, timeout=30,
             )
             self.assertEqual(result.returncode, 0, result.stderr[:1000])
+            run = subprocess.run(
+                ["java", "-cp", str(temp / "classes"), "SignerCases"],
+                capture_output=True, text=True, timeout=30,
+            )
+            self.assertEqual(run.returncode, 0, run.stderr[:1000])
 
 
 if __name__ == "__main__":

@@ -163,7 +163,8 @@ def _exact_shim(blob: bytes, extension: str, *, pyc_python: Path | None = None) 
             compiled.co_kwonlyargcount, compiled.co_flags,
             compiled.co_exceptiontable,
         )
-    return any(signature(code) == signature(compile(shim(extension), "<native-core-shim>", "exec", optimize=opt))
+    return any(signature(code) == signature(compile(shim(extension), "<native-core-shim>", "exec",
+                                           optimize=opt, dont_inherit=True))
                for opt in (0, 1, 2))
 
 

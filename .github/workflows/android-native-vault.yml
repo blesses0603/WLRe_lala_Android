@@ -1,15 +1,8 @@
 name: Android Phase05 native-vault ARM64 experiment
 
 # Opt-in single-branch experiment; no trusted signing secrets.
+# Per user request, no APK build until ALL Phase05 P0/P1 cores are prepared.
 on:
-  push:
-    branches:
-      - security/android-phase05-native-vault-pilot
-    paths:
-      - 'tools/android_native_vault.py'
-      - 'tests/test_android_native_vault.py'
-      - 'p4a-recipes/lalavault/**'
-      - '.github/workflows/android-native-vault.yml'
   workflow_dispatch:
 
 permissions:

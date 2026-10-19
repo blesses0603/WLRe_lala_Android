@@ -16,6 +16,9 @@ concurrency:
 
 jobs:
   android:
+    # workflow_dispatch supports selecting any branch in the GitHub UI.
+    # Restrict trusted APK signing to manual main or validated version tags.
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
     timeout-minutes: 120
     env:

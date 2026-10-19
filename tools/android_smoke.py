@@ -9,6 +9,11 @@ import sys
 import time
 from pathlib import Path
 
+if __package__ in (None, ''):
+    from android_diagnostic_redaction import summarize_logcat, summarize_services
+else:
+    from .android_diagnostic_redaction import summarize_logcat, summarize_services
+
 PACKAGE = 'org.lala.client.wlrelala'
 MARKERS = ('WLRE_ANDROID_UI_READY',
            'WLRE_ANDROID_SERVICE_CONNECTED',
@@ -90,22 +95,22 @@ def collect_diagnostics(failed=False):
                                      '-v', 'threadtime')
             if not bounded.startswith("[diagnostic unavailable:"):
                 logs = "[full logcat unavailable; last 300 lines follow]\n" + bounded
-        Path('android-smoke-logcat.txt').write_text(logs, encoding='utf-8')
+        # Do not persist/print raw logcat; even a known marker line may carry
+        # an accidentally logged credential or arbitrary service payload.
+        safe = summarize_logcat(logs)
+        Path('android-smoke-logcat.txt').write_text(safe, encoding='utf-8')
         if logs.startswith("[diagnostic unavailable:"):
-            print("Smoke diagnostics: logcat unavailable; "
-                  "retaining the actual startup-test result.", flush=True)
+            print("Smoke diagnostics: logcat unavailable; retaining startup-test result.", flush=True)
         if failed:
-            relevant = [line for line in logs.splitlines() if any(
-                marker in line.lower()
-                for marker in ('python', 'androidruntime', 'linker', 'wlre', 'libc'))]
-            print('\n'.join(relevant[-500:]), flush=True)
+            print(safe, flush=True)
     except Exception as error:
         # A disk or tool error while collecting diagnostics is not an app failure.
         print("Smoke diagnostics: logcat capture failed ({})".format(
             type(error).__name__), flush=True)
     try:
         services = diagnostic_adb('shell', 'dumpsys', 'activity', 'services', PACKAGE)
-        Path('android-smoke-services.txt').write_text(services, encoding='utf-8')
+        Path('android-smoke-services.txt').write_text(
+            summarize_services(services), encoding='utf-8')
     except Exception as error:
         print("Smoke diagnostics: service dump failed ({})".format(
             type(error).__name__), flush=True)

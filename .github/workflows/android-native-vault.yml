@@ -1,4 +1,4 @@
-name: Android Phase05 native-vault ARM64 experiment
+name: Android Phase05 all P0-P1 ARM64 native cores experiment (manual)
 
 # Opt-in single-branch experiment; no trusted signing secrets.
 # Per user request, no APK build until ALL Phase05 P0/P1 cores are prepared.
@@ -50,12 +50,12 @@ jobs:
           python tools/android_presplash.py check-spec
       - name: Host Cython vault behavior comparison
         run: python tools/android_native_vault.py host-smoke
-      - name: Stage and NDK compile Phase04 wire plus Phase05 P0 vault
+      - name: Stage and NDK compile all Phase05 P0/P1 native cores
         run: |
-          python tools/android_native_vault.py stage --source "$GITHUB_WORKSPACE" --output "$PILOT_STAGE"
+          python tools/android_native_cores.py stage --source "$GITHUB_WORKSPACE" --output "$PILOT_STAGE"
           cd "$PILOT_STAGE"
           buildozer -v android debug
-      - name: Audit both native cores and APK security
+      - name: Audit all eight native cores and APK security
         run: |
           mapfile -t apks < <(find "$PILOT_STAGE/bin" -maxdepth 1 -name '*.apk' -type f | sort)
           test "${#apks[@]}" -eq 1
@@ -67,19 +67,20 @@ jobs:
           apk="phase05-proof/$(basename "${apks[0]}")"
           python tools/android_native_wire.py report-apk "$apk" --pyc-python "$hostpy"
           python tools/android_native_vault.py report-apk "$apk" --pyc-python "$hostpy"
+          python tools/android_native_cores.py report-apk "$apk" --pyc-python "$hostpy"
           python tools/android_presplash.py check-apk "$apk"
           python tools/android_hardening.py report "$apk"
           (cd phase05-proof && sha256sum *.apk > SHA256SUMS.txt)
           cat > phase05-proof/README_EXPERIMENT.txt <<'NOTE'
-          Phase05 native vault pilot with original native wire; not pinned signed.
+          Phase05 all P0/P1 native cores experiment; not pinned signed.
           This APK cannot upgrade the existing fixed-signed production app.
-          Android Keystore JNI and persistent account migration still require real
+          Keystore JNI, background service, multi-session and gameplay still require real
           Android 12+ ARM64 device testing before formal release integration.
           NOTE
       - name: Upload experimental ARM64 APK proof
         uses: actions/upload-artifact@v7.0.2
         with:
-          name: Phase05-ARM64-NativeVault-EXPERIMENT-NOT-RELEASE
+          name: Phase05-ALL-P0P1-ARM64-NativeCores-EXPERIMENT-NOT-RELEASE
           path: phase05-proof/*
           if-no-files-found: error
           retention-days: 7

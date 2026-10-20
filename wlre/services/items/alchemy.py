@@ -167,6 +167,12 @@ class AutoAlchemy:
                 state.inventory['reliable']=False;self.release(state)
             return []
         if not state.alchemy.get('enabled'):return []
+        # A confirmed failure/uncertain supply must stop automation, not pause
+        # and later silently resume after a new packet or transient status.
+        supply=state.inventory.get('field_supply',{})
+        if supply.get('uncertain'):
+            self.stop(state,'補給結果未確認，請重新登入同步後再煉金')
+            return []
         # Replies above are processed before pausing new consumption.
         wait_reason=coordination_reason(state,'alchemy')
         if wait_reason:
@@ -176,8 +182,6 @@ class AutoAlchemy:
         if battle_pause:
             self.next_due=now+self.continuation_delay
             self.pause(state,'戰鬥／戰後事件中，暫停煉金');return []
-        supply=state.inventory.get('field_supply',{})
-        if supply.get('uncertain'):self.stop(state,'補給結果未確認，請重新登入同步後再煉金');return []
         if supply.get('pending') or any(state.inventory.get('reserved',{}).values()):
             self.next_due=now+self.continuation_delay
             self.pause(state,'等待補給／包包使用回覆');return []

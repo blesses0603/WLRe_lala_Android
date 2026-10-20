@@ -3,6 +3,7 @@ from wlre.paths import RESOURCE_ROOT
 import json,time,copy
 from wlre.network.wire import Packet, Writer, ProtocolError
 from wlre.services.items.combat_resources import CAT, item_name, available
+from wlre.services.coordination import reason as coordination_reason
 META=json.loads(RESOURCE_ROOT.joinpath('alchemy_catalog.json').read_text(encoding='utf8'))['items']
 MODES={'無技能':(150,None),'一般':(14,15997),'中階':(87,15998),'高階':(101,15999)}
 
@@ -166,6 +167,12 @@ class AutoAlchemy:
                 state.inventory['reliable']=False;self.release(state)
             return []
         if not state.alchemy.get('enabled'):return []
+        # Replies above are processed before pausing new consumption.
+        wait_reason=coordination_reason(state,'alchemy')
+        if wait_reason:
+            self.next_due=now+self.continuation_delay
+            self.pause(state,wait_reason)
+            return []
         if battle_pause:
             self.next_due=now+self.continuation_delay
             self.pause(state,'戰鬥／戰後事件中，暫停煉金');return []

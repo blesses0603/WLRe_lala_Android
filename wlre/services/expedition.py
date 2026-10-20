@@ -8,6 +8,7 @@ from wlre.services.expedition_data import load_catalog
 from wlre.services.items.combat_resources import CAT, available
 from wlre.core.inventory_updates import STACKABLE
 from wlre.services.expedition_teams import choose_members, condition_met, success_details
+from wlre.services.coordination import reason as coordination_reason
 
 
 def defaults():
@@ -121,16 +122,8 @@ def condition_ok(quest, roles, npcs=None):
 
 
 def blocked(state):
-    if state.maintenance.get('pending') or state.maintenance.get('uncertain'):return '等待戰後修理／整理確認'
-    if state.phase != 'world_ready': return '等待登入與角色同步'
-    if state.battle.get('active') or state.event_flow.get('blocked'): return '等待戰鬥／伺服器事件結束'
-    if state.battle_count and state.battle.get('post_event', {}).get('status') != 'completed': return '等待戰後事件完成'
-    if state.activities: return '請先結束目前活動'
-    if state.crafting.get('pending') or state.crafting.get('auto_continue'): return '請先停止製作並等待回覆'
-    if state.alchemy.get('pending') or state.alchemy.get('enabled'): return '請先停止煉金並等待回覆'
-    supply = state.inventory.get('field_supply', {})
-    if supply.get('pending') or supply.get('uncertain'): return '請先等待補給結果確認'
-    return ''
+    # The shared gate blocks actual concurrent effects, not merely armed AI.
+    return coordination_reason(state,'expedition')
 
 
 def item_totals(inventory):

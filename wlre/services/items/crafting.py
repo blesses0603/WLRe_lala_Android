@@ -3,6 +3,7 @@ from wlre.paths import RESOURCE_ROOT
 import json,time
 from wlre.network.wire import Packet, Reader, Writer, ProtocolError
 from wlre.services.items.combat_resources import item_name, available
+from wlre.services.coordination import reason as coordination_reason
 
 RECIPES=json.loads(RESOURCE_ROOT.joinpath('crafting_catalog.json').read_text(encoding='utf-8'))['recipes']
 SPEED={39053:15,39007:2,39045:3,37202:3}
@@ -252,7 +253,10 @@ class Crafting(PlanMixin):
             if self.pending['action']=='add':state.inventory['reliable']=False
             self._clear(state);c.update(auto_continue=False,uncertain=True,status='製作回覆逾時，停止重送；請重新登入同步');return []
         if self.pending or not c['auto_continue'] or c['uncertain']:return []
-        if state.battle.get('active') or state.event_flow.get('blocked'):return []
+        wait_reason=coordination_reason(state,'crafting')
+        if wait_reason:
+            c['status']=wait_reason
+            return []
         if c['running'] and not c['completion_requested']:
             row=c['queue'].get(str(c['active']))
             if not row:return []

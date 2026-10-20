@@ -110,6 +110,36 @@ class CoordinationAndEventRouting(unittest.TestCase):
         state.auto_battle["enabled"] = True
         self.assertEqual(reason(state, "expedition"), "")
 
+    def test_pending_maintenance_prevents_new_alchemy(self):
+        from wlre.services.items.alchemy import AutoAlchemy
+        state = State(phase="world_ready")
+        state.alchemy["enabled"] = True
+        state.maintenance["pending"] = {"index": 1}
+        service = AutoAlchemy()
+        self.assertEqual(service.tick(state, now=1), [])
+        self.assertTrue(state.alchemy["paused"])
+        self.assertIn("戰後", state.alchemy["status"])
+
+    def test_pending_maintenance_prevents_auto_crafting_continuation(self):
+        from wlre.services.items.crafting import Crafting
+        state = State(phase="world_ready")
+        state.crafting["auto_continue"] = True
+        state.maintenance["pending"] = {"index": 1}
+        service = Crafting()
+        self.assertEqual(service._server_tick(state, now=1), [])
+        self.assertIn("戰後", state.crafting["status"])
+
+    def test_malformed_envelope_does_not_reach_network(self):
+        from wlre.network.command_envelope import rejected_command_type
+        logic, state = SessionLogic(), State(phase="world_ready")
+        logic.world_acknowledged = True
+        for value in (None, 10, [], {"type": ""}, {"type": ["chat"]},
+                      {"type": "x" * 65}):
+            with self.subTest(value=value), self.assertRaises(ProtocolError):
+                logic.command(value, state)
+        self.assertEqual(rejected_command_type({"type": "chat", "password": "sensitive"}), "chat")
+        self.assertEqual(rejected_command_type({"type": "password:secret"}), "invalid")
+
     def test_network_layer_rejects_during_maintenance_without_sending(self):
         logic, state = SessionLogic(), State(phase="world_ready")
         logic.world_acknowledged = True

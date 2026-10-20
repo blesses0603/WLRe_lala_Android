@@ -83,3 +83,17 @@ Git SHA do not by themselves prove functional incompatibility.
 - 不增加新的副本建立／配點／領獎命令；不修改 Android 版本號、JNI／Cython、Keystore／固定簽章或 APK 工作流程。
 
 **待實機驗收：** 遠征領獎後續連線、多人協力戰鬥、戰後自動補給／修理、手機鎖屏後續執行與安裝更新。GitHub 快速 CI 僅能驗證測試與靜態安全條件，不能等同真實 APK 與遊戲伺服器驗收。
+
+
+## 第四批：共用物品預留全面串接與遠征斷線防護（2026-10-20）
+
+**來源與架構**：繼續對照桌面 v0.5.6 `main` (`11962634c48a04e82eb060226736c4ad3fe8b610`)，只修改 Android Python 核心／測試。不更換 Android Kivy／前景服務、Cython／JNI、版本號、簽章或 APK 建置程序。
+
+- 戰鬥耗材：`combat_resources.reserve` 改用 `reservations.acquire(..., 'battle')`；保留道具 ID、格位、序號與數量。背包確認扣料才減記。AI 回合與手動 `battle_submit` 出錯時透過 checkpoint／restore 同時回滾 `holds`、`reserved` 與格位鎖定。
+- 連續煉金：以 `alchemy` owner 統一預留；只有「煉金結果、產物入包、所有材料扣除、背包可靠」全部確認後才釋放。失敗、材料不明或逾時一律保留 `uncertain`，不重送或樂觀回復。
+- 遠征好友度：恢復物品改以 `expedition` owner 綁定格位、物品身分與數量，先預留後發出 S31-27；需要好友度變更與材料扣除雙確認。逾時即 `uncertain` 且停止派遣，禁止重送。
+- 遠征領獎：維持 S31-16 獎勵回覆與背包入包雙重確認。新增「領獎結果先到、S31-19 任務刷新接著到、背包最後到」以及模擬 socket 連續事件測試。
+- 1262 封包相容性：S31-15 允許官方 Lua 不解析的擴充尾端（只記長度、不保留內容）；S31-19 正式讀取 50 組資料後的必要 show/refresh 旗標。保留未知封包及 S31-16 的長度檢查，不猜測內容。
+- 網路結束：引入 Android 專用 `SessionLogic.disconnect`，凍結所有未確認 `holds`，標記原狀態不可靠；若領獎／遠征／補給／維修尚未確認，標記 uncertain，保留等待狀態供診斷。重新連線仍新建 `State`。
+- 已新增 `tests/test_android_shared_reservations.py`，涵蓋真實可堆疊官方材料、AI／手動保留、煉金未知結果、遠征領獎兩階段確認、伺服器事件順序及斷線安全。
+- **驗收界線：** Python CI 與模擬封包不等同 Android APK 安裝、正式伺服器封包實測；需以實際斷線 Log／正式服務器回覆驗證是否仍有其他斷線原因。沒有自動領獎重試。

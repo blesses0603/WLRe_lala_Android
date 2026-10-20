@@ -77,10 +77,23 @@ def _locate_aapt():
     explicit = os.environ.get("ANDROID_AAPT")
     if explicit:
         return explicit
-    root = Path.home() / ".buildozer/android/platform/android-sdk/build-tools"
-    available = sorted(root.glob("*/aapt"))
-    if available:
-        return str(available[-1])
+    # ARM64 CI builds from its isolated NATIVE_STAGE, not $HOME. Search that
+    # pinned SDK before the conventional per-user Buildozer installation.
+    roots = []
+    staged = os.environ.get("NATIVE_STAGE")
+    if staged:
+        roots.append(
+            Path(staged) / ".buildozer/android/platform/android-sdk/build-tools"
+        )
+    roots.append(Path.home() / ".buildozer/android/platform/android-sdk/build-tools")
+    for root in roots:
+        available = sorted(
+            (path for path in root.glob("*/aapt")
+             if path.is_file() and os.access(path, os.X_OK)),
+            key=lambda path: path.parent.name,
+        )
+        if available:
+            return str(available[-1])
     return shutil.which("aapt")
 
 

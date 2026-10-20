@@ -408,6 +408,34 @@ class SessionLogic:
         raise ProtocolError('unknown manual command')
 
 
+    def disconnect(self,state):
+        """Freeze every unconfirmed operation before publishing disconnected state.
+
+        Android deliberately retains its own Kivy/foreground service lifecycle;
+        no desktop thread ownership or unsupported instance room operations.
+        """
+        holds=state.inventory.get('holds',{})
+        if any(holds.values()):
+            state.inventory['reliable']=False
+            state.inventory['sync_error']='連線結束時仍有未確認的道具消耗，請重新登入同步'
+            for owner,records in list(holds.items()):
+                if records:reservations.uncertain(state.inventory,owner)
+        if self.field_supply.pending:
+            self.field_supply.uncertain=True
+            self.field_supply.status(state,'uncertain','連線結束，補給結果未確認，請重新登入同步')
+        if self.maintenance.pending:
+            self.maintenance.uncertain=True
+            self.maintenance.status(state,'連線結束，修理／整理結果未確認',checking=False)
+        if self.expedition.pending:
+            state.expedition['uncertain']=True
+        self.expedition.stop(state,'連線結束，遠征自動派遣已停止')
+        self.crafting.disconnect(state)
+        self.alchemy.stop(state,'連線結束')
+        self.portal_travel.cancel(state,'連線結束，已取消傳點移動')
+        self.auto_battle.stop(state,'連線結束')
+        self.roaming.stop(state,self.movement,'連線結束')
+
+
 def run_client(host, port, profile, emit, *, account=None, password=None,
                login_kind=2, platform=None, language=None, role_index=None,
                duration=15, timeout=5, verify_first=False, stop_event=None,
@@ -578,12 +606,7 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
         closed_reason = 'client_error'; closed_error = exc
         raise
     finally:
-        logic.expedition.stop(state,'連線結束，遠征自動派遣已停止')
-        logic.crafting.disconnect(state)
-        logic.alchemy.stop(state,'連線結束')
-        logic.portal_travel.cancel(state,'連線結束，已取消傳點移動')
-        logic.auto_battle.stop(state,'連線結束')
-        logic.roaming.stop(state,logic.movement,'連線結束')
+        logic.disconnect(state)
         last_phase = state.phase
         state.phase = 'disconnected'
         if on_state:notify_state(on_state,state,force=True)

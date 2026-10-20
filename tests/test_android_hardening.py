@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
+import subprocess
+import sys
 
 from tools.android_hardening import (
     check_apk, check_configuration, check_files, inspect_apk, report, ROOT,
@@ -100,6 +102,31 @@ class AndroidHardeningTests(unittest.TestCase):
                 info.size = len(data)
                 stream.addfile(info, BytesIO(data))
         return output.getvalue()
+
+    def test_hardening_report_runs_as_direct_script_and_package_module(self):
+        """The APK workflow invokes 'python tools/android_hardening.py report'."""
+        with tempfile.TemporaryDirectory() as temp:
+            apk = Path(temp) / "demo.apk"
+            with zipfile.ZipFile(apk, "w") as stream:
+                stream.writestr("assets/private.tar", self.private_tar({
+                    "wlre/network/wire.pyc": b"compiled",
+                    "assets/config.json": b'{"feature":true}',
+                }))
+            for argv in (
+                [str(ROOT / "tools" / "android_hardening.py"), "report", str(apk)],
+                ["-m", "tools.android_hardening", "report", str(apk)],
+            ):
+                with self.subTest(argv=argv[0]):
+                    executed = subprocess.run(
+                        [sys.executable, *argv], cwd=ROOT,
+                        capture_output=True, text=True, timeout=20,
+                    )
+                    self.assertEqual(
+                        executed.returncode, 0,
+                        "Archive audit failed in a supported invocation mode: "
+                        + executed.stderr[-800:],
+                    )
+                    self.assertIn("Phase06 ZIP/TAR", (apk.parent / "PROTECTION_INFO.txt").read_text())
 
     def test_packaged_python_bytecode_is_reported_not_claimed_protected(self):
         with tempfile.TemporaryDirectory() as temp:

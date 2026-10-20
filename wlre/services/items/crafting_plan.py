@@ -1,4 +1,5 @@
 """Local plan with unlimited entries and chunked batch submission; server acknowledgement owns every transition."""
+from wlre.services.coordination import reason as coordination_reason
 from wlre.network.wire import ProtocolError
 
 
@@ -32,7 +33,8 @@ class PlanMixin:
             if not p['rows']:raise ProtocolError('自訂清單為空')
             if state.crafting['uncertain']:raise ProtocolError('製作狀態不確定，請重新登入同步')
             if self.pending:raise ProtocolError('請等待目前製作操作確認')
-            if state.battle.get('active') or state.event_flow.get('blocked') or state.alchemy.get('enabled') or state.alchemy.get('pending') or state.roaming.get('enabled') or state.auto_battle.get('enabled'):raise ProtocolError('請先停止其他自動功能並結束戰鬥／事件')
+            pause=coordination_reason(state,'crafting')
+            if pause:raise ProtocolError(pause)
             p.update(enabled=True,status='自訂清單執行中');state.crafting['auto_continue']=True;state.crafting['status']=p['status'];return []
         if action=='plan_pause':
             p.update(enabled=False,status='清單已暫停；已送入伺服器的項目保留');state.crafting['auto_continue']=False;state.crafting['status']=p['status'];return []
@@ -62,6 +64,9 @@ class PlanMixin:
         if c['uncertain']:
             p.update(enabled=False,status=c['status']);return packets
         if packets or self.pending or not p['enabled']:return packets
+        pause=coordination_reason(state,'crafting')
+        if pause:
+            p['status']=pause;return []
         if state.battle.get('active') or state.event_flow.get('blocked'):return []
         if self.wait_output:
             if self.wait_output['received']<self.wait_output['required']:

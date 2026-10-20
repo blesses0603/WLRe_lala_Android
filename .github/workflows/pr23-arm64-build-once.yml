@@ -1,0 +1,151 @@
+name: PR23 one-off ARM64 compilation (ephemeral signing, NOT a release)
+
+# Exactly one explicitly requested verification branch can invoke the native
+# builder. The trusted main/tag workflow and GitHub release secrets remain off-limits.
+on:
+  push:
+    branches:
+      - verify/pr23-arm64-20261021
+    paths:
+      - .github/workflows/pr23-arm64-build-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr23-one-off-arm64-build
+  cancel-in-progress: false
+
+jobs:
+  compile:
+    if: github.repository == 'blesses0603/WLRe_lala_Android' && github.ref == 'refs/heads/verify/pr23-arm64-20261021'
+    name: Build and verify temporary ARM64 test APK (no release signing)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      KIVY_HOME: /tmp/wlre-kivy
+      KIVY_NO_ARGS: '1'
+      KIVY_NO_CONSOLELOG: '1'
+      PYTHONUNBUFFERED: '1'
+      NATIVE_STAGE: /tmp/wlre-pr23-one-off-arm64
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify exactly the reviewed PR23 source and version
+        run: |
+          git merge-base --is-ancestor 7d4b0e4c98f0c7408917365f75eb97ada6b1fdb4 HEAD
+          python -c 'from pathlib import Path; from tools.android_release_version import source_version; assert source_version(Path("buildozer.spec"), Path("android_app/version.py")) == "v0.0.8"'
+          grep -Fqx 'android.archs = arm64-v8a' buildozer.spec
+          python -m compileall -q main.py android_app wlre tools
+          python tools/android_hardening.py preflight
+          python tools/android_presplash.py check-spec
+      - name: Install native Android build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool pkg-config cmake \
+            libffi-dev libssl-dev libsqlite3-dev zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libltdl-dev git zip unzip \
+            xvfb xauth libmtdev1 libgl1-mesa-dri
+          python -m pip install --upgrade pip
+          python -m pip install "buildozer>=1.5,<2" "Cython==3.0.12" "kivy==2.3.1" Pillow cryptography pyjnius==1.7.0
+      - name: Validate all Python and background-service regression tests
+        run: xvfb-run -a python -m unittest discover -s tests -q
+      - name: Generate disposable signing certificate (never use repository secrets)
+        run: |
+          mkdir -p "$RUNNER_TEMP/pr23"
+          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/pr23/test.keystore" \
+            -alias androiddebugkey -keyalg RSA -keysize 3072 -validity 2 \
+            -storepass android -keypass android \
+            -dname "CN=One-time PR23 Android Verification,O=Temporary,C=TW" \
+            >/dev/null 2>&1
+          python - <<'PY'
+          from pathlib import Path
+          from tools.android_signing import _keytool_fingerprint
+          import os, subprocess
+          key = Path(os.environ["RUNNER_TEMP"]) / "pr23/test.keystore"
+          result = subprocess.run(
+              ["keytool", "-list", "-v", "-keystore", str(key), "-storepass", "android",
+               "-alias", "androiddebugkey"],
+              capture_output=True, text=True, check=True)
+          pin = _keytool_fingerprint(result.stdout)
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as stream:
+              stream.write("ANDROID_EXPECTED_SIGNER_SHA256=" + pin + "\n")
+          print("Ephemeral public signer SHA256 generated; secret key stays in runner temp.")
+          PY
+      - name: Stage official eight P0/P1 ARM64 Cython cores (isolated)
+        run: |
+          python tools/android_native_cores.py stage --source "$GITHUB_WORKSPACE" --output "$NATIVE_STAGE"
+          python tools/android_integrity.py prepare-stage "$NATIVE_STAGE"
+          python tools/android_integrity.py verify-stage "$NATIVE_STAGE"
+      - name: Compile ARM64 APK with pinned python-for-android
+        run: |
+          cd "$NATIVE_STAGE"
+          buildozer -v android debug
+      - name: Re-sign with disposable certificate and verify exact native APK
+        run: |
+          mkdir -p verification-output
+          mapfile -t builds < <(find "$NATIVE_STAGE/bin" -maxdepth 1 -type f -name '*.apk' | sort)
+          test "${#builds[@]}" -eq 1
+          mapfile -t signers < <(find "$HOME/.buildozer/android/platform/android-sdk/build-tools" \
+            -type f -name apksigner | sort -V)
+          test "${#signers[@]}" -ge 1
+          apksigner="${signers[${#signers[@]}-1]}"
+          cp "${builds[0]}" verification-output/unsigned-intermediate.apk
+          "$apksigner" sign \
+            --ks "$RUNNER_TEMP/pr23/test.keystore" \
+            --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android \
+            --v4-signing-enabled false \
+            --out verification-output/WLRe_LaLa_PR23_ARM64_TEST_ONLY.apk \
+            verification-output/unsigned-intermediate.apk
+          rm verification-output/unsigned-intermediate.apk
+          python - <<'PY'
+          import os, re, subprocess, zipfile
+          from pathlib import Path
+          from tools.android_signing import _fingerprint
+          apk=Path("verification-output/WLRe_LaLa_PR23_ARM64_TEST_ONLY.apk")
+          with zipfile.ZipFile(apk) as z:
+              bad=z.testzip()
+              if bad: raise RuntimeError("ZIP integrity check failed")
+              members=z.namelist()
+              assert "AndroidManifest.xml" in members
+              assert "classes.dex" in members
+              assert any(x.startswith("lib/arm64-v8a/") for x in members)
+              assert not any(x.startswith("lib/armeabi") or x.startswith("lib/x86") for x in members)
+          signer=sorted(Path.home().glob(".buildozer/android/platform/android-sdk/build-tools/*/apksigner"))[-1]
+          result=subprocess.run([str(signer),"verify","--print-certs",str(apk)],
+                                capture_output=True,text=True,check=True)
+          actual=re.findall(r"certificate SHA-256 digest:\\s*([a-fA-F0-9]+)",result.stdout,re.I)
+          assert len(actual)==1 and _fingerprint(actual[0])==os.environ["ANDROID_EXPECTED_SIGNER_SHA256"].lower(), "Test signer does not match runtime pin"
+          print("PR23 ARM64 APK ZIP, ABIs and disposable signature VERIFIED.")
+          PY
+          hostpython="$NATIVE_STAGE/.buildozer/android/platform/build-arm64-v8a/build/other_builds/hostpython3/desktop/hostpython3/native-build/root/usr/local/bin/python3.14"
+          test -x "$hostpython"
+          "$hostpython" -I -c 'import sys; assert sys.version_info[:2] == (3, 14)'
+          python tools/android_native_wire.py report-apk verification-output/WLRe_LaLa_PR23_ARM64_TEST_ONLY.apk --pyc-python "$hostpython"
+          python tools/android_native_vault.py report-apk verification-output/WLRe_LaLa_PR23_ARM64_TEST_ONLY.apk --pyc-python "$hostpython"
+          python tools/android_native_cores.py report-apk verification-output/WLRe_LaLa_PR23_ARM64_TEST_ONLY.apk --pyc-python "$hostpython"
+          python tools/android_presplash.py check-apk verification-output/WLRe_LaLa_PR23_ARM64_TEST_ONLY.apk
+          python tools/android_hardening.py report verification-output/WLRe_LaLa_PR23_ARM64_TEST_ONLY.apk
+          (cd verification-output && sha256sum WLRe_LaLa_PR23_ARM64_TEST_ONLY.apk > SHA256SUMS.txt)
+          cat > verification-output/TEST_ONLY_README.txt <<'EOF'
+          PR23 one-time Android ARM64 native compilation evidence.
+          THIS IS NOT A RELEASE OR A PINNED MAIN-SIGNED APK.
+          This package uses a newly generated disposable certificate valid for this run only.
+          It CANNOT update an existing fixed-signed installation; never uninstall live
+          user data or remove an Android Keystore just to install this package.
+          No repository private signing secret was accessed.
+          No real game login or physical-device test was performed in this CI.
+          EOF
+      - name: Upload isolated TEST ONLY build, never trusted release artifact
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: PR23-ARM64-TEST-ONLY-EPHEMERAL-NOT-FOR-UPGRADE
+          path: verification-output/*
+          if-no-files-found: error
+          retention-days: 3

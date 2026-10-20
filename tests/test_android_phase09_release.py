@@ -1,6 +1,7 @@
 """Phase09 signed ARM64 APK metadata, required evidence and publication policy."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -10,7 +11,7 @@ import zipfile
 
 from tools.android_release_gate import (
     PACKAGE, REQUIRED_REPORTS, APK_HASHES, EVIDENCE, EVIDENCE_HASHES,
-    _apk_metadata, _digest, finalize_release, verify_release,
+    _apk_metadata, _digest, _locate_aapt, finalize_release, verify_release,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -74,6 +75,21 @@ class Phase09GateTests(unittest.TestCase):
         with patch("tools.android_release_gate.subprocess.run",
                    return_value=Mock(stdout=AAPT_GOOD)):
             return finalize_release(self.output, aapt="aapt", **params)
+
+    def test_release_gate_finds_sdk_aapt_in_isolated_native_stage(self):
+        stage = self.root / "isolated-android-native-stage"
+        executable = (
+            stage / ".buildozer/android/platform/android-sdk/"
+            "build-tools/35.0.0/aapt"
+        )
+        executable.parent.mkdir(parents=True)
+        executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        executable.chmod(0o755)
+        with patch.dict(os.environ, {
+            "NATIVE_STAGE": str(stage),
+            "ANDROID_AAPT": "",
+        }):
+            self.assertEqual(_locate_aapt(), str(executable))
 
     def test_success_persistent_signed_release_generates_complete_manifest(self):
         data = self.verify()

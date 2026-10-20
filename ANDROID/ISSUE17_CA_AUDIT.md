@@ -64,3 +64,13 @@ fail closed 並重新分析原因。
 - 硬限制：單一封存最大 **256 MiB**、同一 APK 磁碟暫存總量 **384 MiB**、原遞迴深度 **4**、原檔案數 **20,000**、小型文字總掃描量 **64 MiB** 與其餘安全規則均保留。超限仍會 Fail Closed；錯誤僅輸出類別、封存類型與深度／容量級距，不洩漏原始檔名、路徑或內容。
 - 補充大型 ZIP／TAR 成功掃描、巢狀敏感檔與私鑰內容阻擋、總暫存額度、深度與容量限制回歸測試。
 - 確認 PR 快速 CI 後，須先合併主分支，再 **開新的** ARM64 手動建置驗證正式 APK；未通過 Phase04–09、SHA256 與 Artifact 上傳之前，不關閉 Issue #17。真機驗收另於 Phase10 完成。
+
+## 2026-10-20｜Run #39425743449：Phase06 已通過，Phase09 輸出檔清單拒絕
+
+- [Run #39425743449](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39425743449) 使用合併 PR #21 的 `main`，Commit `15beed627dd9d8bf916a0ed6edb19031d2917c80`；APK ARM64 原生編譯、八個核心、固定簽章、Phase07 與 **Phase06 安全稽核已實際成功**，出現 `APK packaging audit passed`。
+- 新錯誤：`android_release_gate.py:145` 的 `Incomplete or unexpected Phase09 Android output files`；其檢查要求輸出目錄僅包含**一個簽章 APK、七份驗證報告及 SHA256SUMS.txt**。舊版錯誤沒有列出缺件／多件，不足以直接證實哪個檔案造成錯誤。
+- 高可信候選根因：`android_signing.py:resign_apk` 原本用預設 `apksigner sign`，Android 官方工具可能額外產生 `<暫存 APK>.idsig` v4 簽章側檔；舊版清理只有刪除暫存 APK，未處理側檔。這會與 Phase09 嚴格的檔案清單衝突。
+- 本次修正明確傳入 `--v4-signing-enabled false`，**僅關閉不需要的 v4 增量安裝側檔**，不關閉 v2／v3 APK 簽章，保留公開指紋 pin、原子更新和固定簽章驗證。若工具仍建立 `.idsig`，發布中止且清除該暫存檔，不放寬任何 Phase09 清單。
+- 改善 Phase09 拒絕診斷：僅回報可信任的缺少報告名稱、額外檔案**數量**、是否有 v4 側檔及非正規檔案，不洩漏額外檔案原始名稱／內容。
+- 預防下一個錯誤：Phase09 `aapt` 查找補上隔離 `NATIVE_STAGE` 的 Buildozer Android SDK 路徑。
+- 已補模擬 `.idsig`、原子恢復、缺件／多件錯誤診斷及隔離 SDK 工具路徑回歸測試。以上並非等於完整 APK 已成功；仍要依新 Commit 的 main 重新手動完整建置確認。

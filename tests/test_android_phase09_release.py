@@ -1,6 +1,7 @@
 """Phase09 signed ARM64 APK metadata, required evidence and publication policy."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -10,7 +11,7 @@ import zipfile
 
 from tools.android_release_gate import (
     PACKAGE, REQUIRED_REPORTS, APK_HASHES, EVIDENCE, EVIDENCE_HASHES,
-    _apk_metadata, _digest, finalize_release, verify_release,
+    _apk_metadata, _digest, _locate_aapt, finalize_release, verify_release,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -74,6 +75,21 @@ class Phase09GateTests(unittest.TestCase):
         with patch("tools.android_release_gate.subprocess.run",
                    return_value=Mock(stdout=AAPT_GOOD)):
             return finalize_release(self.output, aapt="aapt", **params)
+
+    def test_release_gate_finds_sdk_aapt_in_isolated_native_stage(self):
+        stage = self.root / "isolated-android-native-stage"
+        executable = (
+            stage / ".buildozer/android/platform/android-sdk/"
+            "build-tools/35.0.0/aapt"
+        )
+        executable.parent.mkdir(parents=True)
+        executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        executable.chmod(0o755)
+        with patch.dict(os.environ, {
+            "NATIVE_STAGE": str(stage),
+            "ANDROID_AAPT": "",
+        }):
+            self.assertEqual(_locate_aapt(), str(executable))
 
     def test_success_persistent_signed_release_generates_complete_manifest(self):
         data = self.verify()
@@ -167,6 +183,34 @@ class Phase09GateTests(unittest.TestCase):
         (self.output / "PROTECTION_INFO.txt").symlink_to(target)
         with self.assertRaisesRegex(ValueError, "Incomplete or unexpected"):
             self.verify()
+
+    def test_v4_idsig_sidecar_is_detected_without_relaxing_release_inventory(self):
+        # apksigner default v4 signatures can be generated next to the
+        # short-lived signed APK; Phase09 must still reject any stray files.
+        sidecar = self.output / ".lala-signed-synthetic.apk.idsig"
+        sidecar.write_bytes(b"unwanted-v4-test-sidecar")
+        with self.assertRaisesRegex(
+            ValueError, "v4-sidecar-present=True"
+        ) as error:
+            self.verify()
+        self.assertIn("unexpected-count=1", str(error.exception))
+        self.assertNotIn(sidecar.name, str(error.exception))
+        sidecar.unlink()
+        self.assertEqual(self.verify()["apk"]["package"], PACKAGE)
+
+    def test_phase09_reports_missing_trusted_evidence_without_exposing_extras(self):
+        missing = self.output / "PRESPLASH_INFO.txt"
+        missing.unlink()
+        extra = self.output / "non-public-credential-test.txt"
+        extra.write_text("synthetic only", encoding="utf-8")
+        with self.assertRaisesRegex(
+            ValueError, "missing=PRESPLASH_INFO.txt"
+        ) as failure:
+            self.verify()
+        message = str(failure.exception)
+        self.assertIn("unexpected-count=1", message)
+        self.assertNotIn(extra.name, message)
+        self.assertNotIn("synthetic only", message)
 
     def test_tag_and_manual_ref_guard_and_source_sha(self):
         with self.assertRaisesRegex(ValueError, "main"):

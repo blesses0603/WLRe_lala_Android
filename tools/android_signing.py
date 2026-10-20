@@ -143,14 +143,24 @@ def resign_apk(apk, keystore=None, apksigner=None):
 
     fd, temp = tempfile.mkstemp(prefix=".lala-signed-", suffix=".apk", dir=apk.parent)
     os.close(fd)
+    # The phone-build artifact includes one signed APK and attestations.
+    # apksigner can generate an additional v4 .apk.idsig sidecar by default;
+    # this workflow does not use incremental APK installation. Keep the v2/v3
+    # signatures, explicitly disable only v4 sidecar generation.
+    sidecar = Path(temp + ".idsig")
     try:
         subprocess.run([
             str(apksigner), "sign", "--ks", str(keystore),
             "--ks-key-alias", ALIAS,
             "--ks-pass", "pass:" + PASSWORD,
             "--key-pass", "pass:" + PASSWORD,
+            "--v4-signing-enabled", "false",
             "--out", temp, str(apk),
         ], capture_output=True, text=True, check=True, timeout=180)
+        if sidecar.exists() or sidecar.is_symlink():
+            # If a tool version disregards the flag, reject the candidate
+            # rather than silently changing the strict release file allowlist.
+            raise ValueError("Unexpected v4 signer sidecar during APK resign")
         result = subprocess.run(
             [str(apksigner), "verify", "--print-certs", temp],
             capture_output=True, text=True, check=True, timeout=30)
@@ -163,6 +173,10 @@ def resign_apk(apk, keystore=None, apksigner=None):
     finally:
         if os.path.exists(temp):
             os.unlink(temp)
+        # Only remove the sidecar belonging to this unguessable temporary APK.
+        # Do not touch any other file in android-output or relax Phase09.
+        if sidecar.exists() or sidecar.is_symlink():
+            sidecar.unlink()
     print("APK re-signed and verified using pinned persistent certificate.")
     return str(apk)
 

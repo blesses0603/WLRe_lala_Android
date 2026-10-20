@@ -14,6 +14,8 @@ import stat
 import tarfile
 import zipfile
 
+from cryptography import x509
+
 KEY_HEADERS = re.compile(
     rb"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"
     rb"|-----BEGIN ENCRYPTED" + rb" PRIVATE KEY-----"
@@ -34,6 +36,39 @@ MAX_ITEMS = 20000
 MAX_TEXT_BYTES = 2 * 1024 * 1024
 MAX_NESTED_BYTES = 24 * 1024 * 1024
 MAX_SCAN_TOTAL = 64 * 1024 * 1024
+MAX_CA_BUNDLE_BYTES = 512 * 1024
+CERT_BLOCK = re.compile(
+    rb"-----BEGIN CERTIFICATE-----\s*[A-Za-z0-9+/=\r\n]+"
+    rb"-----END CERTIFICATE-----", re.ASCII,
+)
+
+
+def _public_ca_bundle_path(path: str) -> bool:
+    """Only certifi's public CA bundle may have a PEM extension."""
+    return path.casefold() in (
+        "certifi/cacert.pem", "site-packages/certifi/cacert.pem",
+    )
+
+
+def _validate_public_ca_bundle(data: bytes) -> None:
+    """Require valid public X.509 PEM blocks and no extra credential material."""
+    if not data or len(data) > MAX_CA_BUNDLE_BYTES or KEY_HEADERS.search(data):
+        raise ValueError("Unsafe certifi CA bundle content")
+    blocks = CERT_BLOCK.findall(data)
+    if not blocks:
+        raise ValueError("Unsafe certifi CA bundle content")
+    try:
+        for block in blocks:
+            x509.load_pem_x509_certificate(block)
+    except ValueError as exc:
+        raise ValueError("Unsafe certifi CA bundle content") from exc
+    remaining = CERT_BLOCK.sub(b"", data)
+    # certifi prepends informational '# Issuer' comments to CA certificates.
+    if any(line.strip() and not line.lstrip().startswith(b"#")
+           for line in remaining.splitlines()):
+        raise ValueError("Unsafe certifi CA bundle content")
+    if b"-----BEGIN" in remaining or b"-----END" in remaining:
+        raise ValueError("Unsafe certifi CA bundle content")
 
 
 @dataclass
@@ -66,9 +101,15 @@ def _safe(name: str, *, directory: bool = False) -> str:
             re.match(r"^[a-zA-Z]:", name)):
         raise ValueError("Unsafe nested archive member path")
     lower = [p.casefold() for p in parts]
-    if (any(p in BAD_NAMES or PurePosixPath(p).suffix in BAD_EXTS for p in lower)):
+    normalized = "/".join(parts)
+    public_ca = _public_ca_bundle_path(normalized)
+    if any(part in BAD_NAMES or
+           (PurePosixPath(part).suffix in BAD_EXTS and not (
+               public_ca and part == "cacert.pem"))
+           for part in lower):
+        # Never include suspicious filenames or raw contents in CI messages.
         raise ValueError("Potential credential file in nested archive")
-    return "/".join(parts)
+    return normalized
 
 
 def _nested_type(name: str) -> str | None:
@@ -149,6 +190,15 @@ def _zip(fileobj, label: str, limit: Limits, depth: int, inspect_name):
 
 
 def _payload(stream, size: int, name: str, limit: Limits, depth: int, inspect_name):
+    if _public_ca_bundle_path(name):
+        if size <= 0 or size > MAX_CA_BUNDLE_BYTES:
+            raise ValueError("Unsafe certifi CA bundle size")
+        data = stream.read(MAX_CA_BUNDLE_BYTES + 1)
+        if len(data) != size:
+            raise ValueError("Truncated certifi CA bundle")
+        _peek_scan(data, limit)
+        _validate_public_ca_bundle(data)
+        return
     kind = _nested_type(name)
     if kind is not None:
         if depth >= MAX_DEPTH or size > MAX_NESTED_BYTES:

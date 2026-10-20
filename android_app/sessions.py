@@ -85,6 +85,14 @@ class SessionManager:
                 with session.lock:
                     if session.stop_event.is_set():
                         return
+                    if kind == 'battle_attribute_invalid':
+                        # Only safe numeric length, never packet payload or login data.
+                        size, tail = event.get('payload_bytes'), event.get('trailing_bytes')
+                        if (type(size) is int and 0 <= size <= 65533 and
+                                type(tail) is int and 1 <= tail <= 6):
+                            session.log_history.append(time.strftime('%H:%M:%S') +
+                                f' S51-1 不完整資料已略過：長度 {size}、尾端 {tail} 位元組')
+                            session.detail_revision += 1
                     if kind == 'chat_message':
                         session.names.update(session.game_state, event)
                         session.chat_history.append({k: copy.deepcopy(event[k]) for k in (

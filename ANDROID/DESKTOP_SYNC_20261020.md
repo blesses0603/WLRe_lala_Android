@@ -57,3 +57,14 @@ Git SHA do not by themselves prove functional incompatibility.
 - 未變更 `android_app/version.py`、`buildozer.spec`、原生 P0/P1 核心及簽章／Keystore／APK Actions。
 - **尚未同步** 電腦版 v0.5.6 戰後維護／AI/S51-1 診斷修補、最新狀態拆分及副本即時互動。這些涉及 Android core 及 service 的介接，須以獨立 PR 逐項完成。
 - 此 PR 只能代表唯讀功能移植；CI 執行結果以 GitHub Actions 為準，APK 與真機仍須另外驗收。
+
+
+## 2026-10-20 第二批：S85／S186 唯讀協定與診斷
+
+- 桌面基準 `11962634c48a04e82eb060226736c4ad3fe8b610`。移植 `wlre/network/instances.py` 與 1262 的 S85／S186 安全解析器，並引入相關副本狀態與操作確認模組，分別保存 main／coop 的伺服器資料。
+- Android 僅將 `instance_refresh`、`instance_members` 納入 IPC 允許清單，並在遊戲核心驗證模式、參數、戰鬥／事件狀態、已確認房間 ID。沒有開放建立／加入／待命／開始／領獎，也沒有自動重送。
+- 手機副本頁提供使用者觸發的房間清單查詢與已同步房間唯讀瀏覽。未回覆、失聯、未登入均顯示未知，靜態副本目錄不冒充即時狀態。
+- 引入屬性點數驗證／確認模型與 S8-4 回覆辨識。**配點指令仍未開放**。
+- S51-1 不完整 7 位元組資料形態會丟棄整筆、保留連線；記錄數字長度與截斷長度，不記錄原始封包。
+- 連線例外安全診斷只保留例外類型與原始碼位置；AI 合作戰鬥 war_style=16 不再單純因戰鬥種類暫停。
+- 不修改 Android Keystore、前景服務生命週期、原生封裝建置工作流程或版本號。簽章 APK、正式連線與真機仍待驗收。

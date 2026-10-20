@@ -48,6 +48,10 @@ class InstanceCatalog(Page):
         self.info = label()
         self.add_widget(self.info)
         self.add_widget(button("搜尋／瀏覽副本清單", self.browse))
+        self.add_widget(button("查詢伺服器房間（僅讀取）", self.query_rooms))
+        self.add_widget(button("查看已同步房間清單", self.browse_rooms))
+        self.live_info = label("房間尚未同步；離線資料不代表即時房間。")
+        self.add_widget(self.live_info)
         self.details = label("請選擇副本；此操作不會連線或消耗資源。")
         self.add_widget(self.details)
         self.render()
@@ -82,6 +86,45 @@ class InstanceCatalog(Page):
         pick("官方副本清單（僅查詢本機）", choices,
              lambda index: setattr(self.details, "text", describe_entry(rows[index])))
 
+    def current_mode(self):
+        return 'coop' if self.mode.text == '協力副本' else 'main'
+
+    def query_rooms(self):
+        if not self.d.live:
+            self.d.message.text = '請先登入；離線資料不是即時房間'
+            return
+        # This is explicit, user-triggered, and never retries an unknown result.
+        self.d.send({'type': 'instance_refresh', 'mode': self.current_mode()})
+
+    def browse_rooms(self):
+        if not self.d.live:
+            self.d.message.text = '請先登入；離線不顯示過時的房間清單'
+            return
+        data = (self.state.get('instances') or {}).get(self.current_mode()) or {}
+        if not data.get('ready'):
+            self.d.message.text = '請先手動查詢，並等待伺服器 S85／S186 回覆'
+            return
+        rooms = data.get('rooms') or []
+        if not rooms:
+            self.d.message.text = '伺服器已回覆目前沒有房間'
+            return
+        rows = [(index, '房間 {}｜人數 {}｜{}'.format(
+            item.get('room_id', '未知'), item.get('members', '?'),
+            item.get('manager') or '房主 ID '+str(item.get('host_id', '?'))))
+            for index, item in enumerate(rooms)]
+        pick('伺服器房間（只讀）', rows,
+            lambda index: setattr(self.details, 'text',
+                '伺服器房間資料（不可直接加入）：\n' +
+                '\n'.join('{}：{}'.format(k, v) for k, v in rooms[index].items())))
+
     def refresh(self):
-        # Catalog is local. No per-frame / per-second server polling.
-        pass
+        data = (self.state.get('instances') or {}).get(self.current_mode()) or {}
+        if not self.d.live:
+            self.live_info.text = '離線／等待登入：僅能查看官方離線副本資料'
+        elif not data.get('ready'):
+            self.live_info.text = '房間未同步；請手動查詢，系統不會自動重送'
+        else:
+            room = data.get('room') or {}
+            self.live_info.text = '{}\n伺服器房間 {} 間｜自己房間：{}'.format(
+                data.get('status', '已同步'), len(data.get('rooms') or []),
+                room.get('room_id', '尚未由伺服器確認'))

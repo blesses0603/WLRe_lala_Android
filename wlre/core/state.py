@@ -11,6 +11,8 @@ from wlre.core.activity import apply_activity
 from wlre.services.items.crafting import defaults as craft_defaults, room_defaults, apply_crafting
 from wlre.services.items.room_storage import defaults as storage_defaults, apply_storage
 from wlre.services.expedition import defaults as expedition_defaults, apply_expedition
+from wlre.services.instances import defaults as instance_defaults, apply_instances
+from wlre.services.battle.attribute_points import defaults as points_defaults, apply_event as apply_points_event
 
 
 POSITION_CACHE_LIMIT = 2048
@@ -28,6 +30,7 @@ class State:
     efficiency: dict = field(default_factory=efficiency_defaults)
     phase: str = "disconnected"
     attributes: dict = field(default_factory=dict)
+    attribute_allocation: dict = field(default_factory=points_defaults)
     positions: dict = field(default_factory=dict)
     battle: dict = field(default_factory=lambda: {"actions": 0, "winner_side": None})
     packet_count: int = 0
@@ -55,6 +58,7 @@ class State:
     party: dict = field(default_factory=party_defaults)
     alchemy: dict = field(default_factory=alchemy_defaults)
     expedition: dict = field(default_factory=expedition_defaults)
+    instances: dict = field(default_factory=instance_defaults)
 
     def remember_position(self,role_id,x,y):
         # Observed remote positions are a cache, not a lifetime travel history.
@@ -108,6 +112,10 @@ class State:
         apply_live(self,event)
         apply_party(self,event)
         apply_expedition(self,event)
+        if kind.startswith('instance_') and event.get('mode') in ('main', 'coop'):
+            apply_instances(self,event)
+        if kind in ('attribute_allocation_success', 'attribute_set', 'player_combat_data'):
+            apply_points_event(self,event)
         if kind == "login_result":
             self.phase = "authenticated" if event["result"] == 0 else "login_failed"
         elif kind == "role_list_available":

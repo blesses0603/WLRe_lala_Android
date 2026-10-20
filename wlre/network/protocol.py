@@ -12,6 +12,7 @@ from wlre.core.activity import decode_activity
 from wlre.services.items.crafting import decode_crafting
 from wlre.services.items.room_storage import decode_storage
 from wlre.network.expedition import decode_expedition
+from wlre.network.instances import decode_instances
 
 ENUMS = json.loads(RESOURCE_ROOT.joinpath("enums.json").read_text(encoding="utf-8"))
 ATTR_NAMES = {v: k for k, v in ENUMS["EAttribute"].items()}
@@ -63,7 +64,7 @@ def use_field_item(item_id,index,npc_index):
 def decode(packet, local_role_id=None):
     chat=decode_chat(packet,local_role_id)
     if chat is not None:return chat
-    extra=(decode_storage(packet) or decode_expedition(packet) or decode_recovery(packet)
+    extra=(decode_instances(packet) or decode_storage(packet) or decode_expedition(packet) or decode_recovery(packet)
            or decode_guild(packet) or decode_activity(packet) or decode_crafting(packet))
     if extra is not None:return extra
     r = Reader(packet.payload)
@@ -134,6 +135,12 @@ def decode(packet, local_role_id=None):
             event.update(stage=r.u8(), fight_number=r.u8())
         event["units"] = [battle_unit(r) for _ in range(r.u8())]
     elif key == (51, 1):
+        # S51-1 consists of fixed 7-byte records. An incomplete update must
+        # not corrupt HP/SP or disconnect the Android foreground service.
+        if r.remaining % 7:
+            return dict(event, type='battle_attribute_invalid',
+                        payload_bytes=r.remaining, complete_records=r.remaining // 7,
+                        trailing_bytes=r.remaining % 7)
         values = []
         while r.remaining:
             values.append({"col": r.u8(), "row": r.u8(), "kind": r.u8(), "value": r.u32()})
@@ -145,6 +152,8 @@ def decode(packet, local_role_id=None):
         # Actual capture has both 2-byte and 3-byte forms. Lua consumes only
         # col/row; keep the observed extra byte without assigning semantics.
         if r.remaining == 1: event["extension_byte"] = r.u8()
+    elif key == (8, 4):
+        event.update(type='attribute_allocation_success')
     elif key in ((8, 1), (8, 2), (8, 3)):
         event["type"] = "attribute_set"
         if packet.sub == 1:

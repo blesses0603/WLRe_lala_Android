@@ -5,12 +5,13 @@ import json
 GAME_COMMANDS = frozenset(('chat', 'team', 'start_alchemy', 'stop_alchemy', 'craft',
     'reset_efficiency', 'walk', 'stop_walk', 'portal_walk', 'portal_direct',
     'field_item', 'field_storage', 'learned_action', 'battle_item', 'battle_submit',
-    'battle_action', 'set_party_guard', 'companion', 'start_expedition', 'stop_expedition'))
+    'battle_action', 'set_party_guard', 'companion', 'start_expedition', 'stop_expedition',
+    'instance_refresh', 'instance_members'))
 STATE_FIELDS = ('phase', 'player', 'knowledge', 'inventory', 'potion_storage', 'party',
     'alchemy', 'crafting', 'furniture', 'efficiency', 'battle', 'battle_units', 'battle_count',
     'auto_battle', 'roaming', 'portal_travel', 'event_flow', 'activities', 'location',
     'local_movement', 'movement_check', 'navigation', 'guild', 'attributes',
-    'expedition', 'maintenance', 'room_storage')
+    'expedition', 'maintenance', 'room_storage', 'instances', 'attribute_allocation')
 
 
 def checked_command(command):

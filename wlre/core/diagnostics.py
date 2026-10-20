@@ -2,6 +2,18 @@
 import logging,os,time,traceback
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from collections import deque
+
+
+def safe_exception_location(exc_type, tb):
+    """Only exception class + six code locations; no payload, locals or message."""
+    kind = getattr(exc_type, '__name__', 'unknown')
+    frames = deque(maxlen=6)
+    while tb is not None:
+        code = tb.tb_frame.f_code
+        frames.append(f'{Path(code.co_filename).name}:{tb.tb_lineno}:{code.co_name}')
+        tb = tb.tb_next
+    return kind, ' > '.join(frames) if frames else 'none'
 
 
 class Diagnostics:

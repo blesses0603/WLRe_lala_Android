@@ -4,6 +4,7 @@ Actual-server interoperability is capture-verified, but a live login from this
 implementation still needs to be tested by the account owner.
 """
 from wlre.network.connection_health import ConnectionHealth, configure_keepalive
+from wlre.network.instances import list_request, member_request
 import queue
 from wlre.network.state_updates import StatePublisher, notify_state
 import socket
@@ -224,6 +225,24 @@ class SessionLogic:
         if (self.maintenance.pending or self.maintenance.uncertain) and kind not in (
                 'stop_auto_battle','stop_roaming','stop_walk','stop_expedition','stop_crafting','stop_alchemy','chat','reset_efficiency'):
             raise ProtocolError('請先等待戰後修理／整理確認；結果未確認時需重新登入同步')
+        if kind in ('instance_refresh', 'instance_members'):
+            # Explicit read-only queries. Not an entry point to room mutation.
+            if (state.phase != 'world_ready' or state.battle.get('active')
+                    or state.event_flow.get('blocked') or state.activities):
+                raise ProtocolError('目前無法安全查詢副本房間')
+            mode = command.get('mode')
+            if mode not in ('main', 'coop'):
+                raise ProtocolError('未知副本種類')
+            if kind == 'instance_refresh':
+                if set(command) != {'type', 'mode'}:
+                    raise ProtocolError('副本查詢參數異常')
+                return [list_request(mode)]
+            if set(command) != {'type', 'mode', 'room_id'}:
+                raise ProtocolError('副本成員查詢參數異常')
+            room = state.instances[mode].get('room')
+            if not room or room.get('room_id') != command['room_id']:
+                raise ProtocolError('請先由伺服器確認目前房間')
+            return [member_request(mode, command['room_id'])]
         if kind == 'start_expedition':
             self.expedition.start(state, command.get('settings', {}))
             return []
@@ -426,6 +445,7 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
     health = ConnectionHealth(emit)
     cleanup_timer = PeriodicCleanup()
     closed_reason = 'duration'; closed_error = None
+    failed_packet = None; failed_stage = None
     try:
         with socket.create_connection((host, port), timeout=timeout) as connection:
             if tcp_keepalive: health.keepalive = configure_keepalive(connection)
@@ -522,14 +542,27 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
                     closed_reason = 'server_closed'
                     break
                 for packet in parser.feed(raw):
-                    event = decode(packet,state.player.get('role_id'))
-                    health.received()
-                    state.apply(event)
-                    emit(event)
-                    if request:
-                        for response in logic.receive(event, state):
-                            _send(connection, response, profile['tx_xor'], emit)
-                    if on_state and event['type'] != 'unimplemented': notify_state(on_state,state)
+                    stage = 'decode'
+                    try:
+                        event = decode(packet,state.player.get('role_id'))
+                        if event.get('type') == 'battle_attribute_invalid':
+                            event.update(battle_count=state.battle_count,
+                                         battle_war_style=state.battle.get('war_style'),
+                                         battle_active=bool(state.battle.get('active')))
+                        stage = 'state_apply'
+                        health.received()
+                        state.apply(event)
+                        stage = 'event_handling'
+                        emit(event)
+                        if request:
+                            for response in logic.receive(event, state):
+                                _send(connection, response, profile['tx_xor'], emit)
+                        if on_state and event['type'] != 'unimplemented': notify_state(on_state,state)
+                    except Exception:
+                        # Do not retain packet bytes, IDs are bounded to uint8.
+                        failed_packet = (packet.main, packet.sub)
+                        failed_stage = stage
+                        raise
                 event_replies=logic.flush_events(state) if request else []
                 for response in event_replies:_send(connection,response,profile['tx_xor'],emit)
                 if event_replies and on_state:notify_state(on_state,state)
@@ -552,6 +585,7 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
         state.phase = 'disconnected'
         if on_state:notify_state(on_state,state,force=True)
         if closed_error is None and stop_event.is_set():closed_reason='stopped'
-        health.close(closed_reason,closed_error)
+        health.close(closed_reason,closed_error,
+                     error_packet=failed_packet,error_stage=failed_stage)
         emit({'type': 'connection_closed', 'last_phase': last_phase, 'reason': closed_reason})
     return state

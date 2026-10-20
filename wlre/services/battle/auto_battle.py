@@ -179,7 +179,9 @@ class AutoBattle:
                 packets=self.heal_field(state,logic,now)
                 if packets is not None:return packets
             self.status(state,'armed','等待戰鬥回合');return []
-        if battle.get('war_style') in (16,21,23,24):
+        # Cooperative event (war_style 16) uses ordinary owned-unit rounds.
+        # BossAmbush/EventTrial/StarApexBattle are still blocked.
+        if battle.get('war_style') in (21,23,24):
             self.status(state,'paused','此特殊戰鬥尚未開放自動下令');return []
         key=(state.battle_count,battle['round'])
         if key!=self.key:

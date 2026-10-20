@@ -15,6 +15,7 @@ from wlre.services.items.combat_resources import (
     CAT, apply_live, available, reserve
 )
 from wlre.services.items.alchemy import AutoAlchemy, material_problem, category
+from wlre.core.inventory_updates import STACKABLE
 
 
 def bag_item(sid, count, serial):
@@ -29,7 +30,7 @@ def alchemy_case():
     for item_id in CAT["items"]:
         item = bag_item(int(item_id), 20, 100 + len(rows))
         item["index"] = len(rows) + 1
-        if not material_problem(item) and category(item) == "normal":
+        if STACKABLE.get(str(item_id)) and not material_problem(item) and category(item) == "normal":
             rows.append(item)
         if len(rows) == 2:
             break
@@ -68,14 +69,16 @@ def expedition_case():
 class SharedReservationsIntegration(unittest.TestCase):
     def test_battle_hold_survives_refresh_until_authoritative_deduction(self):
         state = State()
+        sid = next(int(sid) for sid, value in STACKABLE.items() if value)
         state.inventory.update(ready=True, reliable=True,
-                               items={"1": bag_item(100, 3, 11)})
-        reserve(state, [{"index": 1, "item_id": 100, "count": 1}])
+                               items={"1": bag_item(sid, 3, 11)})
+        reserve(state, [{"index": 1, "item_id": sid, "count": 1}])
         self.assertEqual(state.inventory["holds"]["battle"][0]["identity"][:2],
-                         [100, 11])
+                         [sid, 11])
         self.assertEqual(available(state.inventory, 1), 2)
         apply_live(state, {"type": "bag_snapshot", "capacity": 20,
-                           "items": [{**bag_item(100, 3, 11), "index": 1}]})
+                           "items": [{**bag_item(sid, 3, 11), "index": 1}]})
+        self.assertTrue(state.inventory["reliable"])
         self.assertEqual(available(state.inventory, 1), 2)
         apply_live(state, {"type": "bag_delete", "index": 1, "count": 1})
         self.assertNotIn("battle", state.inventory.get("holds", {}))
@@ -102,6 +105,7 @@ class SharedReservationsIntegration(unittest.TestCase):
         self.assertEqual(len(state.inventory["alchemy_slots"]), 2)
         original = [{**v} for v in state.inventory["items"].values()]
         apply_live(state, {"type": "bag_snapshot", "capacity": 200, "items": original})
+        self.assertTrue(state.inventory["reliable"])
         self.assertEqual(len(state.inventory["holds"]["alchemy"]), 2)
         rows = list(alchemy.pending["consumption"])
         for row in rows:
@@ -109,12 +113,15 @@ class SharedReservationsIntegration(unittest.TestCase):
                      "count": row["count"]}
             apply_live(state, event)
             alchemy.observe(event, state, now=1)
-        alchemy.observe({"type": "alchemy_result", "item_id": 10000,
+        output = next(int(sid) for sid, value in STACKABLE.items()
+                      if value and int(sid) not in {v["item_id"] for v in state.inventory["items"].values()})
+        alchemy.observe({"type": "alchemy_result", "item_id": output,
                          "count": 1}, state, now=1)
         event = {"type": "bag_add", "source": 3,
-                 "item": {"index": 9, "item_id": 10000,
+                 "item": {"index": 9, "item_id": output,
                           "count": 1, "serial": 777}}
         apply_live(state, event)
+        self.assertTrue(state.inventory["reliable"])
         alchemy.observe(event, state, now=1)
         self.assertIsNone(alchemy.pending)
         self.assertEqual(state.alchemy["completed"], 1)

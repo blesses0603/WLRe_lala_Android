@@ -68,3 +68,18 @@ Git SHA do not by themselves prove functional incompatibility.
 - S51-1 不完整 7 位元組資料形態會丟棄整筆、保留連線；記錄數字長度與截斷長度，不記錄原始封包。
 - 連線例外安全診斷只保留例外類型與原始碼位置；AI 合作戰鬥 war_style=16 不再單純因戰鬥種類暫停。
 - 不修改 Android Keystore、前景服務生命週期、原生封裝建置工作流程或版本號。簽章 APK、正式連線與真機仍待驗收。
+
+
+## 2026-10-20 第三批：戰後維護、背包預留與核心事件分派
+
+**已整合，尚非桌面核心 100% 同步：**
+
+- 引入桌面 v0.5.6 的 `state_events.py`、`state_world_events.py`、`state_battle_events.py`、`state_session_events.py`。Android 的 `State.apply` 保留先執行各服務觀察器、再分派登入／場景／戰鬥事件、最後更新效率統計；不替換 Android Kivy／前景服務。
+- 加入 `coordination.py`，集中手動指令與各服務的等待原因。煉金、製作、遠征、徘徊在維護／事件／共用資源忙碌時暫停**新增請求**，但仍處理原本 pending 的伺服器回覆與逾時。補給標記 uncertain 時煉金必須 **fail-stop**，不可將未知結果當一般可恢復暫停。
+- 加入 `items/reservations.py` 的格位、道具 ID、序號、數量預留機制；將戰後維護和非戰鬥背包補給接到共用保留登記。背包 snapshot 保留未確認的 holds，格位替換／序號異常使資料不可靠；逾時僅標記 uncertain、不得重送或自動解鎖。
+- Android 仍有舊式 `inventory.reserved` 介面。手動戰鬥耗材、煉金和遠征的全部預留流程**尚未改寫為完整桌面 registry**；這一批透過相容檢查讓新舊預留互斥，避免大幅度替換引入回歸。
+- 加入 `network/command_envelope.py`；網路佇列先驗證 command type。錯誤回報只允許安全有界的指令名稱，不回顯任意物件／帳密。
+- 增加 `tests/test_android_coordination.py` 驗證跨服務拒絕／暫停、原子保留、背包快照、序號變更、補給確認與逾時、無效命令及事件分派。
+- 不增加新的副本建立／配點／領獎命令；不修改 Android 版本號、JNI／Cython、Keystore／固定簽章或 APK 工作流程。
+
+**待實機驗收：** 遠征領獎後續連線、多人協力戰鬥、戰後自動補給／修理、手機鎖屏後續執行與安裝更新。GitHub 快速 CI 僅能驗證測試與靜態安全條件，不能等同真實 APK 與遊戲伺服器驗收。

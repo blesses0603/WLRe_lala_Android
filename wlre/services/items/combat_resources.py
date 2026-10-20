@@ -143,11 +143,8 @@ def allocate(inv,item_id,count):
     raise ProtocolError(f'{item_name(item_id)}數量不足或仍待伺服器扣除')
 
 def reserve(state,allocations):
-    for v in allocations:
-        if str(v['index']) in state.inventory.get('alchemy_slots',[]):raise ProtocolError('此格仍等待煉金材料扣除回覆')
-        if available(state.inventory,v['index'])<v['count']:raise ProtocolError('包包數量已變更')
-    for v in allocations:
-        key=str(v['index']);state.inventory['reserved'][key]=state.inventory['reserved'].get(key,0)+v['count']
+    # Battle item consumption remains held until authoritative bag deduction.
+    reservations.acquire(state.inventory,'battle',allocations)
 
 def profile_for(state,actor):
     k=state.get('knowledge',{});pid=state.get('player',{}).get('role_id')

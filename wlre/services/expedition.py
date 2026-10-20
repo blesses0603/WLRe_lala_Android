@@ -9,6 +9,7 @@ from wlre.services.items.combat_resources import CAT, available
 from wlre.core.inventory_updates import STACKABLE
 from wlre.services.expedition_teams import choose_members, condition_met, success_details
 from wlre.services.coordination import reason as coordination_reason
+from wlre.services.items import reservations
 
 
 def defaults():
@@ -224,7 +225,7 @@ class Expedition:
 
     def confirm(self, state, text):
         if self.pending and self.pending['kind'] == 'faith':
-            state.inventory.pop('expedition_slots', None)
+            reservations.release(state.inventory,'expedition')
         self.pending = None
         state.expedition.update(pending=None, status=text)
         self.next_check = time.monotonic() + 1
@@ -235,6 +236,7 @@ class Expedition:
         if self.pending:
             if now >= self.pending['due'] and not e['uncertain']:
                 e['uncertain'] = True
+                reservations.uncertain(state.inventory,'expedition')
                 self.stop(state, '遠征操作逾時未確認，已停止且不會重送；請重新登入同步')
             return []
         if not e['enabled'] or e['uncertain'] or now < self.next_check: return []
@@ -354,6 +356,9 @@ class Expedition:
         self.pending = {'kind': 'faith', 'index': role['index'], 'npc_id': role['npc_id'],
                         'target': target, 'slots': slots, 'consumed': dict.fromkeys(slots, 0),
                         'faith_ok': False, 'due': now + 20}
-        state.inventory['expedition_slots'] = list(slots)
+        # Acquire verified quantities/identities before submitting S31-27.
+        reservations.acquire(inv,'expedition',[
+            {'index':int(index),'item_id':before['item_id'],'count':used}
+            for index,(before,used) in slots.items()],exclusive=True)
         e.update(pending='faith', status=f"補充夥伴 {role['npc_id']} 好友度：使用 {count} 個物品，等待確認")
         return Packet(31, 27, w.build())

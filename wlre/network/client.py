@@ -6,6 +6,7 @@ implementation still needs to be tested by the account owner.
 from wlre.network.connection_health import ConnectionHealth, configure_keepalive
 from wlre.network.instances import list_request, member_request
 from wlre.services.coordination import command_reason
+from wlre.services.items import reservations
 from wlre.network.command_envelope import validate_command, rejected_command_type
 import queue
 from wlre.network.state_updates import StatePublisher, notify_state
@@ -367,14 +368,14 @@ class SessionLogic:
             excluded={f'{c}:{r}' for c,r in self.sent_units} if self.round_key==(state.battle_count,state.battle.get('round')) else set()
             plans=plan_round(state.snapshot(),command.get('modes'),command.get('target_slot'),excluded)
             previous_key,previous_units=self.round_key,set(self.sent_units)
-            previous_reserved=copy.deepcopy(state.inventory['reserved'])
+            previous_reserved=reservations.checkpoint(state.inventory)
             try:
                 packets=[]
                 for action in plans:packets.extend(self.command(action,state))
                 return packets
             except (ValueError,KeyError,TypeError):
                 self.round_key,self.sent_units=previous_key,previous_units
-                state.inventory['reserved']=previous_reserved
+                reservations.restore(state.inventory,previous_reserved)
                 raise
         if kind in ('attack','battle_action'):
             if not state.battle.get('active') or state.battle.get('round', 0) <= 0:

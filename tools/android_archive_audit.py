@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath
 import re
 import stat
 import tarfile
+import tempfile
 import zipfile
 
 from cryptography import x509
@@ -34,7 +35,12 @@ TAR_EXTS = (".tar", ".tar.gz", ".tgz")
 MAX_DEPTH = 4
 MAX_ITEMS = 20000
 MAX_TEXT_BYTES = 2 * 1024 * 1024
+# Small nested archives remain memory-backed. Larger archives are spooled to
+# an unlinked temporary file and still recursively audited, never exempted.
 MAX_NESTED_BYTES = 24 * 1024 * 1024
+MAX_SPOOL_MEMORY_BYTES = 8 * 1024 * 1024
+MAX_ONDISK_NESTED_BYTES = 256 * 1024 * 1024
+MAX_SPOOLED_BYTES = 384 * 1024 * 1024
 MAX_SCAN_TOTAL = 64 * 1024 * 1024
 MAX_CA_BUNDLE_BYTES = 512 * 1024
 CERT_BLOCK = re.compile(
@@ -82,6 +88,14 @@ class Limits:
     bytes_seen: int = 0
     archives: int = 0
     text_files: int = 0
+    spooled_bytes: int = 0
+
+    def spool_budget(self, count):
+        if count < 0 or count > MAX_SPOOLED_BYTES - self.spooled_bytes:
+            raise ValueError(
+                "Nested archive exceeds Phase06 safety limits (rule=spool-budget)"
+            )
+        self.spooled_bytes += count
 
     def item(self):
         self.items += 1
@@ -216,16 +230,47 @@ def _payload(stream, size: int, name: str, limit: Limits, depth: int, inspect_na
         return
     kind = _nested_type(name)
     if kind is not None:
-        if depth >= MAX_DEPTH or size > MAX_NESTED_BYTES:
-            raise ValueError("Nested archive exceeds Phase06 safety limits")
-        data = stream.read(MAX_NESTED_BYTES + 1)
-        if len(data) != size or len(data) > MAX_NESTED_BYTES:
-            raise ValueError("Incomplete or oversized nested archive")
-        limit.budget(len(data))
-        if kind == "zip":
-            _zip(io.BytesIO(data), name, limit, depth + 1, inspect_name)
+        # Do not expose the archive filename or contents in CI diagnostics.
+        if depth >= MAX_DEPTH:
+            raise ValueError(
+                "Nested archive exceeds Phase06 safety limits "
+                f"(rule=depth; kind={kind}; depth={depth})"
+            )
+        if size < 0 or size > MAX_ONDISK_NESTED_BYTES:
+            raise ValueError(
+                "Nested archive exceeds Phase06 safety limits "
+                f"(rule=size; kind={kind}; size-mib={max(0, size) // (1024 * 1024)})"
+            )
+        if size <= MAX_NESTED_BYTES:
+            data = stream.read(MAX_NESTED_BYTES + 1)
+            if len(data) != size:
+                raise ValueError("Incomplete nested archive")
+            limit.budget(len(data))
+            nested = io.BytesIO(data)
+            if kind == "zip":
+                _zip(nested, name, limit, depth + 1, inspect_name)
+            else:
+                _tar(nested, name, limit, depth + 1, inspect_name)
         else:
-            _tar(io.BytesIO(data), name, limit, depth + 1, inspect_name)
+            # ZIP needs random access; disk spooling avoids holding large game
+            # resource ZIPs in RAM. TAR remains scanned member by member.
+            # Never skip inspecting names, small text, nested archives or keys.
+            limit.spool_budget(size)
+            with tempfile.SpooledTemporaryFile(
+                max_size=MAX_SPOOL_MEMORY_BYTES, mode="w+b"
+            ) as nested:
+                remaining = size
+                while remaining:
+                    chunk = stream.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        raise ValueError("Incomplete nested archive")
+                    nested.write(chunk)
+                    remaining -= len(chunk)
+                nested.seek(0)
+                if kind == "zip":
+                    _zip(nested, name, limit, depth + 1, inspect_name)
+                else:
+                    _tar(nested, name, limit, depth + 1, inspect_name)
     elif _is_text(name) and size <= MAX_TEXT_BYTES:
         chunk = stream.read(MAX_TEXT_BYTES + 1)
         if len(chunk) != size:

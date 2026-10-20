@@ -97,3 +97,17 @@ Git SHA do not by themselves prove functional incompatibility.
 - 網路結束：引入 Android 專用 `SessionLogic.disconnect`，凍結所有未確認 `holds`，標記原狀態不可靠；若領獎／遠征／補給／維修尚未確認，標記 uncertain，保留等待狀態供診斷。重新連線仍新建 `State`。
 - 已新增 `tests/test_android_shared_reservations.py`，涵蓋真實可堆疊官方材料、AI／手動保留、煉金未知結果、遠征領獎兩階段確認、伺服器事件順序及斷線安全。
 - **驗收界線：** Python CI 與模擬封包不等同 Android APK 安裝、正式伺服器封包實測；需以實際斷線 Log／正式服務器回覆驗證是否仍有其他斷線原因。沒有自動領獎重試。
+
+
+## 第五批：製作材料共用預留與跨服務一致性修正（2026-10-21）
+
+本批修正第四批稽核發現的 `crafting` 漏接共用預留問題。對照桌面 v0.5.6 的 `wlre/services/items/crafting.py` 與 `crafting_plan.py`，保留 Android 原有 Kivy／網路架構，不導入桌面專用的 `state_ownership` 寫入裝飾器。
+
+- 手動或自訂製作排程在 S64-1 送出前，使用 `reservations.acquire(inv,'crafting',allocations,exclusive=True)` 原子預留所需格位。道具序號、材料數量及共用 `holds` 與 `reserved` 均保留，不能在伺服器回覆前被戰鬥、煉金、遠征搶用。
+- 只有伺服器已確認 `craft_added`／有效快速製作回覆，且背包可靠、材料扣量符合、格位道具與序號不矛盾時，才釋放預留。只收到 ACK、扣料不足、序號變更、材料尚有剩餘卻整格消失，均不得宣稱已確認。
+- 製作回覆逾時、材料狀態不明或連線中斷時，保留 `crafting` 的 `uncertain` 鎖定，停用自動接續，不重送消耗性封包。明確伺服器拒絕則依已確認失敗流程處理。
+- `PlanMixin.plan_start`、自訂清單續送及手動 `_server_command` 一律檢查共同 `coordination_reason(state,'crafting')`；既有待確認回覆／逾時仍先處理，暫停時同步更新手機 UI 的繁體中文等待原因。
+- 新增 `tests/test_android_crafting_reservations.py` 的 **10 項**案例：原子預留、重複格位衝突、ACK 與真實扣料順序、錯誤道具序號／格位消失、背包快照、逾時不解鎖、自訂清單閘門、連線結束等。
+- 完整診斷回歸：**398 項測試通過**（詳細測試工作流程；標準快速工作流程另行驗證）。不修改原生程式碼、Keystore、ARM64 建置配置、簽章或 Android 版本 `0.0.8`。
+
+**仍未實機驗收：** 正式伺服器的製作材料扣除、長時間自動接續、Android 鎖屏背景連線及固定簽章 APK 安裝。歷史第三／第四批的限制陳述屬當時進度，以本第五批覆核結果為準。

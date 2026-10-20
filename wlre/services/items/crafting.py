@@ -260,7 +260,10 @@ class Crafting(PlanMixin):
             if self.pending['action']=='add':state.inventory['reliable']=False
             self._clear(state,confirmed=False);c.update(auto_continue=False,uncertain=True,status='製作回覆逾時，停止重送；請重新登入同步');return []
         if self.pending or not c['auto_continue'] or c['uncertain']:return []
-        if coordination_reason(state,'crafting'):return []
+        wait_reason=coordination_reason(state,'crafting')
+        if wait_reason:
+            c['status']=wait_reason
+            return []
         if c['running'] and not c['completion_requested']:
             row=c['queue'].get(str(c['active']))
             if not row:return []

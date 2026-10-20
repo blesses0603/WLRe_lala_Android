@@ -136,7 +136,9 @@ class FieldSupplyReservation(unittest.TestCase):
         supply.begin(state, plan, target, now=0)
         self.assertEqual(available(state.inventory, 1), 0)
         self.assertEqual(state.inventory["reserved"]["1"], 1)
-        supply.pending["consumed"] = True
+        # Exercise the authoritative bag deduction, not a guessed spend.
+        state.apply({"type": "bag_delete", "index": 1, "count": 1})
+        supply.observe({"type": "bag_delete", "index": 1, "count": 1}, state)
         supply.pending["restored"] = True
         with patch("wlre.services.items.field_supply.field_context",
                    return_value=({"battle_units": {"3:1": target}}, target)):

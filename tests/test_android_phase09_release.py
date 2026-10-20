@@ -168,6 +168,34 @@ class Phase09GateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Incomplete or unexpected"):
             self.verify()
 
+    def test_v4_idsig_sidecar_is_detected_without_relaxing_release_inventory(self):
+        # apksigner default v4 signatures can be generated next to the
+        # short-lived signed APK; Phase09 must still reject any stray files.
+        sidecar = self.output / ".lala-signed-synthetic.apk.idsig"
+        sidecar.write_bytes(b"unwanted-v4-test-sidecar")
+        with self.assertRaisesRegex(
+            ValueError, "v4-sidecar-present=True"
+        ) as error:
+            self.verify()
+        self.assertIn("unexpected-count=1", str(error.exception))
+        self.assertNotIn(sidecar.name, str(error.exception))
+        sidecar.unlink()
+        self.assertEqual(self.verify()["apk"]["package"], PACKAGE)
+
+    def test_phase09_reports_missing_trusted_evidence_without_exposing_extras(self):
+        missing = self.output / "PRESPLASH_INFO.txt"
+        missing.unlink()
+        extra = self.output / "non-public-credential-test.txt"
+        extra.write_text("synthetic only", encoding="utf-8")
+        with self.assertRaisesRegex(
+            ValueError, "missing=PRESPLASH_INFO.txt"
+        ) as failure:
+            self.verify()
+        message = str(failure.exception)
+        self.assertIn("unexpected-count=1", message)
+        self.assertNotIn(extra.name, message)
+        self.assertNotIn("synthetic only", message)
+
     def test_tag_and_manual_ref_guard_and_source_sha(self):
         with self.assertRaisesRegex(ValueError, "main"):
             self.verify(git_ref="refs/heads/feature")

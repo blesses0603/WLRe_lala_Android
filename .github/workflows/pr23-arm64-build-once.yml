@@ -45,8 +45,6 @@ jobs:
           python -c 'from pathlib import Path; from tools.android_release_version import source_version; assert source_version(Path("buildozer.spec"), Path("android_app/version.py")) == "v0.0.8"'
           grep -Fqx 'android.archs = arm64-v8a' buildozer.spec
           python -m compileall -q main.py android_app wlre tools
-          python tools/android_hardening.py preflight
-          python tools/android_presplash.py check-spec
       - name: Install native Android build dependencies
         run: |
           sudo apt-get update
@@ -56,6 +54,10 @@ jobs:
             xvfb xauth libmtdev1 libgl1-mesa-dri
           python -m pip install --upgrade pip
           python -m pip install "buildozer>=1.5,<2" "Cython==3.0.12" "kivy==2.3.1" Pillow cryptography pyjnius==1.7.0
+      - name: Verify Android configuration with installed security dependencies
+        run: |
+          python tools/android_hardening.py preflight
+          python tools/android_presplash.py check-spec
       - name: Validate all Python and background-service regression tests
         run: xvfb-run -a python -m unittest discover -s tests -q
       - name: Generate disposable signing certificate (never use repository secrets)

@@ -174,6 +174,67 @@ class RecursiveArchiveSecurity(unittest.TestCase):
                 z.writestr(name, data)
         return self.path
 
+    def test_large_resource_zip_spools_but_still_scans_entries(self):
+        # A compressed game resource may exceed the old 24 MiB RAM-only
+        # threshold. Force the disk path with small synthetic test data.
+        payload = zip_bytes({
+            "images/tiles.png": b"\\x00" * 4096,
+            "metadata/index.json": b'{"ok":true}',
+        })
+        self.assertGreater(len(payload), 128)
+        self.apk({"assets/maps.zip": payload})
+        with patch("tools.android_archive_audit.MAX_NESTED_BYTES", 128), \
+             patch("tools.android_archive_audit.MAX_SPOOL_MEMORY_BYTES", 64):
+            result = inspect_apk(self.path)
+            self.assertGreaterEqual(result["scanned_text_files"], 1)
+
+    def test_spooled_archive_rejects_credentials_and_private_key_headers(self):
+        header = ("-----BEGIN " + "PRIVATE KEY-----").encode()
+        for name, payload in (
+            ("nested/secret.keystore", b"not-a-key"),
+            ("nested/notes.txt", b"harmless " + header),
+            ("nested/.env", b"TEST=1"),
+        ):
+            with self.subTest(name_type=name.rsplit(".", 1)[-1]):
+                nested = zip_bytes({name: payload, "images/large.png": b"x" * 4096})
+                self.apk({"assets/resources.zip": nested})
+                with patch("tools.android_archive_audit.MAX_NESTED_BYTES", 128), \
+                     patch("tools.android_archive_audit.MAX_SPOOL_MEMORY_BYTES", 64):
+                    with self.assertRaises(ValueError) as failure:
+                        check_apk(self.path)
+                self.assertNotIn(name, str(failure.exception))
+                self.assertNotIn(header.decode(), str(failure.exception))
+
+    def test_spooled_nested_tar_uses_same_security_rules(self):
+        nested = tar_bytes({
+            "content/large.png": b"\\x00" * 4096,
+            "content/info.json": b'{"good":true}',
+        })
+        self.apk({"assets/data.tar": nested})
+        with patch("tools.android_archive_audit.MAX_NESTED_BYTES", 64), \
+             patch("tools.android_archive_audit.MAX_SPOOL_MEMORY_BYTES", 32):
+            self.assertTrue(check_apk(self.path))
+
+    def test_spooled_archives_keep_explicit_disk_and_depth_caps(self):
+        nested = zip_bytes({"assets/large.png": b"x" * 4096})
+        self.apk({"assets/maps.zip": nested})
+        for setting, maximum, expected in (
+            ("MAX_ONDISK_NESTED_BYTES", 100, "rule=size"),
+            ("MAX_SPOOLED_BYTES", 100, "rule=spool-budget"),
+        ):
+            with self.subTest(rule=expected):
+                with patch("tools.android_archive_audit.MAX_NESTED_BYTES", 64), \
+                     patch("tools.android_archive_audit." + setting, maximum):
+                    with self.assertRaisesRegex(ValueError, expected):
+                        check_apk(self.path)
+        # Full depth limit still blocks recursive ZIP packing.
+        innermost = zip_bytes({"inside/normal.txt": b"ok"})
+        for _ in range(MAX_DEPTH + 1):
+            innermost = zip_bytes({"nested/next.zip": innermost})
+        self.apk({"assets/archive.zip": innermost})
+        with self.assertRaisesRegex(ValueError, "rule=depth"):
+            check_apk(self.path)
+
     def test_nested_zip_then_tar_secret_file_rejected(self):
         payload = zip_bytes({"sub/data.tar": tar_bytes({"nested/secret.keystore": b"x"})})
         self.apk({"assets/custom.zip": payload})

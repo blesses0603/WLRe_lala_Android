@@ -45,8 +45,13 @@ CERT_BLOCK = re.compile(
 
 def _public_ca_bundle_path(path: str) -> bool:
     """Only certifi's public CA bundle may have a PEM extension."""
+    # python-for-android stores its installed packages below _python_bundle/
+    # inside lib/arm64-v8a/libpybundle.so. Match only these complete paths:
+    # never permit arbitrary prefix/suffix matches for *.pem files.
     return path.casefold() in (
-        "certifi/cacert.pem", "site-packages/certifi/cacert.pem",
+        "certifi/cacert.pem",
+        "site-packages/certifi/cacert.pem",
+        "_python_bundle/site-packages/certifi/cacert.pem",
     )
 
 

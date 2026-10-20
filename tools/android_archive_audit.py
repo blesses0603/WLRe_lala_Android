@@ -45,8 +45,13 @@ CERT_BLOCK = re.compile(
 
 def _public_ca_bundle_path(path: str) -> bool:
     """Only certifi's public CA bundle may have a PEM extension."""
+    # python-for-android stores its installed packages below _python_bundle/
+    # inside lib/arm64-v8a/libpybundle.so. Match only these complete paths:
+    # never permit arbitrary prefix/suffix matches for *.pem files.
     return path.casefold() in (
-        "certifi/cacert.pem", "site-packages/certifi/cacert.pem",
+        "certifi/cacert.pem",
+        "site-packages/certifi/cacert.pem",
+        "_python_bundle/site-packages/certifi/cacert.pem",
     )
 
 
@@ -103,12 +108,22 @@ def _safe(name: str, *, directory: bool = False) -> str:
     lower = [p.casefold() for p in parts]
     normalized = "/".join(parts)
     public_ca = _public_ca_bundle_path(normalized)
-    if any(part in BAD_NAMES or
-           (PurePosixPath(part).suffix in BAD_EXTS and not (
-               public_ca and part == "cacert.pem"))
-           for part in lower):
-        # Never include suspicious filenames or raw contents in CI messages.
-        raise ValueError("Potential credential file in nested archive")
+    for part in lower:
+        # Keep diagnostics actionable without disclosing the suspicious member
+        # path, its basename, or any credential bytes in GitHub Actions logs.
+        if part in BAD_NAMES:
+            raise ValueError(
+                "Potential credential file in nested archive "
+                "(rule=reserved-name)"
+            )
+        suffix = PurePosixPath(part).suffix
+        if suffix in BAD_EXTS and not (public_ca and part == "cacert.pem"):
+            ca_tail = len(lower) >= 2 and lower[-2:] == ["certifi", "cacert.pem"]
+            rule = "ca-bundle-location" if ca_tail else "restricted-extension"
+            raise ValueError(
+                "Potential credential file in nested archive "
+                f"(rule={rule}; path-components={len(parts)})"
+            )
     return normalized
 
 

@@ -39,3 +39,19 @@
 
 安全檢查不能因單一例外被整體停用；若真實 APK 仍報錯，維持
 fail closed 並重新分析原因。
+
+## 2026-10-20｜Run #39367836286 後續根因與修復分支
+
+- [Run #39367836286](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39367836286) 已完成 APK 編譯、固定憑證重新簽章、Phase04/05 報告及 presplash 檢查；在 `android_hardening.py report` -> `android_archive_audit.py:_safe` 遇到 `Potential credential file in nested archive`，因此 SHA256、Phase09 與 Artifact 上傳未執行完成。
+- 追查 python-for-android 的 `libpybundle.so` 打包方式：其 TAR 成員根目錄包含 `_python_bundle/site-packages/`，故 certifi 公開根憑證的實際 TAR 相對路徑為 `_python_bundle/site-packages/certifi/cacert.pem`。原稽核僅白名單 `certifi/cacert.pem` 與 `site-packages/certifi/cacert.pem`，會拒絕帶根目錄的合法路徑。此為可由 p4a 封裝結構與單元測試重現的路徑不一致；由於失敗的 CI 沒有保留 APK，仍須由下一次完整建置確認真實封存沒有其他受阻檔案。
+- 本次僅增加 **完整字串完全相符** 的 `_python_bundle/site-packages/certifi/cacert.pem`，不放寬任意前綴或 `.pem`。原本的 **X.509 公開憑證解析、512 KiB 限制、私鑰標頭／未知區塊攔截、危險副檔名、路徑穿越、重複項與巢狀封存上限** 照舊。
+- 回歸測試涵蓋 p4a 真實前綴、`./` 正規化、錯誤前綴／假冒路徑、私鑰標頭、混合敏感內容、畸形憑證及尺寸限制。
+- 正式打包依原有流程 **僅允許 main 手動或合規版本 Tag**。修復分支 PR 不持有簽章 Secret，也不可用 PR 快速 CI 取代正式 ARM64 編譯及 APK 檢查。Issue #17 必須等正式 APK Artifact、稽核與 Phase09 成功再關閉。
+
+## 2026-10-20｜Run #39402846197 仍使用未合併的 main
+
+- [Run #39402846197](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39402846197) 再次在 `android_archive_audit.py:_safe` 發生相同 `Potential credential file in nested archive`，其餘原生編譯、固定簽章、Phase04/05 與 presplash 皆通過；SHA256、Phase09 與 Artifact 因前置稽核失敗未完成。
+- 原因：Run 執行時 [PR #20](https://github.com/blesses0603/WLRe_lala_Android/pull/20) **仍未合併 main**，原安全稽核程式無法套用 PR 裡的 p4a 公開 CA 精確路徑修正。不能由這個 Run 判斷 PR #20 的修正有效或無效。
+- 為降低後續完整 ARM64 建置的除錯成本，PR #20 追加匿名化拒絕診斷，只顯示 `rule=reserved-name`、`rule=restricted-extension` 或 `rule=ca-bundle-location` 與路徑階層數。不輸出原始檔名、原始路徑、檔案內容或金鑰。
+- 新增匿名化安全回歸測試，確保真正的敏感路徑仍被封鎖且不會洩漏檔名。
+- **必要驗收順序**：PR 快速 CI Success → 授權合併 `main` → 由 `main` 手動執行新 Run（不要重跑舊 Run）→ 確認 Phase04–09、SHA256 與 Artifact → 再進行 Phase10 實機驗收。

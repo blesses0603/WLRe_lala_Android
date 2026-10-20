@@ -55,3 +55,12 @@ fail closed 並重新分析原因。
 - 為降低後續完整 ARM64 建置的除錯成本，PR #20 追加匿名化拒絕診斷，只顯示 `rule=reserved-name`、`rule=restricted-extension` 或 `rule=ca-bundle-location` 與路徑階層數。不輸出原始檔名、原始路徑、檔案內容或金鑰。
 - 新增匿名化安全回歸測試，確保真正的敏感路徑仍被封鎖且不會洩漏檔名。
 - **必要驗收順序**：PR 快速 CI Success → 授權合併 `main` → 由 `main` 手動執行新 Run（不要重跑舊 Run）→ 確認 Phase04–09、SHA256 與 Artifact → 再進行 Phase10 實機驗收。
+
+## 2026-10-20｜Run #39407353092：Phase06 大型巢狀封存修正
+
+- [Run #39407353092](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39407353092) 確認基於已合併 PR #20 的 main（`8813ef3b`），原 `Potential credential file` 未再出現，CA 憑證驗證繼續執行。新錯誤為 `_payload` 的 `Nested archive exceeds Phase06 safety limits`。
+- 舊實作對 ZIP／TAR 採最多 24 MiB 完整讀入記憶體，超限即拒絕；但 APK 的合法圖片／地圖資源也可能封裝為較大 ZIP。目前失敗日誌未指出具體超限檔案與大小，無法宣稱已排除所有後續障礙。
+- 新修正對不超過 24 MiB 的巢狀封存沿用記憶體路徑；較大的 ZIP／TAR 使用 `SpooledTemporaryFile`，透過分塊拷貝至自動清除的暫存檔，再由現有 ZIP／TAR 稽核器逐項檢查。並未直接略過 ZIP、檔名、金鑰標頭或文字檢查。
+- 硬限制：單一封存最大 **256 MiB**、同一 APK 磁碟暫存總量 **384 MiB**、原遞迴深度 **4**、原檔案數 **20,000**、小型文字總掃描量 **64 MiB** 與其餘安全規則均保留。超限仍會 Fail Closed；錯誤僅輸出類別、封存類型與深度／容量級距，不洩漏原始檔名、路徑或內容。
+- 補充大型 ZIP／TAR 成功掃描、巢狀敏感檔與私鑰內容阻擋、總暫存額度、深度與容量限制回歸測試。
+- 確認 PR 快速 CI 後，須先合併主分支，再 **開新的** ARM64 手動建置驗證正式 APK；未通過 Phase04–09、SHA256 與 Artifact 上傳之前，不關閉 Issue #17。真機驗收另於 Phase10 完成。

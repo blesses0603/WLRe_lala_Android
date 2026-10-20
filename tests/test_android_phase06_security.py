@@ -20,7 +20,7 @@ from cryptography.x509.oid import NameOID
 
 from android_app.runtime import MAX_FRAME, receive, send, _trusted_peer
 from android_app.vault import AccountVault
-from tools.android_archive_audit import MAX_DEPTH, audit_apk
+from tools.android_archive_audit import MAX_DEPTH, Limits, _zip, audit_apk
 from tools.android_hardening import check_apk, inspect_apk, report
 
 
@@ -173,6 +173,145 @@ class RecursiveArchiveSecurity(unittest.TestCase):
             for name, data in entries.items():
                 z.writestr(name, data)
         return self.path
+
+    @staticmethod
+    def zip_with_zip64_end(entries):
+        """Convert a small real ZIP into a well-formed ZIP64 fixture."""
+        blob = zip_bytes(entries)
+        at = blob.rfind(b"PK\x05\x06")
+        if at < 0:
+            raise AssertionError("fixture is not ZIP")
+        _, disk, cd_disk, here, count, cd_size, cd_offset, comment = (
+            struct.unpack_from("<I4H2IH", blob, at)
+        )
+        zip64_end = struct.pack(
+            "<IQHHIIQQQQ", 0x06064B50, 44, 45, 45,
+            0, 0, count, count, cd_size, cd_offset,
+        )
+        locator = struct.pack("<IIQI", 0x07064B50, 0, at, 1)
+        eocd = bytearray(blob[at:])
+        struct.pack_into("<HHII", eocd, 8, 0xFFFF, 0xFFFF,
+                         0xFFFFFFFF, 0xFFFFFFFF)
+        return blob[:at] + zip64_end + locator + eocd
+
+    def test_zip_preflight_accepts_real_zip64_directory(self):
+        nested = self.zip_with_zip64_end({"data/index.json": b'{"ok":true}'})
+        self.apk({"assets/map_bundle.zip": nested})
+        self.assertTrue(check_apk(self.path))
+
+    def test_zip_metadata_bomb_is_rejected_before_zipfile(self):
+        # Archive is syntactically ZIP32 but falsely declares more entries
+        # than the shared Phase06 cap. No ZipInfo objects may be constructed.
+        blob = bytearray(zip_bytes({"maps/index.json": b"{}"}))
+        at = blob.rfind(b"PK\x05\x06")
+        struct.pack_into("<HH", blob, at + 8, 20001, 20001)
+        self.apk({"assets/maps.zip": blob})
+        with patch("tools.android_archive_audit.zipfile.ZipFile",
+                   side_effect=AssertionError("ZipFile parsed metadata")):
+            with self.assertRaisesRegex(ValueError, "rule=zip-metadata"):
+                _zip(BytesIO(blob), "nested", Limits(), 0, lambda name: None)
+
+    def test_actual_zip_entries_must_match_declared_count(self):
+        blob = bytearray(zip_bytes({
+            "maps/a.txt": b"a",
+            "maps/b.txt": b"b",
+        }))
+        at = blob.rfind(b"PK\x05\x06")
+        struct.pack_into("<HH", blob, at + 8, 1, 1)
+        self.apk({"assets/maps.zip": blob})
+        with self.assertRaisesRegex(ValueError, "rule=entry-count"):
+            check_apk(self.path)
+
+    def test_zip_directory_byte_size_guard_precedes_parser(self):
+        blob = bytearray(zip_bytes({"map/data.json": b"{}"}))
+        at = blob.rfind(b"PK\x05\x06")
+        struct.pack_into("<I", blob, at + 12, 8 * 1024 * 1024 + 1)
+        self.apk({"assets/maps.zip": blob})
+        with patch("tools.android_archive_audit.zipfile.ZipFile",
+                   side_effect=AssertionError("ZipFile parsed metadata")):
+            with self.assertRaisesRegex(ValueError, "rule=zip-metadata"):
+                _zip(BytesIO(blob), "nested", Limits(), 0, lambda name: None)
+
+    def test_zip64_bomb_and_corrupt_locator_rejected_before_parser(self):
+        valid = self.zip_with_zip64_end({"assets/index.txt": b"ok"})
+        for invalid, reason in (
+            (lambda blob: struct.pack_into(
+                "<QQ", blob, blob.rfind(b"PK\x06\x06") + 24,
+                20001, 20001
+            ), "rule=zip-metadata"),
+            (lambda blob: struct.pack_into(
+                "<I", blob, blob.rfind(b"PK\x06\x07"), 0x12345678
+            ), "rule=zip64"),
+        ):
+            candidate = bytearray(valid)
+            invalid(candidate)
+            self.apk({"assets/maps.zip": candidate})
+            with self.subTest(rule=reason):
+                with patch("tools.android_archive_audit.zipfile.ZipFile",
+                           side_effect=AssertionError("ZipFile parsed metadata")):
+                    with self.assertRaisesRegex(ValueError, reason):
+                        _zip(BytesIO(candidate), "nested", Limits(), 0, lambda name: None)
+
+    def test_large_resource_zip_spools_but_still_scans_entries(self):
+        # A compressed game resource may exceed the old 24 MiB RAM-only
+        # threshold. Force the disk path with small synthetic test data.
+        payload = zip_bytes({
+            "images/tiles.png": b"\\x00" * 4096,
+            "metadata/index.json": b'{"ok":true}',
+        })
+        self.assertGreater(len(payload), 128)
+        self.apk({"assets/maps.zip": payload})
+        with patch("tools.android_archive_audit.MAX_NESTED_BYTES", 128), \
+             patch("tools.android_archive_audit.MAX_SPOOL_MEMORY_BYTES", 64):
+            result = inspect_apk(self.path)
+            self.assertGreaterEqual(result["scanned_text_files"], 1)
+
+    def test_spooled_archive_rejects_credentials_and_private_key_headers(self):
+        header = ("-----BEGIN " + "PRIVATE KEY-----").encode()
+        for name, payload in (
+            ("nested/secret.keystore", b"not-a-key"),
+            ("nested/notes.txt", b"harmless " + header),
+            ("nested/.env", b"TEST=1"),
+        ):
+            with self.subTest(name_type=name.rsplit(".", 1)[-1]):
+                nested = zip_bytes({name: payload, "images/large.png": b"x" * 4096})
+                self.apk({"assets/resources.zip": nested})
+                with patch("tools.android_archive_audit.MAX_NESTED_BYTES", 128), \
+                     patch("tools.android_archive_audit.MAX_SPOOL_MEMORY_BYTES", 64):
+                    with self.assertRaises(ValueError) as failure:
+                        check_apk(self.path)
+                self.assertNotIn(name, str(failure.exception))
+                self.assertNotIn(header.decode(), str(failure.exception))
+
+    def test_spooled_nested_tar_uses_same_security_rules(self):
+        nested = tar_bytes({
+            "content/large.png": b"\\x00" * 4096,
+            "content/info.json": b'{"good":true}',
+        })
+        self.apk({"assets/data.tar": nested})
+        with patch("tools.android_archive_audit.MAX_NESTED_BYTES", 64), \
+             patch("tools.android_archive_audit.MAX_SPOOL_MEMORY_BYTES", 32):
+            self.assertTrue(check_apk(self.path))
+
+    def test_spooled_archives_keep_explicit_disk_and_depth_caps(self):
+        nested = zip_bytes({"assets/large.png": b"x" * 4096})
+        self.apk({"assets/maps.zip": nested})
+        for setting, maximum, expected in (
+            ("MAX_ONDISK_NESTED_BYTES", 100, "rule=size"),
+            ("MAX_SPOOLED_BYTES", 100, "rule=spool-budget"),
+        ):
+            with self.subTest(rule=expected):
+                with patch("tools.android_archive_audit.MAX_NESTED_BYTES", 64), \
+                     patch("tools.android_archive_audit." + setting, maximum):
+                    with self.assertRaisesRegex(ValueError, expected):
+                        check_apk(self.path)
+        # Full depth limit still blocks recursive ZIP packing.
+        innermost = zip_bytes({"inside/normal.txt": b"ok"})
+        for _ in range(MAX_DEPTH + 1):
+            innermost = zip_bytes({"nested/next.zip": innermost})
+        self.apk({"assets/archive.zip": innermost})
+        with self.assertRaisesRegex(ValueError, "rule=depth"):
+            check_apk(self.path)
 
     def test_nested_zip_then_tar_secret_file_rejected(self):
         payload = zip_bytes({"sub/data.tar": tar_bytes({"nested/secret.keystore": b"x"})})

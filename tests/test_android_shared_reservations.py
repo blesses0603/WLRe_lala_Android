@@ -225,7 +225,7 @@ class DisconnectAndClaimSafety(unittest.TestCase):
             decode(Packet(31, 16, result)),
             decode(Packet(31, 19,
                    b"".join(Writer().u8(i).u16(0).build()
-                            for i in range(1, 51)) + b"\\x01")),
+                            for i in range(1, 51)) + bytes([1]))),
         ]
         for event in events:
             state.apply(event)

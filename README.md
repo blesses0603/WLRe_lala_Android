@@ -53,3 +53,7 @@
 - **APK 測試流程**：日常 [快速 Actions](.github/workflows/android-smoke.yml) 不產生 APK；需手機安裝包時使用 [手動／版本 Tag Actions](.github/workflows/android-apk.yml)，保留 SHA256、固定簽章及安全檢查。[操作說明](ANDROID/README.md#github-actions節省額度的兩階段模式2026-10-19)。
 
 > 本專案仍屬 Android 開發測試版。以上為已整合功能，實際遊戲連線、自動操作及懸浮視窗仍以手機實測結果為準。
+
+## 🧭 桌面 v0.5.6 對齊進度（分階段）
+
+本次新增「副本資料」官方 1262 本機唯讀目錄，以及「角色能力」已同步數值的唯讀檢視。副本建立／加入／領獎、角色配點與新事件核心仍**未移植**；不會在這兩個頁面送出任何遊戲封包。詳細範圍見 [同步紀錄](ANDROID/DESKTOP_SYNC_20261020.md)。Android 版本與正式簽章／APK 建置方式暫不變。

@@ -11,6 +11,12 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import zipfile
+import datetime
+
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 
 from android_app.runtime import MAX_FRAME, receive, send, _trusted_peer
 from android_app.vault import AccountVault
@@ -37,6 +43,76 @@ def zip_bytes(entries):
 
 
 class RecursiveArchiveSecurity(unittest.TestCase):
+    @staticmethod
+    def public_cert():
+        # Generate test-only key in memory and include ONLY its public certificate.
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Test CA")])
+        cert = (x509.CertificateBuilder()
+            .subject_name(subject).issuer_name(subject)
+            .public_key(key.public_key()).serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime(2020, 1, 1, tzinfo=datetime.timezone.utc))
+            .not_valid_after(datetime.datetime(2040, 1, 1, tzinfo=datetime.timezone.utc))
+            .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+            .sign(key, hashes.SHA256()))
+        return cert.public_bytes(serialization.Encoding.PEM)
+
+    def test_public_certifi_ca_bundles_are_not_private_credentials(self):
+        pem = b"# Trusted public CA\n" + self.public_cert()
+        for path in ("certifi/cacert.pem", "site-packages/certifi/cacert.pem"):
+            with self.subTest(path=path):
+                self.apk({"lib/arm64-v8a/libpybundle.so": tar_bytes({
+                    path: pem, "site-packages/safe.pyc": b"bytecode",
+                })})
+                info = inspect_apk(self.path)
+                self.assertGreaterEqual(info["scanned_text_files"], 1)
+                self.assertTrue(check_apk(self.path))
+
+    def test_no_private_material_can_disguise_itself_as_certifi_ca(self):
+        cert = self.public_cert()
+        key_header = ("-----BEGIN " + "PRIVATE KEY-----").encode()
+        for content in (
+            key_header + b"\nredacted",
+            cert + b"\n" + key_header,
+            cert + b"\n-----BEGIN UNKNOWN-----\nAAAA\n-----END UNKNOWN-----",
+            b"not PEM at all",
+            b"# comments but no certificates",
+            cert + b"\npassword=secret",
+        ):
+            with self.subTest(size=len(content)):
+                self.apk({"lib/arm64-v8a/libpybundle.so": tar_bytes({
+                    "site-packages/certifi/cacert.pem": content,
+                })})
+                with self.assertRaisesRegex(ValueError, "credential|Unsafe certifi"):
+                    check_apk(self.path)
+
+    def test_only_exact_certifi_path_is_exception(self):
+        pem = self.public_cert()
+        for path in (
+            "site-packages/certifi/private.pem",
+            "site-packages/certifi/cacert.key",
+            "site-packages/other/cacert.pem",
+            "android_app/certifi/cacert.pem",
+            ".env",
+            "credentials.json",
+            "site-packages/secret.keystore",
+        ):
+            with self.subTest(path=path):
+                self.apk({"lib/arm64-v8a/libpybundle.so": tar_bytes({path: pem})})
+                with self.assertRaisesRegex(ValueError, "credential"):
+                    check_apk(self.path)
+
+    def test_public_ca_exception_preserves_size_and_path_limits(self):
+        cert = self.public_cert()
+        for path, content in (
+            ("site-packages/certifi/cacert.pem", b"#" * (512 * 1024 + 1)),
+            ("../certifi/cacert.pem", cert),
+        ):
+            with self.subTest(path=path):
+                self.apk({"lib/arm64-v8a/libpybundle.so": tar_bytes({path: content})})
+                with self.assertRaises(ValueError):
+                    check_apk(self.path)
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)

@@ -187,9 +187,10 @@ def inspect_apk(apk):
     # Phase06 second pass: inspect nested ZIP/TAR, p4a site-packages archive,
     # known private credential headers and rejected archive paths/types.
     # Native (.so) content and oversized binary blobs remain out of scope.
+    from tools.android_archive_audit import _public_ca_bundle_path
     def nested_name(name):
         normalized = name.replace("\\", "/").removeprefix("./")
-        if _sensitive_filename(normalized):
+        if _sensitive_filename(normalized) and not _public_ca_bundle_path(normalized):
             raise ValueError("Nested APK contains potential credential filename")
         if (normalized.startswith(APP_SOURCE_PREFIXES) or normalized == "main.py"):
             if normalized.endswith(".py"):

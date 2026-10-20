@@ -20,7 +20,7 @@ from cryptography.x509.oid import NameOID
 
 from android_app.runtime import MAX_FRAME, receive, send, _trusted_peer
 from android_app.vault import AccountVault
-from tools.android_archive_audit import MAX_DEPTH, audit_apk
+from tools.android_archive_audit import MAX_DEPTH, Limits, _zip, audit_apk
 from tools.android_hardening import check_apk, inspect_apk, report
 
 
@@ -209,7 +209,7 @@ class RecursiveArchiveSecurity(unittest.TestCase):
         with patch("tools.android_archive_audit.zipfile.ZipFile",
                    side_effect=AssertionError("ZipFile parsed metadata")):
             with self.assertRaisesRegex(ValueError, "rule=zip-metadata"):
-                check_apk(self.path)
+                _zip(BytesIO(blob), "nested", Limits(), 0, lambda name: None)
 
     def test_actual_zip_entries_must_match_declared_count(self):
         blob = bytearray(zip_bytes({
@@ -230,7 +230,7 @@ class RecursiveArchiveSecurity(unittest.TestCase):
         with patch("tools.android_archive_audit.zipfile.ZipFile",
                    side_effect=AssertionError("ZipFile parsed metadata")):
             with self.assertRaisesRegex(ValueError, "rule=zip-metadata"):
-                check_apk(self.path)
+                _zip(BytesIO(blob), "nested", Limits(), 0, lambda name: None)
 
     def test_zip64_bomb_and_corrupt_locator_rejected_before_parser(self):
         valid = self.zip_with_zip64_end({"assets/index.txt": b"ok"})
@@ -250,7 +250,7 @@ class RecursiveArchiveSecurity(unittest.TestCase):
                 with patch("tools.android_archive_audit.zipfile.ZipFile",
                            side_effect=AssertionError("ZipFile parsed metadata")):
                     with self.assertRaisesRegex(ValueError, reason):
-                        check_apk(self.path)
+                        _zip(BytesIO(candidate), "nested", Limits(), 0, lambda name: None)
 
     def test_large_resource_zip_spools_but_still_scans_entries(self):
         # A compressed game resource may exceed the old 24 MiB RAM-only

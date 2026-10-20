@@ -11,9 +11,9 @@ import tarfile
 import zipfile
 
 if __package__ in (None, ""):
-    from android_archive_audit import audit_apk, _public_ca_bundle_path
+    from android_archive_audit import audit_apk, _public_ca_bundle_path, _zip_preflight, Limits
 else:
-    from .android_archive_audit import audit_apk, _public_ca_bundle_path
+    from .android_archive_audit import audit_apk, _public_ca_bundle_path, _zip_preflight, Limits
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -160,6 +160,10 @@ def inspect_apk(apk):
                     counts["high_risk_bytecode"] += 1
                     break
 
+    # zipfile parses the entire central directory eagerly. Guard it before
+    # the first ZipFile() as well as in the recursive Phase06 second pass.
+    with apk.open("rb") as verified:
+        _zip_preflight(verified, Limits())
     with zipfile.ZipFile(apk) as archive:
         for info in archive.infolist():
             if info.is_dir():

@@ -111,6 +111,29 @@ class RecursiveArchiveSecurity(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "credential"):
                     check_apk(self.path)
 
+    def test_rejected_archive_name_diagnostics_are_safe_and_precise(self):
+        # Exercise the actual libpybundle.so TAR scan. No sensitive member
+        # basename or member contents may appear in GitHub Actions failures.
+        cases = (
+            ("unexpected/certifi/cacert.pem", "ca-bundle-location"),
+            ("private_data/build_signer.p12", "restricted-extension"),
+            ("private_data/credentials.json", "reserved-name"),
+        )
+        for member_name, rule in cases:
+            with self.subTest(rule=rule):
+                self.apk({"lib/arm64-v8a/libpybundle.so": tar_bytes({
+                    member_name: b"synthetic-test-payload",
+                })})
+                with self.assertRaisesRegex(
+                    ValueError, "Potential credential file in nested archive"
+                ) as failure:
+                    inspect_apk(self.path)
+                message = str(failure.exception)
+                self.assertIn("rule=" + rule, message)
+                self.assertNotIn(member_name, message)
+                self.assertNotIn(member_name.rsplit("/", 1)[-1], message)
+                self.assertNotIn("synthetic-test-payload", message)
+
     def test_p4a_public_ca_path_still_rejects_secret_or_malformed_payloads(self):
         cert = self.public_cert()
         private_header = ("-----BEGIN " + "PRIVATE KEY-----").encode()

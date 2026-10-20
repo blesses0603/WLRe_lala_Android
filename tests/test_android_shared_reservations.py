@@ -173,6 +173,73 @@ class SharedReservationsIntegration(unittest.TestCase):
         self.assertFalse(State().inventory.get("holds"))
 
 
+class DisconnectAndClaimSafety(unittest.TestCase):
+    def test_disconnected_pending_reward_is_never_reported_as_confirmed(self):
+        from wlre.network.client import SessionLogic
+        state = State(phase="world_ready")
+        state.expedition.update(enabled=True, pending="claim", uncertain=False)
+        logic = SessionLogic()
+        logic.expedition.pending = {"kind": "claim", "index": 1, "quest": 2,
+                                    "due": 20, "before": {}, "expected": {}}
+        logic.disconnect(state)
+        self.assertTrue(state.expedition["uncertain"])
+        self.assertFalse(state.expedition["enabled"])
+        self.assertEqual(state.expedition["pending"], "claim")
+        self.assertIsNotNone(logic.expedition.pending)
+        self.assertEqual(logic.expedition.tick(state, 200), [])
+        self.assertEqual(state.expedition["claimed"], 0)
+
+    def test_disconnect_freezes_every_unconfirmed_bag_owner(self):
+        from wlre.network.client import SessionLogic
+        state = State(phase="world_ready")
+        state.inventory.update(ready=True, reliable=True,
+                               items={"1": bag_item(34014, 4, 5)})
+        reservations.acquire(state.inventory, "expedition",
+                             [{"index": 1, "item_id": 34014, "count": 2}],
+                             exclusive=True)
+        logic = SessionLogic()
+        logic.expedition.pending = {"kind": "faith", "index": 1, "due": 30}
+        logic.disconnect(state)
+        self.assertFalse(state.inventory["reliable"])
+        self.assertTrue(state.inventory["holds"]["expedition"][0]["uncertain"])
+        self.assertEqual(available(state.inventory, 1), 0)
+        self.assertEqual(state.inventory["expedition_slots"], ["1"])
+        self.assertTrue(state.expedition["uncertain"])
+        with self.assertRaises(ProtocolError):
+            reservations.acquire(state.inventory, "battle",
+                                 [{"index": 1, "item_id": 34014, "count": 1}])
+
+    def test_reward_result_then_quest_refresh_waits_for_bag_before_redeploy(self):
+        state, expedition = expedition_case()
+        award = {"kind": 10, "id": 34014, "value": 2}
+        expedition.catalog["tasks"]["2"].update(
+            rewards=[award], special_reward={"kind": 0, "id": 0, "value": 0})
+        state.expedition["roles"]["1"]["state"] = 1
+        state.expedition["teams"]["1"].update(
+            quest=2, members=[101, 0, 0, 0], due=9)
+        packet, = expedition.tick(state, 10)
+        self.assertEqual((packet.main, packet.sub), (31, 16))
+        result = (Writer().u8(1).u8(1).u16(0).u16(0)
+                  .u8(10).u32(34014).u32(2).build())
+        events = [
+            decode(Packet(31, 16, result)),
+            decode(Packet(31, 19,
+                   b"".join(Writer().u8(i).u16(0).build()
+                            for i in range(1, 51)) + b"\\x01")),
+        ]
+        for event in events:
+            state.apply(event)
+            expedition.observe(event, state)
+            self.assertIsNotNone(expedition.pending)
+            self.assertEqual(expedition.tick(state, 11), [])
+        event = {"type": "bag_add", "item":
+                 {"index": 4, "item_id": 34014, "count": 2, "serial": 88}}
+        state.apply(event)
+        expedition.observe(event, state)
+        self.assertIsNone(expedition.pending)
+        self.assertEqual(state.expedition["claimed"], 1)
+
+
 class ExpeditionWireCompatibility(unittest.TestCase):
     def test_s31_19_mandatory_flag_and_opaque_s31_15_ack(self):
         entries = b"".join(Writer().u8(i).u16(i if i <= 2 else 0).build()

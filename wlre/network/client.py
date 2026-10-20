@@ -5,6 +5,7 @@ implementation still needs to be tested by the account owner.
 """
 from wlre.network.connection_health import ConnectionHealth, configure_keepalive
 from wlre.network.instances import list_request, member_request
+from wlre.services.coordination import command_reason
 import queue
 from wlre.network.state_updates import StatePublisher, notify_state
 import socket
@@ -222,9 +223,10 @@ class SessionLogic:
             state.phase = 'role_selected_awaiting_world'
             return [packet]
         if not self.world_acknowledged: raise ProtocolError('world initialization has not completed')
-        if (self.maintenance.pending or self.maintenance.uncertain) and kind not in (
-                'stop_auto_battle','stop_roaming','stop_walk','stop_expedition','stop_crafting','stop_alchemy','chat','reset_efficiency'):
-            raise ProtocolError('請先等待戰後修理／整理確認；結果未確認時需重新登入同步')
+        pause_reason = command_reason(state,command,
+            maintenance_pending=bool(self.maintenance.pending),
+            maintenance_uncertain=self.maintenance.uncertain)
+        if pause_reason:raise ProtocolError(pause_reason)
         if kind in ('instance_refresh', 'instance_members'):
             # Explicit read-only queries. Not an entry point to room mutation.
             if (state.phase != 'world_ready' or state.battle.get('active')
@@ -249,9 +251,6 @@ class SessionLogic:
         if kind == 'stop_expedition':
             self.expedition.stop(state)
             return []
-        if (state.expedition['enabled'] or state.expedition['pending'] or state.expedition['uncertain']) and kind in (
-                'start_alchemy', 'craft', 'companion'):
-            raise ProtocolError('請先停止遠征自動派遣，並等待目前遠征操作確認')
         if kind == 'companion':
             packet = companion_command(state, command)
             now = time.monotonic()
@@ -261,8 +260,6 @@ class SessionLogic:
             return [packet]
         if kind in ('start_auto_battle','start_roaming','battle_item'):self.field_supply.check()
         if kind=='craft':return self.crafting.command(state,command)
-        if kind in ('start_roaming','start_auto_battle','start_alchemy','field_item','field_storage','learned_action','battle_item') and (state.crafting.get('pending') or state.crafting.get('auto_continue')):
-            raise ProtocolError('請先停止製作接續，並等待目前製作操作回覆')
         if kind=='reset_efficiency':
             from wlre.core.efficiency import defaults, observe
             state.efficiency=defaults();observe(state,{'type':'reset_efficiency'})
@@ -337,7 +334,7 @@ class SessionLogic:
             plan=food_command(context,actor,command.get('resource','hp'),command.get('item_id'),target,True,index=command.get('bag_index'))
             self.field_supply.begin(state,plan,context['battle_units'][target])
             self.movement.stop(state,'等待補給回覆')
-            reserve(state,plan['resource_reservations'])
+            # FieldSupply.begin exclusively owns this slot until both confirmations.
             return [use_field_item(plan['item_id'],plan['bag_index'],npc_index)]
         if kind in ('learned_action','battle_item'):
             if not state.battle.get('active') or state.battle.get('round',0)<=0:raise ProtocolError('沒有可下令的戰鬥回合')

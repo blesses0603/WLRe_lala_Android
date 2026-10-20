@@ -5,6 +5,7 @@ import math
 from wlre.network.wire import ProtocolError
 from wlre.services.battle.combat import BROKEN
 from wlre.core.inventory_updates import add_item
+from wlre.services.items import reservations
 
 CAT=json.loads(RESOURCE_ROOT.joinpath('combat_catalog.json').read_text(encoding='utf8'))
 NO_ITEMS={9,12,13,14,15,16,17,18,21,22,23,24}
@@ -21,6 +22,7 @@ def apply_live(state,event):
                'maintenance_slots':list(inv.get('maintenance_slots',[]))}
         for value in event['items']:
             if not add_item(fresh,dict(value)):break
+        reservations.refreshed(inv,fresh)
         state.inventory=fresh
     elif kind=='bag_add':
         add_item(inv,dict(event['item']));inv['revision']+=1
@@ -30,7 +32,7 @@ def apply_live(state,event):
         elif value:
             value['count']-=count
             if not value['count']:inv['items'].pop(index)
-        inv['reserved'][index]=max(0,inv['reserved'].get(index,0)-count);inv['revision']+=1
+        reservations.consumed(inv,index,count);inv['revision']+=1
     elif kind=='bag_damage':
         item=inv['items'].get(str(event['index']))
         if item:
@@ -127,8 +129,7 @@ def set_companion(state,data):
             'human_kind':4,'kind':attribute,'parameter':parameter,'value':value})
 
 def available(inv,index):
-    if str(index) in inv.get('expedition_slots',[]) or str(index) in inv.get('maintenance_slots',[]):return 0
-    return max(0,inv.get('items',{}).get(str(index),{}).get('count',0)-inv.get('reserved',{}).get(str(index),0))
+    return reservations.available(inv,index)
 
 def allocate(inv,item_id,count):
     if not inv.get('ready') or not inv.get('reliable'):raise ProtocolError('包包資料尚未同步或已失效')

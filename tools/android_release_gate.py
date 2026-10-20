@@ -139,10 +139,24 @@ def verify_release(output_dir, *, expected_version, source_root, source_sha,
         expected_name, APK_HASHES
     }
     entries = list(root.iterdir())
-    if (len(entries) != len(allowed) or
-            {p.name for p in entries} != allowed or
-            any(p.is_symlink() or not p.is_file() for p in entries)):
-        raise ValueError("Incomplete or unexpected Phase09 Android output files")
+    present = {p.name for p in entries}
+    missing = allowed - present
+    extra = present - allowed
+    unsafe = any(p.is_symlink() or not p.is_file() for p in entries)
+    if missing or extra or unsafe or len(entries) != len(allowed):
+        # Only show names from our fixed, trusted mandatory allowlist. Do not
+        # emit attacker-provided or accidentally packaged file names.
+        diagnostics = [
+            "missing=" + ",".join(sorted(missing)) if missing else "missing=none",
+            f"unexpected-count={len(extra)}",
+            "v4-sidecar-present=" +
+                str(any(p.name.lower().endswith(".idsig") for p in entries)),
+            f"unsafe-entry={unsafe}",
+        ]
+        raise ValueError(
+            "Incomplete or unexpected Phase09 Android output files ("
+            + "; ".join(diagnostics) + ")"
+        )
     apk = root / expected_name
     if not APK_BASENAME.fullmatch(apk.name):
         raise ValueError("Malformed Android APK artifact filename")

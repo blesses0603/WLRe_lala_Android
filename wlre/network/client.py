@@ -6,6 +6,7 @@ implementation still needs to be tested by the account owner.
 from wlre.network.connection_health import ConnectionHealth, configure_keepalive
 from wlre.network.instances import list_request, member_request
 from wlre.services.coordination import command_reason
+from wlre.network.command_envelope import validate_command, rejected_command_type
 import queue
 from wlre.network.state_updates import StatePublisher, notify_state
 import socket
@@ -211,7 +212,7 @@ class SessionLogic:
         return [Packet(20,6,b'\x00')]
 
     def command(self, command, state):
-        kind = command.get('type')
+        kind = validate_command(command)
         if kind == 'select_role':
             index = command['index']
             if not self.authenticated or self.selected or state.phase != 'role_selection':
@@ -467,22 +468,26 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
                     try: command = commands.get_nowait()
                     except queue.Empty: break
                     try:
+                        # Sanitize before handling, so malformed commands never
+                        # make the network thread disconnect during error logging.
+                        command_type = rejected_command_type(command)
                         for packet in logic.command(command, state):
                             _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
-                        if command.get('type') in ('team','start_alchemy','stop_alchemy','reset_efficiency','craft','start_expedition','stop_expedition') and on_state:notify_state(on_state,state)
-                        if command.get('type') in ('start_auto_battle','stop_auto_battle','set_party_guard'):
+                        if command_type in ('team','start_alchemy','stop_alchemy','reset_efficiency','craft','start_expedition','stop_expedition') and on_state:notify_state(on_state,state)
+                        if command_type in ('start_auto_battle','stop_auto_battle','set_party_guard'):
                             emit({'type':'auto_battle_status',**state.auto_battle})
                             if on_state:notify_state(on_state,state)
-                        if command.get('type') in ('start_roaming','stop_roaming'):
+                        if command_type in ('start_roaming','stop_roaming'):
                             emit({'type':'roaming_status',**state.roaming})
                             if on_state:notify_state(on_state,state)
-                        if command.get('type') in ('walk','stop_walk','portal_walk','portal_direct'):
+                        if command_type in ('walk','stop_walk','portal_walk','portal_direct'):
                             emit({'type':'local_movement','status':state.local_movement['status'],
                                   'scene':state.player.get('scene'),'target':state.local_movement['target'],
                                   'reason':state.local_movement['reason']}) if state.local_movement else None
                             if on_state:notify_state(on_state,state)
                     except (ValueError, KeyError, TypeError) as exc:
-                        emit({'type': 'command_rejected', 'command_type':command.get('type'), 'error': str(exc)})
+                        emit({'type': 'command_rejected', 'command_type':command_type,
+                              'error': '指令格式錯誤' if command_type == 'invalid' else str(exc)})
                 before_maintenance=state.maintenance
                 for packet in logic.maintenance.tick(state,logic,time.monotonic()):
                     _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)

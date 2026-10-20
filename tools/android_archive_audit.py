@@ -11,6 +11,7 @@ import io
 from pathlib import Path, PurePosixPath
 import re
 import stat
+import struct
 import tarfile
 import tempfile
 import zipfile
@@ -192,12 +193,102 @@ def _tar(fileobj, label: str, limit: Limits, depth: int, inspect_name):
         raise ValueError("Corrupt nested TAR archive") from exc
 
 
+# ZIP central-directory metadata is parsed eagerly by zipfile.ZipFile. Limit
+# its actual directory bytes AND actual entry count before constructing ZipInfo
+# objects, regardless of EOCD/ZIP64 declared counts.
+MAX_ZIP_CENTRAL_DIRECTORY_BYTES = 8 * 1024 * 1024
+_ZIP_EOCD = b"PK\x05\x06"
+_ZIP64_LOCATOR = b"PK\x06\x07"
+_ZIP64_EOCD = b"PK\x06\x06"
+_ZIP_CENTRAL_ENTRY = b"PK\x01\x02"
+
+
+def _zip_preflight(fileobj, limit: Limits) -> None:
+    """Bound ZIP metadata before zipfile eagerly creates ZipInfo objects.
+
+    Supports single-disk ZIP32/ZIP64, prepended data and ordinary comments.
+    Count entries from central-directory headers rather than trusting EOCD.
+    """
+    fileobj.seek(0, io.SEEK_END)
+    total = fileobj.tell()
+    tail_length = min(total, 22 + 65535)
+    fileobj.seek(total - tail_length)
+    tail = fileobj.read(tail_length)
+    pos = tail.rfind(_ZIP_EOCD)
+    if pos < 0 or pos + 22 > len(tail):
+        raise ValueError("Corrupt nested ZIP metadata (rule=eocd)")
+    eocd = struct.unpack_from("<I4H2IH", tail, pos)
+    _, disk, cd_disk, on_disk, declared, cd_size, cd_offset, comment_size = eocd
+    if disk or cd_disk or on_disk != declared or pos + 22 + comment_size != len(tail):
+        raise ValueError("Corrupt nested ZIP metadata (rule=eocd)")
+    eocd_offset = total - tail_length + pos
+    cd_end = eocd_offset
+    zip64 = (declared == 0xFFFF or cd_size == 0xFFFFFFFF or
+             cd_offset == 0xFFFFFFFF)
+    if zip64:
+        if eocd_offset < 20:
+            raise ValueError("Corrupt nested ZIP metadata (rule=zip64)")
+        fileobj.seek(eocd_offset - 20)
+        locator = fileobj.read(20)
+        if len(locator) != 20 or locator[:4] != _ZIP64_LOCATOR:
+            raise ValueError("Corrupt nested ZIP metadata (rule=zip64)")
+        _, loc_disk, zip64_offset, disks = struct.unpack("<IIQI", locator)
+        if loc_disk or disks != 1 or zip64_offset > eocd_offset - 20 - 56:
+            raise ValueError("Corrupt nested ZIP metadata (rule=zip64)")
+        fileobj.seek(zip64_offset)
+        end64 = fileobj.read(56)
+        if len(end64) != 56 or end64[:4] != _ZIP64_EOCD:
+            raise ValueError("Corrupt nested ZIP metadata (rule=zip64)")
+        (signature, size64, made_by, needed, zip_disk, zip_cd_disk,
+         entries_on_disk, entries_total, cd_size, cd_offset) = struct.unpack(
+            "<IQHHIIQQQQ", end64
+        )
+        if (size64 < 44 or zip64_offset + 12 + size64 != eocd_offset - 20 or
+                zip_disk or zip_cd_disk or entries_on_disk != entries_total):
+            raise ValueError("Corrupt nested ZIP metadata (rule=zip64)")
+        declared = entries_total
+        cd_end = zip64_offset
+
+    remaining_items = MAX_ITEMS - limit.items
+    if declared > remaining_items:
+        raise ValueError("Phase06 archive member count limit exceeded (rule=zip-metadata)")
+    if cd_size > MAX_ZIP_CENTRAL_DIRECTORY_BYTES:
+        raise ValueError("Phase06 ZIP directory size limit exceeded (rule=zip-metadata)")
+    start = cd_end - cd_size
+    # cd_offset is archive-relative; prepended stubs are permitted as long
+    # as directory bounds are self-consistent and within the file.
+    if start < 0 or cd_offset > start:
+        raise ValueError("Corrupt nested ZIP metadata (rule=directory-bounds)")
+    fileobj.seek(start)
+    cursor = start
+    counted = 0
+    while cursor < cd_end:
+        # This check is independent of (possibly forged) EOCD declarations.
+        if counted >= remaining_items:
+            raise ValueError("Phase06 archive member count limit exceeded (rule=zip-metadata)")
+        if cd_end - cursor < 46:
+            raise ValueError("Corrupt nested ZIP metadata (rule=central-directory)")
+        entry = fileobj.read(46)
+        if len(entry) != 46 or entry[:4] != _ZIP_CENTRAL_ENTRY:
+            raise ValueError("Corrupt nested ZIP metadata (rule=central-directory)")
+        name_size, extra_size, comment_size = struct.unpack_from("<HHH", entry, 28)
+        cursor += 46 + name_size + extra_size + comment_size
+        if cursor > cd_end:
+            raise ValueError("Corrupt nested ZIP metadata (rule=central-directory)")
+        fileobj.seek(cursor)
+        counted += 1
+    if counted != declared:
+        raise ValueError("Corrupt nested ZIP metadata (rule=entry-count)")
+    fileobj.seek(0)
+
+
 def _zip(fileobj, label: str, limit: Limits, depth: int, inspect_name):
     if depth > MAX_DEPTH:
         raise ValueError("Phase06 nested archive depth exceeded")
     limit.archives += 1
     seen = set()
     try:
+        _zip_preflight(fileobj, limit)
         with zipfile.ZipFile(fileobj) as archive:
             for member in archive.infolist():
                 limit.item()
@@ -285,6 +376,8 @@ def audit_apk(apk, inspect_name=lambda name: None):
     audited, without reading the entire payload into memory.
     """
     limit = Limits()
+    with open(apk, "rb") as checked:
+        _zip_preflight(checked, limit)
     with zipfile.ZipFile(apk) as outer:
         seen = set()
         for member in outer.infolist():

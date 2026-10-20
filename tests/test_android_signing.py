@@ -215,7 +215,48 @@ class SigningTests(unittest.TestCase):
                     resign_apk(apk, key, "test-apksigner")
             self.assertEqual(apk.read_bytes(), b"apk-signed-with-fixed-key")
             self.assertEqual([cmd[1] for cmd in calls[1:]], ["sign", "verify"])
+            sign = calls[1]
+            self.assertEqual(
+                sign[sign.index("--v4-signing-enabled") + 1], "false"
+            )
             self.assertFalse(list(root.glob(".lala-signed-*.apk")))
+            self.assertFalse(list(root.glob("*.idsig")))
+
+    def test_resign_rejects_and_cleans_unexpected_v4_signature_sidecar(self):
+        # Regression: apksigner v4 defaults may leave .apk.idsig next to the
+        # temporary APK, making Phase09's strict file inventory fail.
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            apk = root / "app.apk"
+            apk.write_bytes(b"original")
+            key = root / "debug.keystore"
+            key.write_bytes(b"synthetic-test-keystore")
+
+            def simulated_tool(command, **kwargs):
+                if command[0] == "keytool":
+                    return Mock(stdout="SHA256: " + ":".join(["AA"] * 32) + "\n")
+                if command[1] == "sign":
+                    out = Path(command[command.index("--out") + 1])
+                    out.write_bytes(b"signed")
+                    Path(str(out) + ".idsig").write_bytes(b"v4-sidecar")
+                    self.assertEqual(
+                        command[command.index("--v4-signing-enabled") + 1],
+                        "false",
+                    )
+                    return Mock(stdout="")
+                raise AssertionError("Unexpected certificate verification")
+
+            with patch.dict(os.environ, {
+                    "ANDROID_SIGNING_MODE": "persistent",
+                    "ANDROID_EXPECTED_SIGNER_SHA256": FP_A,
+                    "ANDROID_REQUIRE_PERSISTENT_SIGNING": "1"}, clear=True):
+                with patch("tools.android_signing.subprocess.run",
+                           side_effect=simulated_tool):
+                    with self.assertRaisesRegex(ValueError, "v4 signer sidecar"):
+                        resign_apk(apk, key, "test-apksigner")
+            self.assertEqual(apk.read_bytes(), b"original")
+            self.assertFalse(list(root.glob(".lala-signed-*")))
+            self.assertFalse(list(root.glob("*.idsig")))
 
     def test_resign_mismatched_output_is_rejected_without_overwriting_apk(self):
         with tempfile.TemporaryDirectory() as folder:

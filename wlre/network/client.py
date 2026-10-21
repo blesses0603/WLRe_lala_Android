@@ -5,6 +5,15 @@ implementation still needs to be tested by the account owner.
 """
 from wlre.network.connection_health import ConnectionHealth, configure_keepalive
 from wlre.network.instances import list_request, member_request
+from wlre.network.mobile_instance_commands import dispatch as dispatch_instance
+from wlre.services.instance_combat import consume_coop_fight
+from wlre.services.battle.attribute_points import expire as expire_allocation
+from wlre.services.instance_creation import expire as expire_instance_create, disconnect as disconnect_instance_create
+from wlre.services.instance_room_flow import expire as expire_instance_room, disconnect as disconnect_instance_room
+from wlre.services.instance_standby import expire as expire_instance_standby, disconnect as disconnect_instance_standby
+from wlre.services.instance_start import expire as expire_instance_start, disconnect as disconnect_instance_start
+from wlre.services.instance_entry import expire as expire_instance_entry, disconnect as disconnect_instance_entry
+from wlre.services.instance_rewards import expire as expire_instance_rewards, disconnect as disconnect_instance_rewards, tick as tick_instance_rewards
 from wlre.services.coordination import command_reason
 from wlre.services.items import reservations
 from wlre.network.command_envelope import validate_command, rejected_command_type
@@ -172,8 +181,13 @@ class SessionLogic:
             # FightOver waits EndTime=2.5, then SendServerEvent calls C20-6 00.
             # Cooperative event fights have an additional wait-UI/count branch.
             if state.battle.get('war_style')==16:
+                delay=consume_coop_fight(state)
+                self.post_battle_due=time.monotonic()+delay
                 state.battle['post_event']={'status':'cooperative_wait',
-                    'reason':'協力事件戰鬥的等待／場次分支尚未實作，未自動回覆'}
+                    'reason':'依官方協力戰後延遲安全接續一次',
+                    'delay_seconds':delay}
+                state.event_flow={**state.event_flow,'blocked':True,
+                    'last_source':'協力戰後等待伺服器接續'}
             else:
                 self.post_battle_due=time.monotonic()+2.5
                 state.battle['post_event']={'status':'exit_delay','source':kind,'delay_seconds':2.5}
@@ -229,6 +243,9 @@ class SessionLogic:
             maintenance_pending=bool(self.maintenance.pending),
             maintenance_uncertain=self.maintenance.uncertain)
         if pause_reason:raise ProtocolError(pause_reason)
+        if kind.startswith('instance_') or kind == 'allocate_points':
+            if kind not in ('instance_refresh','instance_members'):
+                return dispatch_instance(state,command)
         if kind in ('instance_refresh', 'instance_members'):
             # Explicit read-only queries. Not an entry point to room mutation.
             if (state.phase != 'world_ready' or state.battle.get('active')
@@ -414,6 +431,14 @@ class SessionLogic:
         Android deliberately retains its own Kivy/foreground service lifecycle;
         no desktop thread ownership or unsupported instance room operations.
         """
+        for disconnect in (disconnect_instance_create,disconnect_instance_room,
+                           disconnect_instance_standby,disconnect_instance_start,
+                           disconnect_instance_entry,disconnect_instance_rewards):
+            disconnect(state)
+        if state.attribute_allocation.get('pending'):
+            state.attribute_allocation['pending']=False
+            state.attribute_allocation['uncertain']=True
+            state.attribute_allocation['status']='配點結果未確認，請重新登入同步'
         holds=state.inventory.get('holds',{})
         if any(holds.values()):
             state.inventory['reliable']=False
@@ -528,6 +553,17 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
                     _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
                 if before_expedition != (state.expedition['status'], state.expedition['pending'], state.expedition['enabled']) and on_state:
                     notify_state(on_state,state)
+                # Keep unresolved room/entry/reward state isolated; never retry
+                # an uncertain request. All expiration handlers only update state.
+                changed=any(expire(state) for expire in (
+                    expire_instance_create, expire_instance_room,
+                    expire_instance_standby, expire_instance_start,
+                    expire_instance_entry, expire_instance_rewards,
+                    expire_allocation))
+                if changed and on_state:notify_state(on_state,state)
+                for packet in tick_instance_rewards(state):
+                    _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
+                    if on_state:notify_state(on_state,state)
                 before_craft=(state.crafting['status'],state.crafting['pending'],state.crafting['revision'],state.crafting['auto_continue'],repr(state.crafting.get('local_plan')))
                 for packet in logic.crafting.tick(state,time.monotonic()):_send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
                 if before_craft!=(state.crafting['status'],state.crafting['pending'],state.crafting['revision'],state.crafting['auto_continue'],repr(state.crafting.get('local_plan'))) and on_state:notify_state(on_state,state)

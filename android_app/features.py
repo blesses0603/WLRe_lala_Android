@@ -6,7 +6,10 @@ GAME_COMMANDS = frozenset(('chat', 'team', 'start_alchemy', 'stop_alchemy', 'cra
     'reset_efficiency', 'walk', 'stop_walk', 'portal_walk', 'portal_direct',
     'field_item', 'field_storage', 'learned_action', 'battle_item', 'battle_submit',
     'battle_action', 'set_party_guard', 'companion', 'start_expedition', 'stop_expedition',
-    'instance_refresh', 'instance_members'))
+    'instance_refresh', 'instance_members',
+    'instance_create','instance_join','instance_leave','instance_coop_standby',
+    'instance_start','instance_enter','instance_auto_reward',
+    'instance_reward_claim','instance_reward_cancel','allocate_points'))
 STATE_FIELDS = ('phase', 'player', 'knowledge', 'inventory', 'potion_storage', 'party',
     'alchemy', 'crafting', 'furniture', 'efficiency', 'battle', 'battle_units', 'battle_count',
     'auto_battle', 'roaming', 'portal_travel', 'event_flow', 'activities', 'location',

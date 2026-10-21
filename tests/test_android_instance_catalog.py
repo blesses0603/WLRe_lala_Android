@@ -1,4 +1,4 @@
-"""Android parity checkpoint: source-verified catalog and no unsafe commands."""
+"""Android parity: only explicit, validated instance commands cross IPC."""
 import unittest
 
 from android_app.features import GAME_COMMANDS, checked_command
@@ -19,12 +19,17 @@ class AndroidReadOnlyParity(unittest.TestCase):
         with self.assertRaises(ValueError):
             entries_for("unknown")
 
-    def test_no_room_or_allocation_operations_cross_ipc(self):
-        self.assertNotIn("instance_create", GAME_COMMANDS)
-        self.assertNotIn("instance_join", GAME_COMMANDS)
-        self.assertNotIn("instance_claim", GAME_COMMANDS)
-        self.assertNotIn("allocate_attributes", GAME_COMMANDS)
-        for name in ("instance_create", "instance_join", "instance_claim", "allocate_attributes"):
+    def test_explicit_room_operations_and_allocation_allowlist(self):
+        for name in ("instance_create", "instance_join", "instance_leave",
+                     "instance_coop_standby", "instance_start", "instance_enter",
+                     "instance_auto_reward", "instance_reward_claim",
+                     "instance_reward_cancel", "allocate_points"):
+            self.assertIn(name, GAME_COMMANDS)
+            self.assertEqual(checked_command({"type": name}), {"type": name})
+        # Never accidentally allow unknown, paid or NPC actions.
+        for name in ("instance_claim", "allocate_attributes",
+                     "npc_start", "npc_next", "npc_choose", "npc_shop", "instance_paid_reward"):
+            self.assertNotIn(name, GAME_COMMANDS)
             with self.assertRaises(ValueError):
                 checked_command({"type": name})
 

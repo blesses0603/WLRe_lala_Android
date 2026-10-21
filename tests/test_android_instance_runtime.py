@@ -46,7 +46,7 @@ class InstanceReadOnlyCore(unittest.TestCase):
             with self.subTest(packet=packet), self.assertRaises(ProtocolError):
                 decode(packet)
 
-    def test_explicit_queries_and_ipc_never_enable_paid_actions(self):
+    def test_explicit_queries_and_allowlist_requires_verified_actions(self):
         logic = SessionLogic()
         state = State(phase="world_ready")
         logic.world_acknowledged = True
@@ -65,8 +65,13 @@ class InstanceReadOnlyCore(unittest.TestCase):
         state.battle["active"] = True
         with self.assertRaises(ProtocolError):
             logic.command({"type":"instance_refresh","mode":"main"}, state)
-        for name in ("instance_create","instance_join","instance_standby",
-                     "instance_start","instance_claim","allocate_attributes"):
+        for name in ("instance_create","instance_join","instance_leave",
+                     "instance_coop_standby","instance_start","instance_enter",
+                     "instance_reward_claim","instance_reward_cancel",
+                     "instance_auto_reward","allocate_points"):
+            self.assertIn(name, GAME_COMMANDS)
+        for name in ("instance_claim","instance_standby","allocate_attributes",
+                     "npc_start","npc_choose"):
             self.assertNotIn(name, GAME_COMMANDS)
             with self.assertRaises(ValueError):
                 checked_command({"type":name})

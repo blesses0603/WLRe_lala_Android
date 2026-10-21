@@ -2,6 +2,7 @@
 import time
 from wlre.network.wire import ProtocolError
 from wlre.services.items.combat_resources import field_context
+from wlre.services.items import reservations
 
 class FieldSupply:
     timeout=15
@@ -16,6 +17,7 @@ class FieldSupply:
         self.check();now=time.monotonic() if now is None else now
         item=state.inventory['items'].get(str(plan['bag_index']))
         if not item or item['item_id']!=plan['item_id']:raise ProtocolError('補給物品已變更')
+        reservations.acquire(state.inventory,'field_supply',plan['resource_reservations'],exclusive=True)
         self.pending={'index':plan['bag_index'],'item_id':plan['item_id'],'serial':item.get('serial'),'count':item['count'],'slot':f"{target['col']}:{target['row']}",'pid':target['pid'],'npc_index':target.get('npc_index',0),'owner':state.player.get('role_id'),'resource':plan['resource'],'before':target.get(plan['resource'],0),'due':now+self.timeout,'consumed':False,'restored':False,'failure':None}
         self.status(state,'pending','等待同一格物品扣除及同一對象 HP／SP 回覆',plan['item_id'])
     def begin_storage(self,state,plan,target,now=None):
@@ -63,10 +65,14 @@ class FieldSupply:
         reason=p['failure']
         if state.player.get('role_id')!=p['owner'] or unit.get('pid')!=p['pid'] or unit.get('npc_index',0)!=p['npc_index']:reason='補給對象已變更，前次結果未確認，請重新登入同步'
         if not reason and p['consumed'] and p['restored']:
+            if p.get('source')!='storage':
+                reservations.release(state.inventory,'field_supply')
             self.pending=None;self.status(state,'confirmed',('儲存槽使用及 HP／SP 回覆均已確認' if p.get('source')=='storage' else '物品扣除及 HP／SP 回覆均已確認'),p['item_id'])
         else:
             if not reason and now>=p['due']:reason='補給回覆逾時，已禁止續送；請重新登入同步'
             if not reason:return None
+            if p.get('source')!='storage':
+                reservations.uncertain(state.inventory,'field_supply')
             self.uncertain=True;state.inventory['use_failed']=True
             self.status(state,'uncertain',reason,p['item_id'])
         return {'type':'field_supply_status',**state.inventory['field_supply']}

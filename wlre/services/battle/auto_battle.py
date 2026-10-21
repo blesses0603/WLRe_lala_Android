@@ -1,5 +1,6 @@
 """Supported AutoPlay.lua rule ordering, using current validated command adapters."""
 import copy
+from wlre.services.items import reservations
 import math
 from wlre.services.items import recovery, maintenance;from wlre.services.battle import party_guard
 from wlre.services.battle.battle_commands import owned_units, slot, action_command
@@ -179,7 +180,9 @@ class AutoBattle:
                 packets=self.heal_field(state,logic,now)
                 if packets is not None:return packets
             self.status(state,'armed','等待戰鬥回合');return []
-        if battle.get('war_style') in (16,21,23,24):
+        # Cooperative event (war_style 16) uses ordinary owned-unit rounds.
+        # BossAmbush/EventTrial/StarApexBattle are still blocked.
+        if battle.get('war_style') in (21,23,24):
             self.status(state,'paused','此特殊戰鬥尚未開放自動下令');return []
         key=(state.battle_count,battle['round'])
         if key!=self.key:
@@ -195,7 +198,7 @@ class AutoBattle:
             self.status(state,'waiting','本回合已下令，等待下一回合');return []
         guard_reason=party_guard.escape_reason(snap,self.settings['party_guard'])
         old_key,old_units=logic.round_key,set(logic.sent_units)
-        old_reserved=copy.deepcopy(state.inventory['reserved'])
+        old_reserved=reservations.checkpoint(state.inventory)
         try:
             decisions=[]
             for u in pending:
@@ -210,7 +213,7 @@ class AutoBattle:
             packets=[]
             for d in decisions:packets.extend(logic.command(d['command'],state))
         except (ValueError,KeyError,TypeError) as exc:
-            logic.round_key,logic.sent_units=old_key,old_units;state.inventory['reserved']=old_reserved;self.failed_key=key
+            logic.round_key,logic.sent_units=old_key,old_units;reservations.restore(state.inventory,old_reserved);self.failed_key=key
             self.status(state,'blocked',str(exc));logic.roaming.stop(state,logic.movement,'AI指令資料不足，停止徘徊');return []
         self.decided.update(slot(u) for u in pending)
         self.status(state,'submitted','已準備本回合指令，送出後等待伺服器結果',decisions=decisions)

@@ -3,6 +3,8 @@ from wlre.paths import RESOURCE_ROOT
 import json,time,copy
 from wlre.network.wire import Packet, Writer, ProtocolError
 from wlre.services.items.combat_resources import CAT, item_name, available
+from wlre.services.coordination import reason as coordination_reason
+from wlre.services.items import reservations
 META=json.loads(RESOURCE_ROOT.joinpath('alchemy_catalog.json').read_text(encoding='utf8'))['items']
 MODES={'無技能':(150,None),'一般':(14,15997),'中階':(87,15998),'高階':(101,15999)}
 
@@ -88,12 +90,9 @@ class AutoAlchemy:
         if state.alchemy.get('enabled'):state.alchemy.update(paused=True,pause_reason=reason,status=reason+'；保留剩餘次數')
     def stop(self,state,reason='使用者停止'):
         state.alchemy={**state.alchemy,'enabled':False,'paused':False,'pause_reason':None,'status':reason+('；本次已送出，仍等待結果' if self.pending else '')}
-    def release(self,state):
-        if self.pending:
-            for row in self.pending['consumption']:
-                key=str(row['index']);remaining=max(0,row['count']-self.pending['deleted'].get(key,0))
-                state.inventory['reserved'][key]=max(0,state.inventory['reserved'].get(key,0)-remaining)
-        state.inventory['alchemy_slots']=[]
+    def release(self,state,confirmed=True):
+        if confirmed:reservations.release(state.inventory,'alchemy')
+        else:reservations.uncertain(state.inventory,'alchemy')
         self.pending=None;state.alchemy['pending']=False
     def production_confirmed(self):
         p=self.pending;result=p.get('result') if p else None
@@ -113,7 +112,7 @@ class AutoAlchemy:
         if self.pending:
             if k=='alchemy_result':
                 if not event.get('item_id') or not event.get('count'):
-                    self.stop(state,'伺服器未回覆有效產物，已停止並要求重新同步包包');state.inventory['reliable']=False;self.release(state);return
+                    self.stop(state,'伺服器未回覆有效產物，已停止並要求重新同步包包');state.inventory['reliable']=False;self.release(state,confirmed=False);return
                 if self.pending.get('result') is not None:return
                 self.pending['result']={'item_id':event['item_id'],'count':event['count']}
             elif k=='bag_add' and event.get('source')==3:
@@ -131,7 +130,7 @@ class AutoAlchemy:
                     consumed=max(0,row['before_count']-remaining)
                     self.pending['deleted'][str(row['index'])]=max(consumed,self.pending['deleted'].get(str(row['index']),0))
             elif k=='alchemy_space_error':
-                self.stop(state,'伺服器回覆：背包空間／煉金條件不足');state.inventory['reliable']=False;self.release(state);return
+                self.stop(state,'伺服器回覆：背包空間／煉金條件不足');state.inventory['reliable']=False;self.release(state,confirmed=False);return
             result=self.pending.get('result')
             produced=self.production_confirmed()
             if result and produced and state.inventory.get('reliable') and all(self.pending['deleted'].get(str(row['index']),0)>=row['count'] for row in self.pending['consumption']):
@@ -163,14 +162,25 @@ class AutoAlchemy:
                 detail='、'.join(missing) or '包包一致性'
                 state.alchemy['last_confirmation']={'round':state.alchemy['completed']+1,'missing':missing}
                 self.stop(state,f"第{state.alchemy['completed']+1}次等待{detail}逾時；已停止，請重新登入同步包包")
-                state.inventory['reliable']=False;self.release(state)
+                state.inventory['reliable']=False;reservations.uncertain(state.inventory,'alchemy')
+                self.pending=None;state.alchemy['pending']=False
             return []
         if not state.alchemy.get('enabled'):return []
+        # A confirmed failure/uncertain supply must stop automation, not pause
+        # and later silently resume after a new packet or transient status.
+        supply=state.inventory.get('field_supply',{})
+        if supply.get('uncertain'):
+            self.stop(state,'補給結果未確認，請重新登入同步後再煉金')
+            return []
+        # Replies above are processed before pausing new consumption.
+        wait_reason=coordination_reason(state,'alchemy')
+        if wait_reason:
+            self.next_due=now+self.continuation_delay
+            self.pause(state,wait_reason)
+            return []
         if battle_pause:
             self.next_due=now+self.continuation_delay
             self.pause(state,'戰鬥／戰後事件中，暫停煉金');return []
-        supply=state.inventory.get('field_supply',{})
-        if supply.get('uncertain'):self.stop(state,'補給結果未確認，請重新登入同步後再煉金');return []
         if supply.get('pending') or any(state.inventory.get('reserved',{}).values()):
             self.next_due=now+self.continuation_delay
             self.pause(state,'等待補給／包包使用回覆');return []
@@ -188,8 +198,7 @@ class AutoAlchemy:
             for row in rows:writer.u8(row['index']).u8(row['count']);row['before_count']=state.inventory['items'][str(row['index'])]['count']
         except (ValueError,TypeError,KeyError) as exc:self.stop(state,str(exc));return []
         consumption=aggregate_rows(rows)
-        for row in consumption:state.inventory['reserved'][str(row['index'])]=row['count']
-        state.inventory['alchemy_slots']=[str(row['index']) for row in consumption]
+        reservations.acquire(state.inventory,'alchemy',consumption,exclusive=True)
         totals={}
         for value in state.inventory['items'].values():
             sid=str(value['item_id']);totals[sid]=totals.get(sid,0)+value['count']

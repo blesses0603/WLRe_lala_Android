@@ -9,6 +9,9 @@ from types import SimpleNamespace
 from android_app.overlay_state import snapshot
 from android_app.overview_model import overview_model, overview_lines
 from android_app.runtime import Runtime
+from wlre.core.state import State
+from wlre.network.protocol import decode
+from wlre.network.wire import Packet
 
 
 class OverlayStateTests(unittest.TestCase):
@@ -102,11 +105,110 @@ class OverlayStateTests(unittest.TestCase):
             "alchemy": {"status": "煉" * 200},
         }
         result = snapshot(self.manager)["accounts"][0]["overview"]
-        self.assertEqual(len(result["profiles"]), 5)
-        self.assertEqual(result["remaining_profiles"], 20)
+        self.assertEqual(len(result["profiles"]), 1)  # No S19-confirmed active companion.
+        self.assertEqual(result["profiles"][0]["name"], "角色")
+        self.assertEqual(result["remaining_profiles"], 0)
         self.assertEqual(len(result["character"]), 32)
         self.assertEqual(set(result["statuses"]), {"battle", "roaming", "event"})
         self.assertNotIn("\n", result["character"])
+
+    def test_only_authoritatively_deployed_companion_appears(self):
+        first = self.manager.sessions["1"]
+        first.game_state = {
+            "player": {"name": "角色甲", "role_id": 12},
+            "knowledge": {
+                "player": {"stats": {"level": 99}},
+                "companions_ready": True,
+                "companions": {
+                    "1": {"npc_id": 101, "name": "待命甲",
+                          "stats": {"level": 11}},
+                    "2": {"npc_id": 202, "name": "出戰乙",
+                          "stats": {"level": 22, "hp": 30, "max_hp": 50}},
+                    "3": {"npc_id": 303, "name": "待命丙",
+                          "stats": {"level": 33}},
+                },
+                "active_npc_id": 202,
+            },
+        }
+        overview = snapshot(self.manager)["accounts"][0]["overview"]
+        self.assertEqual([p["name"] for p in overview["profiles"]],
+                         ["角色", "出戰乙（出戰）"])
+        self.assertEqual(overview["profiles"][1]["level"], "22")
+        self.assertEqual(overview["remaining_profiles"], 0)
+        lines = overview_lines(first.game_state)
+        self.assertTrue(any(v.startswith("出戰乙（出戰） Lv.22\n") for v in lines))
+        self.assertFalse(any("待命甲" in v or "待命丙" in v for v in lines))
+        serialized = json.dumps(overview, ensure_ascii=False)
+        self.assertNotIn("待命甲", serialized)
+        self.assertNotIn("待命丙", serialized)
+
+    def test_s19_deploy_switch_rest_auto_updates_overview(self):
+        state = State(phase="world_ready")
+        state.player = {"role_id": 12, "name": "角色甲"}
+        state.knowledge.update(
+            companions_ready=True,
+            companions={
+                "1": {"npc_id": 101, "stats": {"level": 11}},
+                "2": {"npc_id": 202, "stats": {"level": 22}},
+            },
+        )
+        first = self.manager.sessions["1"]
+        first.game_state = state.snapshot()
+
+        def names():
+            return [p["name"] for p in snapshot(self.manager)["accounts"][0]["overview"]["profiles"]]
+
+        self.assertEqual(names(), ["角色"])  # No confirmed deployed companion.
+        state.apply(decode(Packet(19, 1, (101).to_bytes(4, "little"))))
+        first.game_state = state.snapshot()
+        self.assertEqual(len(names()), 2)
+        self.assertTrue(names()[1].endswith("（出戰）"))
+
+        state.apply(decode(Packet(19, 4, (202).to_bytes(4, "little"))))
+        first.game_state = state.snapshot()
+        self.assertEqual(len(names()), 2)
+        self.assertEqual(overview_model(first.game_state)["profiles"][1]["level"], 22)
+
+        state.apply(decode(Packet(19, 2, b"")))
+        first.game_state = state.snapshot()
+        self.assertEqual(names(), ["角色"])  # Rest removes the partner row.
+
+    def test_missing_or_invalid_active_companion_never_guesses(self):
+        state = {
+            "knowledge": {
+                "player": {"stats": {"level": 8}},
+                "companions": {
+                    "1": {"npc_id": 101, "stats": {"level": 11}},
+                    "2": {"npc_id": 202, "stats": {"level": 22}},
+                },
+            },
+        }
+        for active in (None, 0, False, -1, 999, "101"):
+            with self.subTest(active=active):
+                state["knowledge"]["active_npc_id"] = active
+                self.assertEqual(len(overview_model(state)["profiles"]), 1)
+        # Even when the server roster contains duplicate IDs, do not repeat
+        # a deployed partner in the small overlay.
+        state["knowledge"]["companions"]["2"]["npc_id"] = 101
+        state["knowledge"]["active_npc_id"] = 101
+        self.assertEqual(len(overview_model(state)["profiles"]), 2)
+
+    def test_overlay_companions_are_isolated_between_accounts(self):
+        first = self.manager.sessions["1"]
+        second = self.manager.sessions["2"]
+        second.active, second.phase = True, "world_ready"
+        for session, active in ((first, 101), (second, None)):
+            session.game_state = {
+                "player": {"name": "甲" if session is first else "乙"},
+                "knowledge": {
+                    "player": {"stats": {}},
+                    "companions": {"1": {"npc_id": 101, "stats": {}}},
+                    "active_npc_id": active,
+                },
+            }
+        rows = snapshot(self.manager)["accounts"]
+        self.assertEqual(len(rows[0]["overview"]["profiles"]), 2)
+        self.assertEqual(len(rows[1]["overview"]["profiles"]), 1)
 
     def test_native_bubble_uses_same_app_icon_and_role_overview(self):
         root = Path(__file__).resolve().parents[1]

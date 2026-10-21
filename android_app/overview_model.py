@@ -12,12 +12,19 @@ def overview_model(state):
     knowledge = s.get("knowledge") or {}
     player = s.get("player") or {}
     profiles = [("角色", knowledge.get("player") or {})]
-    for partner in (knowledge.get("companions") or {}).values():
-        npc_id = partner.get("npc_id")
-        name = CAT["npcs"].get(str(npc_id), {}).get("name", "夥伴")
-        if npc_id == knowledge.get("active_npc_id"):
-            name += "（出戰）"
-        profiles.append((name, partner))
+
+    # S19-1/4 confirms the deployed companion; S19-2 clears this ID.
+    # Do not display every owned companion, or infer deployment from the
+    # battle list, roster order, or an optimistic UI command.
+    active_npc_id = knowledge.get("active_npc_id")
+    if type(active_npc_id) is int and active_npc_id > 0:
+        for partner in (knowledge.get("companions") or {}).values():
+            if not isinstance(partner, dict) or partner.get("npc_id") != active_npc_id:
+                continue
+            name = (CAT["npcs"].get(str(active_npc_id), {}).get("name")
+                    or partner.get("name") or "夥伴")
+            profiles.append((name + "（出戰）", partner))
+            break  # At most one confirmed deployed companion.
 
     battle_active = bool((s.get("battle") or {}).get("active"))
     units = tuple((s.get("battle_units") or {}).values()) if battle_active else ()

@@ -68,11 +68,13 @@ def _overview(state):
     profiles = [{
         "name": _text(profile["name"], 32),
         **{key: _text(profile[key], 14) for key in ("level", "hp", "max_hp", "sp", "max_sp")},
-    } for profile in value["profiles"][:5]]
+    } for profile in value["profiles"][:2]]
     return {
         "character": _text(value["character"], 32),
         "profiles": profiles,
-        "remaining_profiles": max(0, len(value["profiles"]) - len(profiles)),
+        # The overview intentionally contains the role and, at most,
+        # one S19-confirmed deployed companion. No hidden-companion banner.
+        "remaining_profiles": 0,
         "efficiency": _efficiency(state),
         "statuses": {key: _text(value["statuses"][key], 64)
                      for key in ("battle", "roaming", "event")},

@@ -93,9 +93,21 @@ class BattleEscape(unittest.TestCase):
         s,l=battle();l.auto_battle.tick(s,l,0);key,units=l.round_key,set(l.sent_units)
         l.command({'type':'set_party_guard','settings':config(False)},s)
         self.assertEqual((l.round_key,l.sent_units),(key,units));self.assertEqual(l.auto_battle.tick(s,l,1),[])
-    def test_special_battle_still_pauses(self):
-        s,l=battle();s.battle['war_style']=16;self.assertEqual(l.auto_battle.tick(s,l,0),[])
-        self.assertEqual(s.auto_battle['status'],'paused')
+    def test_cooperative_battle_uses_normal_round_safety(self):
+        # Desktop v0.5.6 confirms cooperative war_style=16 is not globally blocked.
+        # Missing required members still trigger the usual guarded escape flow.
+        s,l=battle();s.battle['war_style']=16
+        self.assertEqual(len(l.auto_battle.tick(s,l,0)),2)
+        self.assertEqual(s.auto_battle['status'],'submitted')
+        self.assertTrue(all(d['command']['mode']=='escape'
+                            for d in s.auto_battle['decisions']))
+
+    def test_unsupported_special_battles_still_pause(self):
+        for style in (21,23,24):
+            with self.subTest(style=style):
+                s,l=battle();s.battle['war_style']=style
+                self.assertEqual(l.auto_battle.tick(s,l,0),[])
+                self.assertEqual(s.auto_battle['status'],'paused')
     def test_new_session_has_no_stale_team(self):
         s,l=battle((111,222,333,444));fresh=State();fresh.player=copy.deepcopy(s.player)
         self.assertEqual([m['role_id'] for m in party_guard.missing(fresh.snapshot(),config())],[222,333,444])

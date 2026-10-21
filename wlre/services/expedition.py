@@ -8,6 +8,8 @@ from wlre.services.expedition_data import load_catalog
 from wlre.services.items.combat_resources import CAT, available
 from wlre.core.inventory_updates import STACKABLE
 from wlre.services.expedition_teams import choose_members, condition_met, success_details
+from wlre.services.coordination import reason as coordination_reason
+from wlre.services.items import reservations
 
 
 def defaults():
@@ -121,16 +123,8 @@ def condition_ok(quest, roles, npcs=None):
 
 
 def blocked(state):
-    if state.maintenance.get('pending') or state.maintenance.get('uncertain'):return '等待戰後修理／整理確認'
-    if state.phase != 'world_ready': return '等待登入與角色同步'
-    if state.battle.get('active') or state.event_flow.get('blocked'): return '等待戰鬥／伺服器事件結束'
-    if state.battle_count and state.battle.get('post_event', {}).get('status') != 'completed': return '等待戰後事件完成'
-    if state.activities: return '請先結束目前活動'
-    if state.crafting.get('pending') or state.crafting.get('auto_continue'): return '請先停止製作並等待回覆'
-    if state.alchemy.get('pending') or state.alchemy.get('enabled'): return '請先停止煉金並等待回覆'
-    supply = state.inventory.get('field_supply', {})
-    if supply.get('pending') or supply.get('uncertain'): return '請先等待補給結果確認'
-    return ''
+    # The shared gate blocks actual concurrent effects, not merely armed AI.
+    return coordination_reason(state,'expedition')
 
 
 def item_totals(inventory):
@@ -231,7 +225,7 @@ class Expedition:
 
     def confirm(self, state, text):
         if self.pending and self.pending['kind'] == 'faith':
-            state.inventory.pop('expedition_slots', None)
+            reservations.release(state.inventory,'expedition')
         self.pending = None
         state.expedition.update(pending=None, status=text)
         self.next_check = time.monotonic() + 1
@@ -242,6 +236,7 @@ class Expedition:
         if self.pending:
             if now >= self.pending['due'] and not e['uncertain']:
                 e['uncertain'] = True
+                reservations.uncertain(state.inventory,'expedition')
                 self.stop(state, '遠征操作逾時未確認，已停止且不會重送；請重新登入同步')
             return []
         if not e['enabled'] or e['uncertain'] or now < self.next_check: return []
@@ -361,6 +356,9 @@ class Expedition:
         self.pending = {'kind': 'faith', 'index': role['index'], 'npc_id': role['npc_id'],
                         'target': target, 'slots': slots, 'consumed': dict.fromkeys(slots, 0),
                         'faith_ok': False, 'due': now + 20}
-        state.inventory['expedition_slots'] = list(slots)
+        # Acquire verified quantities/identities before submitting S31-27.
+        reservations.acquire(inv,'expedition',[
+            {'index':int(index),'item_id':before['item_id'],'count':used}
+            for index,(before,used) in slots.items()],exclusive=True)
         e.update(pending='faith', status=f"補充夥伴 {role['npc_id']} 好友度：使用 {count} 個物品，等待確認")
         return Packet(31, 27, w.build())

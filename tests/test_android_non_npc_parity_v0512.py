@@ -76,7 +76,8 @@ class NonNpcInstanceSafety(unittest.TestCase):
         state.apply({'type':'attribute_allocation_success'})
         self.assertTrue(state.attribute_allocation['pending'])
         state.knowledge['player']['stats'].update(int=12,attribute_potential=1)
-        state.apply({'type':'attribute_set','values':{}})
+        state.apply({'type':'attribute_set','entity':'self',
+                     'kind':25,'parameter':0,'value':120})
         self.assertFalse(state.attribute_allocation['pending'])
         self.assertFalse(state.attribute_allocation['uncertain'])
 

@@ -70,13 +70,5 @@ jobs:
           python tools/android_presplash.py check-spec
           python tools/android_hardening.py preflight
           grep -Fqx 'android.archs = arm64-v8a' buildozer.spec
-      - name: Diagnose non-NPC parity regression (temporary)
-        run: |
-          xvfb-run -a python - <<'PY'
-          import sys,unittest
-          suite=unittest.defaultTestLoader.discover('tests',pattern='test_*.py')
-          result=unittest.TextTestRunner(stream=sys.stdout,verbosity=2).run(suite)
-          raise SystemExit(0 if result.wasSuccessful() else 1)
-          PY
       - name: Run Python regression and workflow policy tests
         run: xvfb-run -a python -m unittest discover -s tests -q

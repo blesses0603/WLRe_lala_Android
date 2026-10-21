@@ -17,6 +17,7 @@ from wlre.services.instance_rewards import expire as expire_instance_rewards, di
 from wlre.services.coordination import command_reason
 from wlre.services.items import reservations
 from wlre.network.command_envelope import validate_command, rejected_command_type
+from wlre.network.outbound_observations import observed_outbound
 import queue
 from wlre.network.state_updates import StatePublisher, notify_state
 import socket
@@ -57,28 +58,14 @@ def _send(connection, packet, key, emit):
 
 
 def _send_command_packet(connection,packet,key,state,emit,on_state):
+    # Validate locally-observed payloads *before* sending; never let a
+    # malformed candidate reach the socket or be mistaken for a server ACK.
+    observed=observed_outbound(packet)
     _send(connection,packet,key,emit)
-    if packet.main==50 and packet.sub in (1,2):
-        data=packet.payload
-        event={'type':'battle_command_sent','col':data[0],'row':data[1],
-               'target_col':data[2],'target_row':data[3],
-               'skill_id':int.from_bytes(data[4:6],'little') if packet.sub==1 else 10024}
-        if packet.sub==2:event.update(item_id=int.from_bytes(data[4:6],'little'),bag_index=data[8])
-        state.apply(event);emit(event)
-        if on_state:notify_state(on_state,state)
-    if (packet.main,packet.sub)==(23,15):
-        event={'type':'field_item_sent','bag_index':packet.payload[0],'item_id':int.from_bytes(packet.payload[1:3],'little'),'npc_index':packet.payload[7]}
-        state.apply(event);emit(event)
-        if on_state:notify_state(on_state,state)
-    if (packet.main,packet.sub)==(23,147):
-        event={'type':'field_storage_sent','resource':'hp' if packet.payload[0]==3 else 'sp','npc_index':packet.payload[2],'amount':int.from_bytes(packet.payload[3:5],'little')}
-        state.apply(event);emit(event)
+    if observed is not None:
+        state.apply(observed);emit(observed)
         if on_state:notify_state(on_state,state)
     if packet.main==2 and packet.sub in (1,2,3,5,6):emit(sent_event(packet))
-    movement=decode_outbound_movement(packet)
-    if movement:
-        state.apply(movement);emit(movement)
-        if on_state:notify_state(on_state,state)
 
 
 def verify_account(endpoint, profile, account, password, emit, stop_event, timeout=10):

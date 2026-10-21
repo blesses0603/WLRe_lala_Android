@@ -121,6 +121,32 @@ class NonNpcInstanceSafety(unittest.TestCase):
         self.assertIn('allocate_points',GAME_COMMANDS)
         self.assertFalse(State().instances['coop']['auto_claim_enabled'])
 
+    def test_coop_trace_never_leaks_role_id_or_reward_payload(self):
+        from wlre.network.non_npc_diagnostics import coop_state_trace
+        state,_=ready()
+        state.player['name']='PRIVATE-PLAYER'
+        state.apply(members(23))
+        state.apply(reward())
+        trace=coop_state_trace(state,'instance_reward_status')
+        self.assertTrue(trace['reward_known'])
+        self.assertEqual(trace['open_reward'],1)
+        self.assertNotIn('PRIVATE-PLAYER',str(trace))
+        self.assertNotIn('678',str(trace))
+        self.assertNotIn('23',str(trace))
+        self.assertIsNone(coop_state_trace(state,'PRIVATE-COMMAND'))
+
+    def test_maintenance_trace_contains_bounded_flags_only(self):
+        from wlre.network.non_npc_diagnostics import maintenance_trace_event
+        state,logic=ready()
+        state.maintenance['status']='PRIVATE-ITEM'
+        logic.maintenance.pending={'action':'repair','due':10,'private':'PRIVATE-ITEM'}
+        trace=maintenance_trace_event(state,logic,10)
+        self.assertEqual(trace['action'],'repair')
+        self.assertEqual(trace['phase'],'pending')
+        self.assertNotIn('PRIVATE-ITEM',str(trace))
+        logic.maintenance.pending['action']='PRIVATE-NAME'
+        self.assertEqual(maintenance_trace_event(state,logic,20)['action'],'none')
+
     def test_disconnect_while_pending_preserves_uncertainty(self):
         state,logic=ready();logic.world_acknowledged=True
         state.instances['coop']['join_pending']={'room_id':23,'started':1}

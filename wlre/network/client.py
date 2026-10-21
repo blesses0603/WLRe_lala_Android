@@ -555,11 +555,14 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
                     notify_state(on_state,state)
                 # Keep unresolved room/entry/reward state isolated; never retry
                 # an uncertain request. All expiration handlers only update state.
-                changed=any(expire(state) for expire in (
+                # Evaluate every timeout guard; any(...) would short-circuit
+                # and could leave later paid/reward operations unlocked.
+                expired=[expire(state) for expire in (
                     expire_instance_create, expire_instance_room,
                     expire_instance_standby, expire_instance_start,
                     expire_instance_entry, expire_instance_rewards,
-                    expire_allocation))
+                    expire_allocation)]
+                changed=any(expired)
                 if changed and on_state:notify_state(on_state,state)
                 for packet in tick_instance_rewards(state):
                     _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)

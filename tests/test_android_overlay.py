@@ -136,7 +136,7 @@ class OverlayStateTests(unittest.TestCase):
         self.assertEqual(overview["profiles"][1]["level"], "22")
         self.assertEqual(overview["remaining_profiles"], 0)
         lines = overview_lines(first.game_state)
-        self.assertIn("出戰乙（出戰） Lv.22", lines)
+        self.assertTrue(any(v.startswith("出戰乙（出戰） Lv.22\n") for v in lines))
         self.assertFalse(any("待命甲" in v or "待命丙" in v for v in lines))
         serialized = json.dumps(overview, ensure_ascii=False)
         self.assertNotIn("待命甲", serialized)

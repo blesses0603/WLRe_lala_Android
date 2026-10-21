@@ -1,6 +1,7 @@
-"""Server-backed attribute display. Allocation commands are deliberately disabled."""
+"""Server-backed ability viewer with explicit, guarded attribute allocation."""
 from android_app.pages.general import Page
-from android_app.widgets import label
+from android_app.widgets import label, field, button
+from wlre.services.battle.attribute_points import baseline, preview_block_reason
 
 ATTRIBUTES = (("int", "智力 INT"), ("str", "力量 STR"),
               ("con", "體質 CON"), ("agi", "敏捷 AGI"),
@@ -31,8 +32,38 @@ class Attributes(Page):
         self.info = label()
         self.add_widget(self.info)
         self.add_widget(label(
-            "目前僅顯示能力值與剩餘點數。Android 配點封包／回覆驗證尚未移植，"
-            "為避免誤扣點數，本頁沒有配點或重送按鈕。"))
+            "僅以伺服器已同步的五項能力作為基準；送出一次後等成功回覆及能力同步。"
+            " 結果不明時請重新登入，不會自動重送。"))
+        self.inputs = {key: field(self, name + '（本次增加點數）', '0', numeric=True)
+                       for key, name in ATTRIBUTES}
+        self.status = label()
+        self.add_widget(self.status)
+        self.add_widget(button('檢查並確認分配', self.allocate))
+
+    def allocate(self):
+        reason = preview_block_reason(self.state, live=self.d.live)
+        if reason:
+            self.d.message.text = reason
+            return
+        try:
+            increments = {key: int(view.text.strip() or '0')
+                          for key, view in self.inputs.items()}
+            current = baseline((self.state['knowledge']['player'] or {})['stats'])
+        except (ValueError, KeyError, TypeError) as exc:
+            self.d.message.text = '能力數值不完整或輸入有誤：' + type(exc).__name__
+            return
+        total = sum(increments.values())
+        if total <= 0 or total > current['attribute_potential']:
+            self.d.message.text = '本次配點至少 1 點且不得超出伺服器剩餘點數'
+            return
+        description = '本次確定分配 {} 點：\n{}\n\n送出後必須等待伺服器同步，禁止重送。'.format(
+            total, '、'.join('{} +{}'.format(key.upper(), n)
+                             for key, n in increments.items() if n > 0))
+        self.d.send({'type':'allocate_points','increments':increments,
+                     'baseline':current}, description)
 
     def refresh(self):
         self.info.text = "\n\n".join(attribute_lines(self.state))
+        self.status.text = ((self.state.get('attribute_allocation') or {}).get('status')
+                            or preview_block_reason(self.state,live=self.d.live)
+                            or '已同步，可以手動配點')

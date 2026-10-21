@@ -5,9 +5,21 @@ implementation still needs to be tested by the account owner.
 """
 from wlre.network.connection_health import ConnectionHealth, configure_keepalive
 from wlre.network.instances import list_request, member_request
+from wlre.network.mobile_instance_commands import dispatch as dispatch_instance
+from wlre.services.instance_combat import consume_coop_fight
+from wlre.services.battle.attribute_points import expire as expire_allocation
+from wlre.services.instance_creation import expire as expire_instance_create, disconnect as disconnect_instance_create
+from wlre.services.instance_room_flow import expire as expire_instance_room, disconnect as disconnect_instance_room
+from wlre.services.instance_standby import expire as expire_instance_standby, disconnect as disconnect_instance_standby
+from wlre.services.instance_start import expire as expire_instance_start, disconnect as disconnect_instance_start
+from wlre.services.instance_entry import expire as expire_instance_entry, disconnect as disconnect_instance_entry
+from wlre.services.instance_rewards import expire as expire_instance_rewards, disconnect as disconnect_instance_rewards, tick as tick_instance_rewards
 from wlre.services.coordination import command_reason
 from wlre.services.items import reservations
 from wlre.network.command_envelope import validate_command, rejected_command_type
+from wlre.network.outbound_observations import observed_outbound
+from wlre.network.non_npc_diagnostics import (coop_state_trace, post_battle_trace,
+    maintenance_trace_event)
 import queue
 from wlre.network.state_updates import StatePublisher, notify_state
 import socket
@@ -48,28 +60,14 @@ def _send(connection, packet, key, emit):
 
 
 def _send_command_packet(connection,packet,key,state,emit,on_state):
+    # Validate locally-observed payloads *before* sending; never let a
+    # malformed candidate reach the socket or be mistaken for a server ACK.
+    observed=observed_outbound(packet)
     _send(connection,packet,key,emit)
-    if packet.main==50 and packet.sub in (1,2):
-        data=packet.payload
-        event={'type':'battle_command_sent','col':data[0],'row':data[1],
-               'target_col':data[2],'target_row':data[3],
-               'skill_id':int.from_bytes(data[4:6],'little') if packet.sub==1 else 10024}
-        if packet.sub==2:event.update(item_id=int.from_bytes(data[4:6],'little'),bag_index=data[8])
-        state.apply(event);emit(event)
-        if on_state:notify_state(on_state,state)
-    if (packet.main,packet.sub)==(23,15):
-        event={'type':'field_item_sent','bag_index':packet.payload[0],'item_id':int.from_bytes(packet.payload[1:3],'little'),'npc_index':packet.payload[7]}
-        state.apply(event);emit(event)
-        if on_state:notify_state(on_state,state)
-    if (packet.main,packet.sub)==(23,147):
-        event={'type':'field_storage_sent','resource':'hp' if packet.payload[0]==3 else 'sp','npc_index':packet.payload[2],'amount':int.from_bytes(packet.payload[3:5],'little')}
-        state.apply(event);emit(event)
+    if observed is not None:
+        state.apply(observed);emit(observed)
         if on_state:notify_state(on_state,state)
     if packet.main==2 and packet.sub in (1,2,3,5,6):emit(sent_event(packet))
-    movement=decode_outbound_movement(packet)
-    if movement:
-        state.apply(movement);emit(movement)
-        if on_state:notify_state(on_state,state)
 
 
 def verify_account(endpoint, profile, account, password, emit, stop_event, timeout=10):
@@ -122,6 +120,8 @@ class SessionLogic:
         self.post_battle_due = None
         self.battle_exit_key = None
         self.announced_war_style = None
+        self.last_main_roster_room = None
+        self.last_coop_roster_refresh = (None, 0)
 
     def receive(self, event, state):
         outgoing = []
@@ -138,6 +138,24 @@ class SessionLogic:
                 self.portal_travel.cancel(state,'隊員跟隨隊長')
         self.movement.observe(event,state)
         self.portal_travel.observe(event,state,self.movement)
+        # Original 1262 dungeon/coop requests: once per joined main room
+        # and throttled S186-6 requests for the confirmed co-op room only.
+        if kind == 'instance_phase' and event.get('mode') == 'main':
+            if event.get('kind') in (2, 4):
+                self.last_main_roster_room = None
+            elif (event.get('kind') == 1 and self.world_acknowledged
+                  and event.get('room_id') != self.last_main_roster_room):
+                self.last_main_roster_room = event['room_id']
+                outgoing.append(member_request('main', event['room_id']))
+        if kind == 'instance_member_refresh_request' and self.world_acknowledged:
+            room = state.instances['coop'].get('room') or {}
+            rid = event.get('room_id')
+            if rid == room.get('room_id') and rid:
+                moment = time.monotonic()
+                old_room, old_time = self.last_coop_roster_refresh
+                if rid != old_room or moment - old_time >= 1:
+                    outgoing.append(member_request('coop', rid))
+                    self.last_coop_roster_refresh = (rid, moment)
         if (self.world_acknowledged and kind == "position_snapshot"
                 and event["role_id"] == state.player.get("role_id")):
             # Stage.ReceiveChangeMap / Role.OnPlayerAppear. Own packets only.
@@ -172,8 +190,13 @@ class SessionLogic:
             # FightOver waits EndTime=2.5, then SendServerEvent calls C20-6 00.
             # Cooperative event fights have an additional wait-UI/count branch.
             if state.battle.get('war_style')==16:
+                delay=consume_coop_fight(state)
+                self.post_battle_due=time.monotonic()+delay
                 state.battle['post_event']={'status':'cooperative_wait',
-                    'reason':'協力事件戰鬥的等待／場次分支尚未實作，未自動回覆'}
+                    'reason':'依官方協力戰後延遲安全接續一次',
+                    'delay_seconds':delay}
+                state.event_flow={**state.event_flow,'blocked':True,
+                    'last_source':'協力戰後等待伺服器接續'}
             else:
                 self.post_battle_due=time.monotonic()+2.5
                 state.battle['post_event']={'status':'exit_delay','source':kind,'delay_seconds':2.5}
@@ -229,6 +252,9 @@ class SessionLogic:
             maintenance_pending=bool(self.maintenance.pending),
             maintenance_uncertain=self.maintenance.uncertain)
         if pause_reason:raise ProtocolError(pause_reason)
+        if kind.startswith('instance_') or kind == 'allocate_points':
+            if kind not in ('instance_refresh','instance_members'):
+                return dispatch_instance(state,command)
         if kind in ('instance_refresh', 'instance_members'):
             # Explicit read-only queries. Not an entry point to room mutation.
             if (state.phase != 'world_ready' or state.battle.get('active')
@@ -414,6 +440,14 @@ class SessionLogic:
         Android deliberately retains its own Kivy/foreground service lifecycle;
         no desktop thread ownership or unsupported instance room operations.
         """
+        for disconnect in (disconnect_instance_create,disconnect_instance_room,
+                           disconnect_instance_standby,disconnect_instance_start,
+                           disconnect_instance_entry,disconnect_instance_rewards):
+            disconnect(state)
+        if state.attribute_allocation.get('pending'):
+            state.attribute_allocation['pending']=False
+            state.attribute_allocation['uncertain']=True
+            state.attribute_allocation['status']='配點結果未確認，請重新登入同步'
         holds=state.inventory.get('holds',{})
         if any(holds.values()):
             state.inventory['reliable']=False
@@ -518,16 +552,40 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
                         emit({'type': 'command_rejected', 'command_type':command_type,
                               'error': '指令格式錯誤' if command_type == 'invalid' else str(exc)})
                 before_maintenance=state.maintenance
-                for packet in logic.maintenance.tick(state,logic,time.monotonic()):
+                maintenance_now=time.monotonic()
+                for packet in logic.maintenance.tick(state,logic,maintenance_now):
                     _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
                 if state.maintenance != before_maintenance:
                     emit({'type':'maintenance_status',**state.maintenance})
                     if on_state:notify_state(on_state,state)
+                trace=maintenance_trace_event(state,logic,maintenance_now)
+                guard=logic.maintenance
+                trace_key=(trace['phase'],trace['action'],trace['battle_count'],trace['completed'])
+                if (trace_key!=guard.trace_key or
+                    trace['phase'] in ('pending','uncertain') and
+                    (guard.trace_at is None or maintenance_now-guard.trace_at>=10)):
+                    guard.trace_key=trace_key
+                    guard.trace_at=maintenance_now
+                    emit(trace)
                 before_expedition = (state.expedition['status'], state.expedition['pending'], state.expedition['enabled'])
                 for packet in logic.expedition.tick(state,time.monotonic()):
                     _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
                 if before_expedition != (state.expedition['status'], state.expedition['pending'], state.expedition['enabled']) and on_state:
                     notify_state(on_state,state)
+                # Keep unresolved room/entry/reward state isolated; never retry
+                # an uncertain request. All expiration handlers only update state.
+                # Evaluate every timeout guard; any(...) would short-circuit
+                # and could leave later paid/reward operations unlocked.
+                expired=[expire(state) for expire in (
+                    expire_instance_create, expire_instance_room,
+                    expire_instance_standby, expire_instance_start,
+                    expire_instance_entry, expire_instance_rewards,
+                    expire_allocation)]
+                changed=any(expired)
+                if changed and on_state:notify_state(on_state,state)
+                for packet in tick_instance_rewards(state):
+                    _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
+                    if on_state:notify_state(on_state,state)
                 before_craft=(state.crafting['status'],state.crafting['pending'],state.crafting['revision'],state.crafting['auto_continue'],repr(state.crafting.get('local_plan')))
                 for packet in logic.crafting.tick(state,time.monotonic()):_send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
                 if before_craft!=(state.crafting['status'],state.crafting['pending'],state.crafting['revision'],state.crafting['auto_continue'],repr(state.crafting.get('local_plan'))) and on_state:notify_state(on_state,state)
@@ -585,6 +643,9 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
                         state.apply(event)
                         stage = 'event_handling'
                         emit(event)
+                        trace=coop_state_trace(state,event['type'])
+                        if trace is not None:
+                            emit(trace)
                         if request:
                             for response in logic.receive(event, state):
                                 _send(connection, response, profile['tx_xor'], emit)

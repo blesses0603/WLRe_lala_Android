@@ -1,6 +1,6 @@
-"""1262 官方副本資料唯讀瀏覽。此頁不查詢／建立房間，也不發送遊戲封包。"""
+"""1262 官方副本／協力資料與受伺服器確認的安全房間操作。"""
 from android_app.pages.general import Page
-from android_app.widgets import label, button, row, select, pick
+from android_app.widgets import label, button, row, select, pick, field, column, dialog
 from wlre.services.instance_browser import entries_for, official_catalog
 
 
@@ -39,17 +39,26 @@ def describe_entry(entry):
 class InstanceCatalog(Page):
     def __init__(self, dashboard):
         super().__init__(dashboard)
-        self.add_widget(label("副本／協力｜1262 官方資料（唯讀）"))
+        self.add_widget(label("副本／協力｜官方 1262 房間與獎勵"))
         self.add_widget(label(
-            "目前僅能查看已驗證的副本種類、參與條件與獎勵資料。"
-            "尚未接入房間查詢、建立／加入、準備、開始或領獎操作。"))
+            "下列操作只送出一次，結果以伺服器回覆為準；"
+            "協力創房、入房可能消耗門票或點數。付費寶箱禁止自動購買。"))
         self.mode = select(self, "類型", ["一般／特殊副本", "協力副本"])
         self.mode.bind(text=lambda *_: self.render())
         self.info = label()
         self.add_widget(self.info)
         self.add_widget(button("搜尋／瀏覽副本清單", self.browse))
         self.add_widget(button("查詢伺服器房間（僅讀取）", self.query_rooms))
-        self.add_widget(button("查看已同步房間清單", self.browse_rooms))
+        self.add_widget(button("查看已同步房間清單／選擇加入", self.browse_rooms))
+        self.add_widget(row(button("建立房間", self.create_room),
+                            button("查詢房間成員", self.query_members)))
+        self.add_widget(row(button("離開房間", self.leave_room),
+                            button("準備／取消準備", self.toggle_standby)))
+        self.add_widget(row(button("開始一般副本", self.start_room),
+                            button("一般副本手動入場", self.enter_room)))
+        self.add_widget(row(button("領取免費協力獎勵", self.claim_reward),
+                            button("明確取消寶箱", self.cancel_reward)))
+        self.add_widget(button("切換免費協力獎勵自動領取（預設關閉）", self.toggle_reward_auto))
         self.live_info = label("房間尚未同步；離線資料不代表即時房間。")
         self.add_widget(self.live_info)
         self.details = label("請選擇副本；此操作不會連線或消耗資源。")
@@ -112,10 +121,126 @@ class InstanceCatalog(Page):
             item.get('room_id', '未知'), item.get('members', '?'),
             item.get('manager') or '房主 ID '+str(item.get('host_id', '?'))))
             for index, item in enumerate(rooms)]
-        pick('伺服器房間（只讀）', rows,
-            lambda index: setattr(self.details, 'text',
-                '伺服器房間資料（不可直接加入）：\n' +
-                '\n'.join('{}：{}'.format(k, v) for k, v in rooms[index].items())))
+        pick('伺服器房間（選擇後確認是否加入）', rows,
+             lambda index: self.join_room(rooms[index], self.current_mode()))
+
+
+    def _data(self, mode=None):
+        return ((self.state.get('instances') or {}).get(mode or self.current_mode()) or {})
+
+    def _send(self, action, mode=None, question=None, **values):
+        if not self.d.live:
+            self.d.message.text = '請先完成登入與伺服器同步'
+            return
+        self.d.send({'type': action, 'mode': mode or self.current_mode(), **values}, question)
+
+    def create_room(self):
+        mode = self.current_mode()
+        rows = [item for item in self.rows() if mode == 'coop' or item.get('kind') == 1]
+        if not self.d.live or not rows:
+            self.d.message.text = '請先登入且具有可用的官方副本資料'
+            return
+        entries = [(i, '{}｜{} 人｜編號 {}'.format(
+            item['name'], item.get('min_members', '?'), item.get('id')))
+            for i, item in enumerate(rows)]
+        pick('選擇要建立的官方副本', entries,
+             lambda i: self._create_form(rows[i], mode))
+
+    def _create_form(self, entry, mode):
+        body = column()
+        privacy = select(body, '房間類型', ['公開', '私人'])
+        password = field(body, '私人房間密碼（4 位 ASCII 數字）')
+        password.password = True  # Kivy masks entered private-room credentials.
+        capacity = select(body, '協力房間人數', [str(i) for i in range(1, 9)]) if mode == 'coop' else None
+        def submit():
+            public = privacy.text == '公開'
+            cmd = {'public': public, 'password': '' if public else password.text.strip()}
+            if mode == 'main':
+                cmd['map_id'] = entry['map_id']
+            else:
+                cmd.update(dungeon_id=entry['id'], player_count=int(capacity.text),
+                           confirm_cost=True)
+            question = ('確定建立{}房間「{}」？'.format(
+                '協力' if mode == 'coop' else '一般副本', entry['name']) +
+                ('\n可能消耗門票或點數，提交後不會自動重送。' if mode == 'coop' else
+                 '\n建立結果需等待伺服器確認。'))
+            self._send('instance_create', mode, question, **cmd)
+            popup.dismiss()
+        body.add_widget(row(button('下一步：確認建立', submit),
+                            button('取消', lambda: popup.dismiss())))
+        popup = dialog('建立副本房間', body, .8)
+
+    def join_room(self, room, mode):
+        self.details.text = ('伺服器房間資料：\n' +
+                             '\n'.join('{}：{}'.format(k, v) for k, v in room.items()))
+        if not self.d.live:
+            return
+        body = column()
+        is_public = room.get('public') is True
+        password = field(body, '私人房間密碼（公開房間免填）')
+        password.password = True
+        body.add_widget(label('此操作只使用最新伺服器房間清單；結果不明禁止重試。'))
+        def submit():
+            cmd = {'room_id': room.get('room_id'),
+                   'password': '' if is_public else password.text.strip()}
+            if mode == 'main':
+                cmd['sn'] = room.get('sn')
+            else:
+                cmd['confirm_cost'] = True
+            self._send('instance_join', mode,
+                '確定加入此房間？' +
+                ('\n協力入房可能消耗門票或點數。' if mode == 'coop' else '') +
+                '\n若伺服器沒有確認，請勿重送。', **cmd)
+            popup.dismiss()
+        body.add_widget(row(button('下一步：確認加入', submit),
+                            button('取消', lambda: popup.dismiss())))
+        popup = dialog('加入伺服器房間', body, .7)
+
+    def query_members(self):
+        room = self._data().get('room') or {}
+        if type(room.get('room_id')) is not int:
+            self.d.message.text = '請先確認目前所在的伺服器房間'
+            return
+        self._send('instance_members', room_id=room['room_id'])
+
+    def leave_room(self):
+        self._send('instance_leave', question='確定離開已確認的副本房間？\n未完成的協力獎勵不能被當成已結算。')
+
+    def toggle_standby(self):
+        room = self._data('coop').get('room') or {}
+        standby = room.get('standby')
+        if type(standby) is not bool:
+            self.d.message.text = '協力準備狀態尚未由伺服器同步'
+            return
+        target = not standby
+        self._send('instance_coop_standby', 'coop',
+                   '確定{}？僅房主與全員到齊時可操作。'.format('準備' if target else '取消準備'),
+                   standby=target)
+
+    def start_room(self):
+        self._send('instance_start', 'main',
+                   '確定由房主開始一般副本？\n須符合官方人數要求，且伺服器房間名單完整。')
+
+    def enter_room(self):
+        self._send('instance_enter', 'main',
+                   '確定進入已由伺服器確認開始的一般副本？\n入場結果不明不會重送。')
+
+    def claim_reward(self):
+        self._send('instance_reward_claim', 'coop',
+                   '確定只領取伺服器確認的免費協力寶箱？\n需背包可靠同步且至少四格空位。',
+                   action='free')
+
+    def cancel_reward(self):
+        self._send('instance_reward_cancel', 'coop',
+                   '確定取消目前伺服器的協力寶箱？此操作不能還原，請再次確認。',
+                   confirm_cancel=True)
+
+    def toggle_reward_auto(self):
+        enabled = bool(self._data('coop').get('auto_claim_enabled'))
+        self._send('instance_auto_reward', 'coop',
+                   '確定{}免費協力獎勵自動領取？\n只對免費寶箱生效，付費寶箱永不自動購買。'.format(
+                       '關閉' if enabled else '開啟'),
+                   enabled=not enabled)
 
     def refresh(self):
         data = (self.state.get('instances') or {}).get(self.current_mode()) or {}
@@ -125,6 +250,11 @@ class InstanceCatalog(Page):
             self.live_info.text = '房間未同步；請手動查詢，系統不會自動重送'
         else:
             room = data.get('room') or {}
-            self.live_info.text = '{}\n伺服器房間 {} 間｜自己房間：{}'.format(
+            reward=self._data('coop').get('reward') or {}
+            self.live_info.text = '{}\n伺服器房間 {} 間｜自己房間：{}\n房間成員：{} 人｜階段：{}\n協力獎勵：{}｜自動免費領獎：{}'.format(
                 data.get('status', '已同步'), len(data.get('rooms') or []),
-                room.get('room_id', '尚未由伺服器確認'))
+                room.get('room_id', '未確認'), len(data.get('members') or []),
+                data.get('phase', '未知'),
+                ('尚未同步' if not reward else '免費' if reward.get('open_reward') == 1
+                 else '付費／其他' if reward.get('open_reward') == 2 else '無可領取寶箱'),
+                '已開啟' if self._data('coop').get('auto_claim_enabled') else '關閉')

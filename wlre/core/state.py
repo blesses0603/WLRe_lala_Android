@@ -113,8 +113,9 @@ class State:
         apply_live(self,event)
         apply_party(self,event)
         apply_expedition(self,event)
-        if kind.startswith('instance_') and event.get('mode') in ('main', 'coop'):
-            apply_instances(self,event)
+        # Entry and co-op completion additionally observe authoritative world
+        # and battle events. Never infer rewards from winner side alone.
+        apply_instances(self,event)
         if kind in ('attribute_allocation_success', 'attribute_set', 'player_combat_data'):
             apply_points_event(self,event)
         dispatch_local(self, event, affects_navigation=affects_navigation)

@@ -150,6 +150,7 @@ class InstanceCatalog(Page):
         body = column()
         privacy = select(body, '房間類型', ['公開', '私人'])
         password = field(body, '私人房間密碼（4 位 ASCII 數字）')
+        password.password = True  # Kivy masks entered private-room credentials.
         capacity = select(body, '協力房間人數', [str(i) for i in range(1, 9)]) if mode == 'coop' else None
         def submit():
             public = privacy.text == '公開'
@@ -177,6 +178,7 @@ class InstanceCatalog(Page):
         body = column()
         is_public = room.get('public') is True
         password = field(body, '私人房間密碼（公開房間免填）')
+        password.password = True
         body.add_widget(label('此操作只使用最新伺服器房間清單；結果不明禁止重試。'))
         def submit():
             cmd = {'room_id': room.get('room_id'),

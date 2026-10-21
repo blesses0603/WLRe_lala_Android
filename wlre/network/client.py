@@ -18,6 +18,8 @@ from wlre.services.coordination import command_reason
 from wlre.services.items import reservations
 from wlre.network.command_envelope import validate_command, rejected_command_type
 from wlre.network.outbound_observations import observed_outbound
+from wlre.network.non_npc_diagnostics import (coop_state_trace, post_battle_trace,
+    maintenance_trace_event)
 import queue
 from wlre.network.state_updates import StatePublisher, notify_state
 import socket
@@ -550,11 +552,21 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
                         emit({'type': 'command_rejected', 'command_type':command_type,
                               'error': '指令格式錯誤' if command_type == 'invalid' else str(exc)})
                 before_maintenance=state.maintenance
-                for packet in logic.maintenance.tick(state,logic,time.monotonic()):
+                maintenance_now=time.monotonic()
+                for packet in logic.maintenance.tick(state,logic,maintenance_now):
                     _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
                 if state.maintenance != before_maintenance:
                     emit({'type':'maintenance_status',**state.maintenance})
                     if on_state:notify_state(on_state,state)
+                trace=maintenance_trace_event(state,logic,maintenance_now)
+                guard=logic.maintenance
+                trace_key=(trace['phase'],trace['action'],trace['battle_count'],trace['completed'])
+                if (trace_key!=guard.trace_key or
+                    trace['phase'] in ('pending','uncertain') and
+                    (guard.trace_at is None or maintenance_now-guard.trace_at>=10)):
+                    guard.trace_key=trace_key
+                    guard.trace_at=maintenance_now
+                    emit(trace)
                 before_expedition = (state.expedition['status'], state.expedition['pending'], state.expedition['enabled'])
                 for packet in logic.expedition.tick(state,time.monotonic()):
                     _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
@@ -631,6 +643,9 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
                         state.apply(event)
                         stage = 'event_handling'
                         emit(event)
+                        trace=coop_state_trace(state,event['type'])
+                        if trace is not None:
+                            emit(trace)
                         if request:
                             for response in logic.receive(event, state):
                                 _send(connection, response, profile['tx_xor'], emit)

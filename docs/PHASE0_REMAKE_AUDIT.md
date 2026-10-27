@@ -20,7 +20,7 @@
 
 - `android_app/app.py`：Kivy App、啟動與恢復、權限及 UI 狀態；應避免在 UI callback 中累積網路／領域規則。
 - `android_app/dashboard.py`、`automation_ui.py`、`overview_model.py`、`widgets.py`、`theme.py`：主畫面、帳號卡片、自動化入口、UI 元件及視覺樣式。
-- `android_app/pages/`：現有頁面含地圖、屬性、夥伴、遠征、一般、實例、副產／製作、資源、設定及社交；main 目前沒有獨立的 `pages/battle.py`，戰鬥／自動化 UI 位於帳號卡片控制與相關模組。
+- `android_app/pages/`：現有頁面含地圖、屬性、夥伴、遠征、一般、實例、製作、資源、設定及社交；main 目前沒有獨立的 `pages/battle.py`，戰鬥／自動化 UI 位於帳號卡片控制與相關模組。
 - `android_app/features.py`：定義 IPC 可接受的操作種類及允許投影的狀態欄位，是重要邊界，重製時不應由 UI 任意略過。
 
 ### 服務、狀態與平台整合
@@ -36,7 +36,7 @@
 
 - UI 自動化入口：`android_app/automation_ui.py`；能力／狀態投影：`android_app/features.py`、`dashboard.py`。
 - 共用候選服務：`wlre/services/battle/auto_battle.py`、`battle_commands.py`、`party.py`、`combat.py`、`companions.py`、`party_guard.py`。
-- 共享事件與耗材協調：`wlre/core/state_battle_events.py`、`wlre/services/items/combat_resources.py`（若在目標版本存在）、`reservations.py`、`services/coordination.py` 及戰後維護。
+- 共享事件與耗材協調：`wlre/core/state_battle_events.py`、`wlre/services/items/combat_resources.py`、`reservations.py`、`services/coordination.py` 及戰後維護。
 - Battle 不是單純的自動戰鬥開關。新 UI 必須區分手動指令、自動規則、戰鬥狀態、耗材預留、伺服器回覆與不確定結果。
 
 ### Android 特有驗收案例

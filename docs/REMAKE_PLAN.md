@@ -85,6 +85,6 @@ Android UI 不應直接操作封包或繞過共用驗證邏輯。最終語言與
 
 ## 7. 進度紀錄
 
-- 本次：新增重製規劃文件。
-- 未修改既有功能程式碼、未調整版本號、未建立正式 Release。
-- 後續應先完成 Phase 0 的實際程式碼盤點，再以獨立 PR 交付新專案骨架。
+- 本次：新增重製規劃文件，並完成第一輪 Android main 靜態程式碼盤點，詳見 [Phase 0 盤點報告](PHASE0_REMAKE_AUDIT.md)。
+- Phase 0 尚未結案：Battle／Map 狀態圖、Android 生命週期測試矩陣、共用 contracts 與版本／簽章策略 ADR 仍待補齊。
+- 本次僅修改文件，未改動功能程式碼或版本號，未變更 application ID／簽章，未合併 main、未建立正式 Release／Tag。

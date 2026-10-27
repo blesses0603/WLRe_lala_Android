@@ -79,8 +79,8 @@
 | 工作項目 | 狀態 | 證據／下一步 |
 |---|---|---|
 | Android 原始碼／建置／測試清單 | 已完成靜態盤點 | main tree 與本文件；未執行本機測試 |
-| Battle UI／核心責任切分 | 部分完成 | 目前 UI 與服務已有位置，但需補狀態圖、請求／回覆矩陣及 lifecycle 案例 |
-| Map UI／移動／傳點切分 | 部分完成 | 目前畫布與操作入口存在；來源等級及正式服驗收狀態需逐項列明 |
+| Battle UI／核心責任切分 | 已建立需求矩陣初稿，待補來源核實 | 見 [Battle／Map 矩陣](PHASE0_BATTLE_MAP_MATRIX.md)；需補狀態圖、回覆證據及 Android lifecycle 測試 |
+| Map UI／移動／傳點切分 | 已建立需求矩陣初稿，待逐項核實 | 見 [Battle／Map 矩陣](PHASE0_BATTLE_MAP_MATRIX.md)；座標／傳點來源與正式服狀態仍待填證據 |
 | 共用核心範圍與版本政策 | 待 ADR | 對照桌面主線與 Android 副本；定義共用 contract，不把內部 package version 當發行版本 |
 | Android 生命週期測試矩陣 | 待完成 | 背景／前景、鎖屏、程序回收、網路切換、權限撤銷、服務重啟 |
 | 新版 UI toolkit／application ID／簽章決策 | 未決策（刻意保留） | P0 不變更現有 app ID、簽章、密鑰或 APK 發佈流程 |
@@ -99,5 +99,6 @@
 ## 9. 本次執行紀錄
 
 - 讀取 main tree、README、入口、Buildozer 設定、Android UI／服務／版本檔、戰鬥／地圖代表模組、測試與 workflow 結構。
+- 建立 [Battle／Map 跨平台行為與驗收矩陣初稿](PHASE0_BATTLE_MAP_MATRIX.md)，列出 12 個 Battle、12 個 Map、7 個 Android lifecycle 候選案例；尚未轉成正式封包 golden 或完成端到端測試。
 - 只記錄靜態盤點與風險，未修改既有功能程式碼、未調整版本號、未變更 app ID／簽章、未建立 Release／Tag。
 - 本回合沒有執行本機 Python 測試、APK 打包、APK 安裝、實體手機測試或正式服 E2E。

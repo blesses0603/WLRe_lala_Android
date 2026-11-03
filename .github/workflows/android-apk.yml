@@ -161,7 +161,7 @@ jobs:
       # that core, and an unknown runner image disables binary reuse.
       - name: Compute P3 SHA-256 keys for eight isolated LaLa cores
         id: p3_keys
-        run: python tools/android_core_incremental.py plan --stage "$NATIVE_STAGE"
+        run: python -m tools.android_core_incremental plan --stage "$NATIVE_STAGE"
       - name: Restore P3 lalawire verified ARM64 binary
         id: p3_restore_lalawire
         if: steps.p3_keys.outputs.enabled == 'true'
@@ -227,7 +227,7 @@ jobs:
           key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaexpedition }}
           path: ${{ env.LALA_P3_CORE_CACHE }}/lalaexpedition
       - name: Validate P3 native receipts before p4a
-        run: python tools/android_core_incremental.py prepare --stage "$NATIVE_STAGE"
+        run: python -m tools.android_core_incremental prepare --stage "$NATIVE_STAGE"
       - name: Pin public signer into Phase07 runtime Java guard (no private key)
         env:
           ANDROID_EXPECTED_SIGNER_SHA256: ${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
@@ -342,7 +342,7 @@ jobs:
         id: p3_snapshot
         if: steps.p3_keys.outputs.enabled == 'true'
         continue-on-error: true
-        run: python tools/android_core_incremental.py save --stage "$NATIVE_STAGE"
+        run: python -m tools.android_core_incremental save --stage "$NATIVE_STAGE"
       - name: Save P3 lalawire verified ARM64 binary
         if: steps.p3_keys.outputs.enabled == 'true' && steps.p3_snapshot.outcome == 'success' && steps.p3_restore_lalawire.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4

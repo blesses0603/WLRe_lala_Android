@@ -56,6 +56,27 @@ def keys(stage: Path, *, image_version: str | None = None,
     shared = _digest(_regular(stage / "p4a-recipes/lala_core_incremental.py", 64 * 1024))
     # The receipt producer is also a relevant part of the build contract.
     generator = _digest(_regular(Path(__file__), 128 * 1024))
+    # Source/link dependencies outside the eight core recipes can change the
+    # ABI or build flags of every extension; never reuse old binaries then.
+    shared_recipes = {}
+    recipes_root = stage / "p4a-recipes"
+    for recipe_dir in sorted(recipes_root.iterdir()):
+        if recipe_dir.is_symlink():
+            raise ValueError("Symlinked native recipe directory")
+        if not recipe_dir.is_dir() or recipe_dir.name in dict(CORES):
+            continue
+        for file in sorted(recipe_dir.rglob("*")):
+            if not file.is_file():
+                continue
+            if file.is_symlink():
+                raise ValueError("Symlinked native recipe dependency")
+            if file.suffix.lower() in (".py", ".patch", ".diff", ".sh", ".cfg", ".toml", ".txt"):
+                shared_recipes[file.relative_to(recipes_root).as_posix()] = _digest(_regular(file, 2 * 1024 * 1024))
+    env_flags = {
+        field: os.environ.get(field, "")
+        for field in ("CFLAGS", "CPPFLAGS", "CXXFLAGS", "LDFLAGS", "CC", "CXX", "AR", "STRIP")
+    }
+    shared_inputs = _json_digest({"third_party_recipe_sources": shared_recipes, "env_flags": env_flags})
     found = {}
     for name, extension in CORES:
         folder = stage / "p4a-recipes" / name
@@ -67,6 +88,7 @@ def keys(stage: Path, *, image_version: str | None = None,
             "schema": SCHEMA, "runner_image": image, "platform": platform,
             "python_target": "3.14", "arch": "arm64-v8a",
             "ndk": "r28c", "shared_helper": shared, "receipt_generator": generator,
+            "shared_native_dependencies": shared_inputs,
             "recipe": name, "native_module": extension, "sources": inputs,
         })
     if len(found) != 8:

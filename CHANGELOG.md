@@ -1,5 +1,13 @@
 # 版本紀錄
 
+## 2026-11-03：P1／P2 Android 原生相依編譯快取（CI-only）
+
+- P1：引入 ccache 850 MiB 並設定編譯器內容校驗，讓 NDK C／C++ 編譯輸出能依來源與編譯參數重用；每次建置顯示命中統計。
+- P2：僅保存十個明確列出的第三方 p4a Recipe 的其他建置目錄及來源快取，使用含 Runner ImageVersion、p4a／NDK／API／ABI、Buildozer／Cython／requirements、本機 Recipe SHA-256 的版本化快取鍵。
+- 所有 LaLa 原生核心、應用 Distribution、APK、私鑰、帳密仍不直接跨版重用；首次建置與快取失效走完整編譯，固定簽章及安全稽核不變。
+- 新增 P1／P2 快取版本鍵、白名單、GitHub Workflow 安全邊界與 fail-open 快取服務回歸測試。
+- 僅為 CI／文件變更，Android 版本保持 v7.1.4；真正的 p4a 快取命中、ARM64 APK 及編譯時間仍待手動 main 建置驗收。
+
 ## 7.1.4 開發修補版（尚未正式發布）
 
 - 背景服務 IPC 若有單筆無法序列化／過大的回覆，改為回傳固定安全錯誤，不因單筆資料損壞而結束服務 socket。

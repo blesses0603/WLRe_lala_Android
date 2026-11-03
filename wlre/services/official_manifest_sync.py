@@ -29,6 +29,10 @@ MAX_RECEIPT_BYTES = 4096
 _DATA_VER = re.compile(r'[0-9]{1,4}(?:\.[0-9]{1,4}){2,3}\Z')
 _REVISION = re.compile(r'[1-9][0-9]{0,5}_20[0-9]{2}(?:_[0-9]{2}){6}\Z')
 _HASH = re.compile(r'[a-fA-F0-9]{8}\Z')
+_MANIFEST_PATH = re.compile(
+    r'/WLN/TW/[0-9]{1,4}(?:\\.[0-9]{1,4}){2,3}/ResourcesPC/AssetBundle/'
+    r'(?:DataPackage|MainPackage)\\.(?:hash|bytes)\\Z'
+)
 PACKAGES = ('DataPackage', 'MainPackage')
 
 
@@ -70,19 +74,13 @@ class _NoRedirect(HTTPRedirectHandler):
 
 def _fetch(url, *, limit, opener, timeout):
     parsed = urlsplit(url)
-    # These inputs come only from ManifestSpec, never from an HTTP response.
+    # No redirects, percent encoding, userinfo, alternate hosts or paths.
     if (parsed.scheme != 'https' or parsed.hostname != OFFICIAL_HOST
             or parsed.port is not None or parsed.query or parsed.fragment or
             parsed.username is not None or parsed.password is not None
-            or parsed.path not in (
-                '/WLN/TW/' + parsed.path.split('/')[3] + '/ResourcesPC/AssetBundle/' + name
-                for name in ('DataPackage.hash', 'DataPackage.bytes',
-                             'MainPackage.hash', 'MainPackage.bytes')
-            )):
+            or not _MANIFEST_PATH.fullmatch(parsed.path)):
         raise ManifestSyncError('Manifest URL is not the approved HTTPS source')
     stage = parsed.path.rsplit('/', 1)[-1]
-    if not _DATA_VER.fullmatch(parsed.path.split('/')[3]):
-        raise ManifestSyncError('Manifest URL has an invalid DataVer')
 
     def read_one(target):
         with opener(Request(target, headers={

@@ -1,5 +1,13 @@
 # 版本紀錄
 
+## 2026-11-03：P3 八個 LaLa 核心 SHA-256 增量編譯（CI-only）
+
+- Android 八個原生 Cython Recipe 各自以來源 .pyx、Recipe 與 setup.py、共用快取程式、Runner ImageVersion、p4a／Cython／Buildozer／NDK／API／ABI 計算完整 SHA-256 指紋。
+- 在隔離原生 staging 還原受信任 main／Tag 已完成安全稽核的 ARM64 擴充模組；逐個驗證鍵、收據、SHA-256、大小、ELF，只有可信命中可跳過該核心的 Cython 重建，失效一律正常重編。
+- 每次仍重建與簽署完整 APK，逐項執行 Phase04／05 原生模組、Shim、資源、固定憑證、SHA256、Phase09 安全稽核；只有完整 Gate 通過後可逐核心保存快取。不中斷既有 P1／P2 快取。
+- 新增精確單核失效、快取竄改防護、未知 Runner 與 GitHub Workflow 安全策略回歸測試。真正 ARM64 APK 的快取命中率、時間效益和真機驗收仍需受信任 main 手動編譯驗證。
+- 不修改任何遊戲指令、帳號、官方資源判斷、Android 版本 7.1.5，不建立 Tag／Release，不合併 main。
+
 ## 7.1.5 開發修補版（尚未正式發布）
 
 - 修正 APK 在官方版本查詢成功但完整 Runtime 失敗時，只顯示「Runtime 檢查發生未分類錯誤」的診斷缺口。

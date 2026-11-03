@@ -34,6 +34,9 @@ jobs:
       CCACHE_COMPILERCHECK: content
       CCACHE_BASEDIR: /tmp/wlre-android-native-release
       USE_CCACHE: '1'
+      # P3 artifacts never enter the app tree or user distribution.
+      LALA_P3_CORE_CACHE: /tmp/wlre-android-native-release/.buildozer/android/lala-core-cache
+      LALA_P3_CORE_PLAN: /tmp/wlre-android-native-release/.buildozer/android/lala-core-plan.json
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -153,6 +156,78 @@ jobs:
             ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/png
             ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/sqlite3
             ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/python3
+      # P3: exact SHA-256 key for EACH staged native implementation and
+      # its recipe. No prefix restore: changing just one core invalidates only
+      # that core, and an unknown runner image disables binary reuse.
+      - name: Compute P3 SHA-256 keys for eight isolated LaLa cores
+        id: p3_keys
+        run: python tools/android_core_incremental.py plan --stage "$NATIVE_STAGE"
+      - name: Restore P3 lalawire verified ARM64 binary
+        id: p3_restore_lalawire
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalawire }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalawire
+      - name: Restore P3 lalavault verified ARM64 binary
+        id: p3_restore_lalavault
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalavault }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalavault
+      - name: Restore P3 lalaruntime verified ARM64 binary
+        id: p3_restore_lalaruntime
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaruntime }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalaruntime
+      - name: Restore P3 lalasessions verified ARM64 binary
+        id: p3_restore_lalasessions
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalasessions }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalasessions
+      - name: Restore P3 lalaclient verified ARM64 binary
+        id: p3_restore_lalaclient
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaclient }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalaclient
+      - name: Restore P3 lalaprotocol verified ARM64 binary
+        id: p3_restore_lalaprotocol
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaprotocol }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalaprotocol
+      - name: Restore P3 lalaautobattle verified ARM64 binary
+        id: p3_restore_lalaautobattle
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaautobattle }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalaautobattle
+      - name: Restore P3 lalaexpedition verified ARM64 binary
+        id: p3_restore_lalaexpedition
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaexpedition }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalaexpedition
+      - name: Validate P3 native receipts before p4a
+        run: python tools/android_core_incremental.py prepare --stage "$NATIVE_STAGE"
       - name: Pin public signer into Phase07 runtime Java guard (no private key)
         env:
           ANDROID_EXPECTED_SIGNER_SHA256: ${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
@@ -261,6 +336,69 @@ jobs:
             ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/png
             ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/sqlite3
             ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/python3
+      # P3: only the just-audited, fixed-signed APK can authorize native
+      # snapshots. Failure to save a cache never licenses skipping an audit.
+      - name: Snapshot verified P3 native extensions after APK security gate
+        id: p3_snapshot
+        if: steps.p3_keys.outputs.enabled == 'true'
+        continue-on-error: true
+        run: python tools/android_core_incremental.py save --stage "$NATIVE_STAGE"
+      - name: Save P3 lalawire verified ARM64 binary
+        if: steps.p3_keys.outputs.enabled == 'true' && steps.p3_snapshot.outcome == 'success' && steps.p3_restore_lalawire.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalawire }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalawire
+      - name: Save P3 lalavault verified ARM64 binary
+        if: steps.p3_keys.outputs.enabled == 'true' && steps.p3_snapshot.outcome == 'success' && steps.p3_restore_lalavault.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalavault }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalavault
+      - name: Save P3 lalaruntime verified ARM64 binary
+        if: steps.p3_keys.outputs.enabled == 'true' && steps.p3_snapshot.outcome == 'success' && steps.p3_restore_lalaruntime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaruntime }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalaruntime
+      - name: Save P3 lalasessions verified ARM64 binary
+        if: steps.p3_keys.outputs.enabled == 'true' && steps.p3_snapshot.outcome == 'success' && steps.p3_restore_lalasessions.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalasessions }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalasessions
+      - name: Save P3 lalaclient verified ARM64 binary
+        if: steps.p3_keys.outputs.enabled == 'true' && steps.p3_snapshot.outcome == 'success' && steps.p3_restore_lalaclient.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaclient }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalaclient
+      - name: Save P3 lalaprotocol verified ARM64 binary
+        if: steps.p3_keys.outputs.enabled == 'true' && steps.p3_snapshot.outcome == 'success' && steps.p3_restore_lalaprotocol.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaprotocol }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalaprotocol
+      - name: Save P3 lalaautobattle verified ARM64 binary
+        if: steps.p3_keys.outputs.enabled == 'true' && steps.p3_snapshot.outcome == 'success' && steps.p3_restore_lalaautobattle.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaautobattle }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalaautobattle
+      - name: Save P3 lalaexpedition verified ARM64 binary
+        if: steps.p3_keys.outputs.enabled == 'true' && steps.p3_snapshot.outcome == 'success' && steps.p3_restore_lalaexpedition.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaexpedition }}
+          path: ${{ env.LALA_P3_CORE_CACHE }}/lalaexpedition
       - name: Upload APK (only after successful build)
         uses: actions/upload-artifact@v7.0.2
         with:

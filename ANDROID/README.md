@@ -103,6 +103,18 @@ App 回到前景時會重新建立 Kivy 畫面，恢復帳號／伺服器欄位�
 
 這次 CI 正式編譯、固定簽章與舊版原地升級仍須以 **v0.0.8 main 工作流程實際成功執行及手機更新結果**驗證，不能用先前實驗 APK 的成功紀錄代替。
 
+## GitHub Actions｜P3 八核心 SHA-256 增量編譯（2026-11-03）
+
+在 P1 ccache、P2 第三方 Recipe 快取之外，P3 針對八個 LaLa 原生 Cython Recipe 各自計算 SHA-256：lalawire、lalavault、lalaruntime、lalasessions、lalaclient、lalaprotocol、lalaautobattle、lalaexpedition。
+
+每個指紋包含隔離 staging 的原始 .pyx、Recipe 定義與 setup.py、共用快取程式、收據產生工具、p4a 與工具鏈設定、Android API/ABI、NDK、Python target 及 Runner ImageVersion。個別核心修改只讓該核心失效；平台或共用實作變動使相關快取全部失效。以個別完整 SHA-256 精確命名 actions/cache key，不使用模糊的 restore-keys 前綴；Android Patch 版本編號不會自行讓原生快取失效。
+
+只有受信任 main 手動／Tag 工作流的完整固定簽章 APK 已通過八核心 ELF、Shim、資源、正式憑證、SHA256SUMS 與 Phase09 發行 Gate，才將每個核心唯一的已核驗 ARM64 .so 加上大小／SHA-256 收據保存至隔離 cache。不可保存完整 python-installs、Distribution、APK、Keystore、帳密、Secret、原始敏感 Python 實作；仍重新進行 APK staging／組裝與完整安全稽核。
+
+恢復前再次核對 per-core key、檔名、大小、SHA-256 與 ARM64 ELF；損壞、來源不符、快取服務失效、Runner 身分不明時，直接走原 p4a CythonRecipe 完整編譯，不能把快取命中視為原生功能驗收。PR 快測不取得簽章 Secret，也不執行 Buildozer。
+
+驗收方式：PR 先做各核心來源隔離失效、快取遭竄改、標準編譯降級和 Workflow 安全政策回歸；授權合併 main 後在相同 Runner／工具鏈執行兩次完整 ARM64 APK 手動建置，比較八核心命中數、實際編譯時間和完整 Phase09 結果。兩輪 APK 通過仍需 Android 真機 native import、背景服務與正式伺服器驗收。P3 僅修改 CI／測試／文件，Android 版本維持 v7.1.5。
+
 ## GitHub Actions｜P1／P2 原生編譯快取（2026-11-03）
 
 在既有 SDK／NDK／Gradle 下載快取上新增兩層 **受信任 main 手動／Tag APK 建置專用**優化。此項不更改遊戲程式版本 v7.1.4，也不提前發布或減少既有稽核。

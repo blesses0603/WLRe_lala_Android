@@ -219,20 +219,57 @@ class Crafting(Page):
 
 class PlanEditor:
     def __init__(self, d):
-        self.d = d; self.rows = copy.deepcopy(d.data.get('preferences', {}).get('plan', [])); self.offset = 0
-        self.body = column(); self.message = label('編輯本地自訂清單；保存不會自動開始製作。'); self.body.add_widget(self.message)
-        self.list = column(); self.body.add_widget(self.list)
-        self.body.add_widget(row(button('上一頁', lambda: self.move(-1)), button('下一頁', lambda: self.move(1))))
-        self.body.add_widget(row(button('保存清單', self.save), button('複製方案', self.export), button('貼上匯入', self.import_plan)))
-        self.body.add_widget(row(button('清空草稿', self.clear), button('取回服務剩餘清單', self.from_runtime)))
-        self.body.add_widget(row(button('開始清單', self.start), button('暫停清單', lambda: d.send(dict(type='craft', action='plan_pause')))))
-        runtime = d.state.get('crafting', {}).get('local_plan', {})
-        self.runtime_status = label(); self.body.add_widget(self.runtime_status)
-        self.popup = dialog('自訂製作清單', self.body); self.render()
+        from android_app.pages.ui_components import feature_card, status_line
+        self.d = d
+        self.rows = copy.deepcopy(
+            d.data.get('preferences', {}).get('plan', []))
+        self.offset = 0
+        self.body = column()
+
+        intro = feature_card(
+            '自訂製作清單',
+            '本地草稿不會自動開始製作，需手動保存及啟動')
+        self.message = status_line(
+            '編輯本地自訂清單；保存不會自動開始製作。')
+        intro.add_widget(self.message)
+        self.body.add_widget(intro)
+
+        entries = feature_card('清單項目', '點選項目可修改批數與順序')
+        self.list = column()
+        entries.add_widget(self.list)
+        entries.add_widget(row(
+            button('上一頁', lambda: self.move(-1)),
+            button('下一頁', lambda: self.move(1))))
+        self.body.add_widget(entries)
+
+        controls = feature_card('清單保存與交換',
+                                '匯入和修改只更新草稿，需明確保存')
+        controls.add_widget(row(
+            button('保存清單', self.save),
+            button('複製方案', self.export)))
+        controls.add_widget(button('貼上匯入', self.import_plan))
+        controls.add_widget(row(
+            button('清空草稿', self.clear),
+            button('取回服務剩餘清單', self.from_runtime)))
+        self.body.add_widget(controls)
+
+        execution = feature_card(
+            '背景製作排程',
+            '未確認的結果不直接重送；各項操作仍由服務核對')
+        execution.add_widget(row(
+            button('開始清單', self.start),
+            button('暫停清單',
+                   lambda: d.send(dict(type='craft', action='plan_pause')))))
+        self.runtime_status = status_line('等待服務排程同步')
+        execution.add_widget(self.runtime_status)
+        self.body.add_widget(execution)
+        self.popup = dialog('自訂製作清單', self.body)
+        self.render()
         from kivy.clock import Clock
         self.timer = Clock.schedule_interval(self.runtime_refresh, 1)
         self.popup.bind(on_dismiss=lambda *_: self.timer.cancel())
         self.runtime_refresh()
+
     def runtime_refresh(self, *_):
         if self.d.closed: return False
         runtime = self.d.state.get('crafting', {}).get('local_plan', {})

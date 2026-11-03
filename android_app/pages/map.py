@@ -21,6 +21,7 @@ class MapCanvas(Widget):
     def __init__(self, on_pick, **kwargs):
         super().__init__(size_hint_y=None,height=dp(320),**kwargs)
         self.texture=None;self.projection=None;self.player=None;self.selected=None;self.portals=[];self.on_pick=on_pick
+        self._draw_signature=None
         self.bind(pos=lambda *_:self.draw(),size=lambda *_:self.draw())
     def box(self):
         side=min(self.width,self.height)
@@ -28,6 +29,18 @@ class MapCanvas(Widget):
     def screen(self,u,v):
         x,y,size=self.box();return x+u/1024*size,y+(1024-v)/1024*size
     def draw(self):
+        # Bitmap texture, scene and markers can be stable while Kivy polls.
+        # Skip expensive canvas clear/rebuild until something actually moves.
+        marks=lambda point: tuple((point or {}).get(key) for key in ('x','y'))
+        signature=(
+            tuple(self.pos),tuple(self.size),id(self.texture),
+            id(self.projection),marks(self.player),marks(self.selected),
+            tuple((p.get('x'),p.get('y'),p.get('coordinate_valid'))
+                  for p in self.portals),
+        )
+        if signature==self._draw_signature:
+            return
+        self._draw_signature=signature
         self.canvas.clear()
         x,y,size=self.box()
         with self.canvas:

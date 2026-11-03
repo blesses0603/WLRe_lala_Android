@@ -1,7 +1,8 @@
-"""Version-aware key for the non-secret Android SDK/NDK/Gradle download cache.
+"""Version-aware keys for Android download and native dependency caches.
 
-Only restored dependencies may be cached. Do not add staged APKs, p4a
-compiled outputs, key stores, application private files or source trees.
+Only allowlisted third-party p4a recipe outputs and compiler objects may be
+reused. Never cache LaLa native .so modules, app distributions, signed APKs,
+keystores, credentials, or untrusted staged application sources.
 """
 from __future__ import annotations
 

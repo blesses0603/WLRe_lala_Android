@@ -94,7 +94,7 @@ class StatMeter(BoxLayout):
 def message_button(body, callback, *, own=False):
     """Readable bubble with real tap actions; no fabricated read receipts."""
     lines=max(1, (len(body)+19)//20)
-    height=max(66,min(210,dp(40+24*lines)))
+    height=max(dp(66),min(dp(210),dp(40+24*lines)))
     view=Button(text=body, size_hint_y=None, height=height)
     style_button(view,primary=own,radius=17)
     view.halign='left'

@@ -11,6 +11,7 @@ from kivy.uix.checkbox import CheckBox
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
 from android_app.theme import TEXT, MUTED, ACCENT, SURFACE, SOFT, BACKGROUND, surface, style_button, style_input, style_checkbox
+from android_app.ui_shell import section_title
 from android_app.assets import function_icon
 
 
@@ -42,13 +43,13 @@ class GameIconTab(ButtonBehavior, BoxLayout):
 
 
 def column():
-    box = BoxLayout(orientation='vertical', spacing=dp(10), padding=dp(8), size_hint_y=None)
+    box = BoxLayout(orientation='vertical', spacing=dp(12), padding=dp(10), size_hint_y=None)
     box.bind(minimum_height=box.setter('height'))
     return box
 
 
 def label(text='', height=None):
-    view = Label(text=str(text), color=TEXT, size_hint_y=None, halign='left', valign='middle', font_size='14sp')
+    view = Label(text=str(text), color=TEXT, size_hint_y=None, halign='left', valign='middle', font_size='15sp')
     view.bind(width=lambda w, size: setattr(w, 'text_size', (size, None)))
     if height: view.height = dp(height)
     else: view.bind(texture_size=lambda w, size: setattr(w, 'height', max(dp(30), size[1] + dp(10))))
@@ -85,7 +86,7 @@ def select(box, title, values, current=None):
     box.add_widget(label(title))
     view = Spinner(text=current if current is not None else (values[0] if values else '無資料'),
                    values=list(values), option_cls=RoundedSpinnerOption,
-                   size_hint_y=None, height=dp(48), font_size='14sp')
+                   size_hint_y=None, height=dp(48), font_size='15sp')
     style_button(view)
     box.add_widget(view)
     return view
@@ -99,12 +100,17 @@ def check(box, title, value=False):
 
 
 def dialog(title, body, height=.92):
+    """All dialogs share the real Kivy neon shell, including their titles."""
     scroll = ScrollView(do_scroll_x=False, bar_width=dp(3))
     scroll.add_widget(body)
-    frame = surface(BoxLayout(padding=dp(10)), color=SURFACE, radius=24)
+    frame = surface(BoxLayout(orientation='vertical', padding=dp(12),
+                              spacing=dp(8)), color=SURFACE, radius=24)
+    frame.add_widget(section_title(title))
     frame.add_widget(scroll)
-    popup = Popup(title=title, content=frame, size_hint=(.96, height), background='',
-                  background_color=(0, 0, 0, 0), title_color=TEXT, separator_color=ACCENT)
+    popup = Popup(title='', content=frame, size_hint=(.96, height),
+                  title_size='0sp', separator_height=0, background='',
+                  background_color=(0, 0, 0, 0),
+                  title_color=TEXT, separator_color=ACCENT)
     popup.open()
     return popup
 

@@ -1,4 +1,5 @@
 """Policy checks for the pinned-signed Android ARM64 Cython APK workflow."""
+import ast
 from pathlib import Path
 import unittest
 
@@ -15,6 +16,25 @@ class NativeReleasePolicyTests(unittest.TestCase):
     def test_versioned_release_is_a_distinct_upgrade(self):
         self.assertEqual(source_version(
             ROOT / "buildozer.spec", ROOT / "android_app/version.py"), "v0.1.0")
+
+    def test_lz4_versioning_tools_are_installed_in_hostpython(self):
+        # Target dependencies do not make setup.py imports available in p4a's
+        # isolated hostpython (APK run 41595030813 failed in setuptools_scm).
+        tree = ast.parse(
+            (ROOT / "p4a-recipes/lz4/__init__.py").read_text(encoding="utf-8"))
+        recipe = next(node for node in tree.body
+                      if isinstance(node, ast.ClassDef) and node.name == "CodecRecipe")
+        values = {
+            target.id: ast.literal_eval(node.value)
+            for node in recipe.body if isinstance(node, ast.Assign)
+            for target in node.targets if isinstance(target, ast.Name)
+        }
+        normalize = lambda name: name.lower().replace("_", "-")
+        host = {normalize(name) for name in values["hostpython_prerequisites"]}
+        target = {normalize(name) for name in values["depends"]}
+        self.assertTrue({"setuptools", "setuptools-scm", "vcs-versioning"} <= host)
+        self.assertFalse({"setuptools-scm", "vcs-versioning"} & target)
+        self.assertFalse(values["call_hostpython_via_targetpython"])
 
     def test_full_apk_only_on_tag_or_main_manual_not_pull_request(self):
         self.assertIn("workflow_dispatch:", self.text)

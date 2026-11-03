@@ -274,12 +274,25 @@ class LaLaApp(App):
         self.empty_state.size_hint_y = None
 
     def retry_resources(self, *_):
-        if hasattr(self.manager, 'retry_resources'):
-            if any(s.active for s in self.manager.sessions.values()):
-                self.message.text = '請先停止所有連線，再更新官方資料'; return
-            self.manager.retry_resources()
-            if self.catalog_sync is not None:
-                self.catalog_sync.reset()
+        if not hasattr(self.manager, 'retry_resources'):
+            return
+        if any(s.active for s in self.manager.sessions.values()):
+            self.message.text = '請先停止所有連線，再更新官方資料'
+            return
+        if (self.catalog_sync is not None
+                and self.catalog_sync.snapshot()['status'] == 'checking'):
+            self.message.text = '手機端正在驗證官方資源，請等待本次檢查完成'
+            return
+        if not self.manager.retry_resources():
+            status = getattr(self.manager, 'resource_status', {}).get('status')
+            self.message.text = (
+                '背景服務正在核對官方資源，請等待本次檢查完成'
+                if status == 'checking' else
+                '背景服務尚未就緒或已有檢查請求排隊，請稍後重試')
+            return
+        if self.catalog_sync is not None:
+            self.catalog_sync.reset()
+        self.message.text = '已要求背景服務重新檢查官方資源'
 
     def connect_account(self, *_):
         if getattr(self, 'catalog_sync', None) is not None and (not self.catalog_sync.snapshot()['ready']

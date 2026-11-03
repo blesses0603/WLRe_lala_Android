@@ -76,7 +76,7 @@ class StageTwoOfflineTests(unittest.TestCase):
         self.assertEqual(len(ATTRIBUTES), 5)
         self.assertEqual({key for key, _ in ATTRIBUTES},
                          {'str', 'con', 'agi', 'int', 'wis'})
-        self.assertIn('待同步', '\\n'.join(attribute_lines({})))
+        self.assertIn('未同步', '\\n'.join(attribute_lines({})))
         state = {'knowledge': {'player': {
             'ready': True,
             'stats': {'str': 10, 'int': 8, 'con': 4, 'agi': 9,

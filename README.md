@@ -4,6 +4,9 @@
 
 Android 12 以上、ARM64。保留 Kivy 直式觸控介面、前景連線服務、懸浮球、Android Keystore、固定簽章與八核心原生封裝。Android 與桌面版各自維護版本號。
 
+**Android 啟動流程：**先顯示獨立「官方資料與資料庫檢查」畫面，背景服務完成官方版本、雙 Manifest、必要 Bundle、Runtime 與 SQLite 驗證後，手機介面端再獨立核對同一份 Catalog 身分；**兩端都確認 ready 且 SHA-256 來源識別一致，才顯示帳號／密碼輸入畫面**。未通過時保留原因、重新檢查及啟動服務入口，不提供跳過驗證。
+
+
 ## 本次桌面功能同步
 
 以桌面 main v7.0.1 及 PR #65 的遊戲核心為來源，精確提交與逐檔雜湊記於 [來源鎖定](ANDROID/DESKTOP_SOURCE_LOCK.json)。桌面 Tkinter／Nuitka 與桌面發佈流程不搬進 Android。

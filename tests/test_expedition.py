@@ -1,5 +1,4 @@
 import copy
-import struct
 import unittest
 from unittest.mock import patch
 
@@ -10,6 +9,7 @@ from wlre.network.wire import Packet, ProtocolError, Writer
 from wlre.services.expedition import Expedition, duration, validate, choose_members
 from wlre.services.expedition_data import parse_catalog, attach_names
 from wlre.paths import RESOURCE_ROOT
+from wlre.storage.full_resource_seed import read_config
 from wlre.services.items.combat_resources import available
 import json
 
@@ -90,13 +90,14 @@ class ExpeditionAutomation(ExpeditionFixture, unittest.TestCase):
         with self.assertRaises(ProtocolError): self.service.start(self.state, self.settings)
         self.assertEqual(self.service.tick(self.state, 100), [])
 
-    def test_insufficient_or_locked_items_stop_without_consumption(self):
+    def test_insufficient_or_locked_items_wait_without_consumption(self):
         self.state.expedition['roles']['1']['faith'] = 70
         self.state.inventory.update(ready=True, reliable=True, items={'3': {'item_id': 34014, 'count': 1}})
         before = copy.deepcopy(self.state.inventory)
         self.service.start(self.state, self.settings)
         self.assertEqual(self.service.tick(self.state, 10), [])
-        self.assertFalse(self.state.expedition['enabled'])
+        self.assertTrue(self.state.expedition['enabled'])
+        self.assertIn('等待',self.state.expedition['status'])
         self.assertEqual(before, self.state.inventory)
 
     def test_idle_members_and_supported_conditions_only(self):
@@ -115,7 +116,10 @@ class ExpeditionAutomation(ExpeditionFixture, unittest.TestCase):
         with self.assertRaises(ProtocolError): Expedition({'tasks': {}, 'levels': {}}).start(self.state, self.settings)
         self.state.expedition['enabled'] = False
         self.state.battle['active'] = True
-        with self.assertRaises(ProtocolError): self.service.start(self.state, self.settings)
+        self.service.start(self.state,self.settings)
+        self.assertTrue(self.state.expedition['enabled'])
+        self.assertEqual(self.service.tick(self.state,10),[])
+        self.assertIn('等待戰鬥',self.state.expedition['status'])
 
     def test_ai_roaming_and_expedition_can_start_in_either_order(self):
         from unittest.mock import Mock
@@ -164,12 +168,13 @@ class ExpeditionAutomation(ExpeditionFixture, unittest.TestCase):
         self.assertEqual(packet.payload[5:7], Writer().u16(34014).build())
         self.assertEqual(self.service.pending['target'], 80)
 
-    def test_automatic_selection_does_not_use_locked_stock(self):
+    def test_automatic_selection_waits_without_using_locked_stock(self):
         self.state.expedition['roles']['1']['faith'] = 70
         self.state.inventory.update(ready=True, reliable=True, items={'3': {'item_id': 34014, 'count': 10, 'locked': True}})
         self.service.start(self.state, {**self.settings, 'item_id': 0})
         self.assertEqual(self.service.tick(self.state, 10), [])
-        self.assertFalse(self.state.expedition['enabled'])
+        self.assertTrue(self.state.expedition['enabled'])
+        self.assertIn('等待',self.state.expedition['status'])
 
     def test_online_sync_requests_time_once_without_starting_automation(self):
         logic = SessionLogic()
@@ -184,7 +189,7 @@ class ExpeditionAutomation(ExpeditionFixture, unittest.TestCase):
 
 class ExpeditionWire(unittest.TestCase):
     def test_bundled_official_catalog_uses_minutes_and_level_reduction(self):
-        value = json.loads((RESOURCE_ROOT / 'expedition_catalog.json').read_text(encoding='utf8'))
+        value = json.loads(read_config('expedition_catalog.json', root=RESOURCE_ROOT).decode('utf-8'))
         self.assertEqual(len(value['tasks']), 260)
         self.assertEqual(len(value['levels']), 10)
         self.assertEqual(value['tasks']['1']['name'], '遺跡探索 I')
@@ -311,9 +316,95 @@ class ExpeditionClaiming(ExpeditionFixture, unittest.TestCase):
         self.assertFalse(self.state.expedition['enabled'])
         self.assertEqual(self.service.tick(self.state, 100), [])
 
+    def test_quest_refresh_after_auto_claim_consumes_official_show_flag(self):
+        # Official 1262 ExpeditionMgr.RevExpeditionQuestUpdate reads 50
+        # (index:u8, quest:u16) pairs AND one ReadBoolean() show flag.
+        self.service.start(self.state, self.settings)
+        sent, = self.service.tick(self.state, 10)
+        self.assertEqual((sent.main, sent.sub, sent.payload), (31, 16, bytes((1,))))
+        claim = Writer().u8(1).u8(1).u16(0).u16(0).u8(10).u32(34014).u32(2)
+        self.event(decode(Packet(31, 16, claim.build())))
+        self.assertIsNotNone(self.service.pending)
+
+        entries = b''.join(Writer().u8(i).u16(i if i <= 2 else 0).build()
+                           for i in range(1, 51))
+        for flag in (0, 1):
+            update = decode(Packet(31, 19, entries + bytes([flag])))
+            self.assertEqual(update['show'], bool(flag))
+            self.assertEqual(update['quests']['1'], 1)
+            self.assertEqual(update['quests']['50'], 0)
+            self.event(update)
+            self.assertIsNotNone(self.service.pending)
+        self.event({'type': 'bag_add', 'item': {'index': 3, 'item_id': 34014, 'count': 2}})
+        self.assertEqual(self.state.expedition['claimed'], 1)
+        self.assertIsNone(self.service.pending)
+        for malformed in (entries, entries + bytes((1,0))):
+            with self.assertRaises(ProtocolError):
+                decode(Packet(31, 19, malformed))
+
+    def test_quest_refresh_packet_after_claim_does_not_cause_client_error(self):
+        from unittest.mock import Mock
+        from wlre.network.client import run_client
+        from wlre.network.wire import encode
+        result = Writer().u8(1).u8(1).u16(0).u16(0).u8(10).u32(34014).u32(2).build()
+        entries = b''.join(Writer().u8(i).u16(i if i <= 2 else 0).build()
+                           for i in range(1, 51)) + bytes((1,))
+        connection = Mock()
+        connection.__enter__ = Mock(return_value=connection)
+        connection.__exit__ = Mock(return_value=False)
+        connection.recv.side_effect = [
+            encode(Packet(31, 16, result), 0),
+            encode(Packet(31, 19, entries), 0),
+            b'',
+        ]
+        events = []
+        with patch('wlre.network.client.socket.create_connection', return_value=connection):
+            state = run_client('fixture.invalid', 1, {'rx_xor': 0, 'tx_xor': 0},
+                               events.append, duration=None)
+        self.assertEqual(state.phase, 'disconnected')
+        self.assertIn('expedition_quests', [e.get('type') for e in events])
+        self.assertEqual([e.get('reason') for e in events if e.get('type') == 'connection_closed'],
+                         ['server_closed'])
+        self.assertFalse(any(e.get('reason') == 'client_error' for e in events))
+
+    def test_s31_15_start_ack_ignores_opaque_body_per_official_lua(self):
+        # ExpeditionMgr.RevExpeditionStart (1262) performs UI work only and
+        # does not read the S31-15 packet body. No body data may leak into events.
+        for payload in (b'', bytes((0,)), bytes((0xA5, 0x04, 0x7F))):
+            with self.subTest(body_length=len(payload)):
+                event=decode(Packet(31,15,payload))
+                self.assertEqual(event,{'type':'expedition_started',
+                                         'extension_bytes':len(payload)})
+                self.event(event)
+                self.assertNotIn('payload',str(event))
+
+    def test_s31_15_ack_with_extra_bytes_does_not_disconnect_client(self):
+        from unittest.mock import Mock
+        from wlre.network.client import run_client
+        from wlre.network.wire import encode
+        connection=Mock()
+        connection.__enter__=Mock(return_value=connection)
+        connection.__exit__=Mock(return_value=False)
+        connection.recv.side_effect=[
+            encode(Packet(31,15,bytes((1,2,3))),0),
+            b'',
+        ]
+        events=[]
+        with patch('wlre.network.client.socket.create_connection',return_value=connection):
+            state=run_client('fixture.invalid',1,{'rx_xor':0,'tx_xor':0},
+                             events.append,duration=None)
+        self.assertEqual(state.phase,'disconnected')
+        starts=[e for e in events if e.get('type')=='expedition_started']
+        self.assertEqual(len(starts),1)
+        self.assertEqual(starts[0]['extension_bytes'],3)
+        closures=[e for e in events if e.get('type')=='connection_closed']
+        self.assertEqual([e['reason'] for e in closures],['server_closed'])
+        self.assertFalse(any(e.get('reason')=='client_error' for e in events))
+        self.assertFalse(any('packet_main' in e for e in events))
+
     def test_reward_wire_is_structured_and_catalog_has_capacity_metadata(self):
         w = Writer().u8(1).u8(1).u16(0).u16(0).u8(10).u32(34014).u32(2)
         self.assertEqual(decode(Packet(31, 16, w.build()))['rewards'], [self.award])
         from wlre.services.expedition import claim_space
-        official = json.loads((RESOURCE_ROOT / 'expedition_catalog.json').read_text(encoding='utf8'))
+        official = json.loads(read_config('expedition_catalog.json', root=RESOURCE_ROOT).decode('utf-8'))
         self.assertTrue(all(claim_space(q) is not None for q in official['tasks'].values()))

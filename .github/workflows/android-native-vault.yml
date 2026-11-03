@@ -38,6 +38,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Restore verified desktop SQLite resource seed
+        run: python tools/android_resource_seed.py
       - name: Install native Android build dependencies
         run: |
           sudo apt-get update
@@ -90,3 +92,4 @@ jobs:
           path: phase05-proof/*
           if-no-files-found: error
           retention-days: 7
+

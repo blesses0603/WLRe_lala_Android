@@ -1,0 +1,272 @@
+"""Launcher-owned official resource preparation, never the login view.
+
+Both the source-code bootstrapper and the compiled desktop entry point call
+this service BEFORE starting Tk. Official catalog reports are informational and cannot
+approve game versions, login, navigation or network packet sending.
+"""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import json
+import os
+from pathlib import Path
+import tempfile
+
+from wlre.storage.paths import data_root
+
+STATUS_SCHEMA = 3
+STATUS_FILENAME = 'launcher_catalog_status.json'
+MAX_STATUS_BYTES = 4096
+STATES = frozenset(('verified_official', 'downloaded_unparsed',
+                   'preview', 'error'))
+FAILURE_FEATURES = frozenset(('npc', 'shops', 'crafting', 'scenes', 'items'))
+FAILURE_STAGES = frozenset(('UnityFS／TextAsset', 'Eve 二進位事件',
+                            'ItemData 二進位表', '資料 Schema',
+                            '未分類解包例外', '未分類 Schema 例外'))
+
+
+def status_path(root=None):
+    base = Path(root) if root is not None else data_root() / 'official_sync'
+    return base / STATUS_FILENAME
+
+
+def read_launcher_status(*, root=None):
+    """Untrusted display-only status. Never authorizes runtime assets."""
+    path = status_path(root)
+    try:
+        with path.open('rb') as stream:
+            raw = stream.read(MAX_STATUS_BYTES + 1)
+        if not 0 < len(raw) <= MAX_STATUS_BYTES:
+            return None
+        report = json.loads(raw.decode('utf-8'))
+        legacy = {'schema_version', 'status', 'checked_at_utc',
+                  'catalog_key', 'assets_ready', 'can_send_packets'}
+        current = legacy | {'data_compatibility', 'protocol_compatibility'}
+        diagnostic = current | {'failure_feature', 'failure_stage'}
+        if (type(report) is not dict
+                or ((report.get('schema_version') == 1 and set(report) != legacy)
+                    or (report.get('schema_version') == 2
+                        and set(report) != current)
+                    or (report.get('schema_version') == 3
+                        and set(report) != diagnostic)
+                    or report.get('schema_version') not in (1, 2, 3))
+                or (report['schema_version'] in (2, 3) and
+                    (report['data_compatibility'] not in ('compatible', 'unverified')
+                     or report['protocol_compatibility'] != 'unverified'))
+                or (report['schema_version'] == 3 and
+                    not ((report['failure_feature'] is None and report['failure_stage'] is None)
+                         or (report['failure_feature'] in FAILURE_FEATURES and
+                             report['failure_stage'] in FAILURE_STAGES)))
+                or report['status'] not in STATES
+                or report['assets_ready'] is not False
+                or report['can_send_packets'] is not False
+                or type(report['checked_at_utc']) is not str
+                or len(report['checked_at_utc']) > 40):
+            return None
+        key = report['catalog_key']
+        if key is not None and (type(key) is not str or len(key) != 64 or
+                                any(c not in '0123456789abcdef' for c in key)):
+            return None
+        return report
+    except (OSError, UnicodeError, ValueError, TypeError):
+        return None
+
+
+def _store_status(report, *, root=None):
+    target = status_path(root)
+    payload = (json.dumps(report, ensure_ascii=True, sort_keys=True,
+                          separators=(',', ':')) + '\n').encode('utf-8')
+    if len(payload) > MAX_STATUS_BYTES:
+        raise ValueError('Launcher report too large')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    pending = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=target.parent, prefix='.launcher_',
+                                         suffix='.partial', delete=False) as fd:
+            pending = Path(fd.name)
+            fd.write(payload)
+            fd.flush()
+            os.fsync(fd.fileno())
+        os.replace(pending, target)
+    finally:
+        if pending is not None:
+            pending.unlink(missing_ok=True)
+
+
+def prepare_on_launch(*, runner=None, root=None, environ=None, progress=None):
+    """Synchronously verify official resources before Tk starts.
+
+    Failure is reported without blocking LaLa's own official login check.
+    Callers must not treat any return value or the private receipt as approval.
+    All downloads occur inside run_auto_catalog's verified, bounded pipeline.
+    """
+    if progress is not None and not callable(progress):
+        raise ValueError('Invalid launcher progress callback')
+    env = os.environ if environ is None else environ
+    if env.get('WLRE_DISABLE_AUTO_CATALOG') == '1':
+        return {'status': 'skipped', 'assets_ready': False,
+                'can_send_packets': False}
+    real_launcher_run = runner is None and root is None
+    if runner is None:
+        from wlre.services.world.auto_catalog import run_auto_catalog
+        runner = run_auto_catalog
+    key = None
+    data_compatibility = 'unverified'
+    failure_feature = failure_stage = None
+    def track_progress(phase, details):
+        nonlocal failure_feature, failure_stage
+        if (phase == 'extract_failed' and isinstance(details, dict)
+                and details.get('feature') in FAILURE_FEATURES
+                and details.get('stage') in FAILURE_STAGES):
+            failure_feature, failure_stage = details['feature'], details['stage']
+        if progress is not None:
+            progress(phase, details)
+    if real_launcher_run:
+        # Discover live independent package revisions and manifest digests.
+        # This metadata cannot approve gameplay assets or network packets.
+        try:
+            from wlre.services.world.runtime_manifest_identity import (
+                discover_runtime_identity)
+            identity = discover_runtime_identity()
+            if progress is not None:
+                progress('runtime_identity_verified', {
+                    'data': identity.packages['DataPackage'].version,
+                    'main': identity.packages['MainPackage'].version,
+                    'data_assets': identity.packages['DataPackage'].asset_count,
+                    'main_assets': identity.packages['MainPackage'].asset_count})
+        except Exception:
+            if progress is not None:
+                progress('runtime_identity_unavailable', {})
+    if real_launcher_run:
+        try:
+            from wlre.services.world.dynamic_bundle_runtime import prepare_dynamic_runtime
+            if progress is not None:
+                progress('runtime_bundle_plan', {})
+            prepare_dynamic_runtime(sync=True)
+            if progress is not None:
+                progress('runtime_bundle_ready', {})
+        except (OSError, ValueError, RuntimeError):
+            if progress is not None:
+                progress('runtime_bundle_unavailable', {})
+    if real_launcher_run and env.get('WLRE_SYNC_LEGACY_1275') == '1':
+        # Legacy 1275 synchronization is opt-in only. The primary launcher
+        # always discovers the live official MainPackage/DataPackage pair via
+        # run_auto_catalog; historical pinned resources must not gate it.
+        # The four-feature candidate may fail before the full 1275 runtime
+        # files are prepared (e.g. a separately audited Eve decoder). Give
+        # the fixed-version runtime its own bounded official Bundle sync.
+        # Failure is informational, never a login/pass-packet authorization.
+        try:
+            from wlre.services.world.bundle_runtime_1275 import (
+                BundleRuntimeUnavailable, sync_pinned_runtime_bundles)
+            if progress is not None:
+                progress('runtime_bundle_plan', {})
+            summary = sync_pinned_runtime_bundles()
+            if progress is not None:
+                progress('runtime_bundle_ready', {
+                    'completed': summary['verified_bundles'],
+                    'downloaded': summary['downloaded_bundles']})
+        except (BundleRuntimeUnavailable, OSError, ValueError, TypeError):
+            if progress is not None:
+                progress('runtime_bundle_unavailable', {})
+    try:
+        kwargs = {'download': True, 'parse': True}
+        if progress is not None or real_launcher_run:
+            kwargs['progress'] = track_progress
+        try:
+            result = runner(**kwargs)
+        except Exception:
+            if not real_launcher_run:
+                raise
+            # A new Eve/ItemData layout can block a four-feature decoder.
+            # Continue automatic official-only data collection and retain the
+            # current version's private catalog identity for gap reporting.
+            # This NEVER implies that an unparsed source is gameplay-ready.
+            fallback = {'download': True, 'parse': False}
+            if progress is not None:
+                fallback['progress'] = progress
+            result = runner(**fallback)
+        if result['status'] not in ('verified_official', 'downloaded_unparsed'):
+            raise ValueError('Launcher official resources are not available')
+        key = result['catalog_key']
+        if type(key) is not str or len(key) != 64 or any(
+                c not in '0123456789abcdef' for c in key):
+            raise ValueError('Invalid launcher catalog identity')
+        # A source can pass its schemas without its network protocol being
+        # approved. Only advertise the data verdict when the Catalog pipeline
+        # explicitly returned both independent statuses.
+        if (result.get('data_compatibility') == 'compatible' and
+                result.get('protocol_compatibility') == 'unverified' and
+                result.get('assets_ready') is False and
+                result.get('can_send_packets') is False and
+                result['status'] == 'verified_official'):
+            data_compatibility = 'compatible'
+        # The Launcher is never allowed to promote downloaded indexes into
+        # a formal gameplay runtime. Only independently verified runtime
+        # assets can be selected by the gameplay source policy.
+        status = result['status']
+    except Exception:
+        # Keep reason out of local receipts; failures can include file paths,
+        # remote exceptions, or implementation details.
+        status = 'error'
+    receipt = {
+        'schema_version': STATUS_SCHEMA,
+        'status': status,
+        'checked_at_utc': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+        'catalog_key': key,
+        'data_compatibility': data_compatibility,
+        'protocol_compatibility': 'unverified',
+        'failure_feature': failure_feature,
+        'failure_stage': failure_stage,
+        'assets_ready': False,
+        'can_send_packets': False,
+    }
+    try:
+        _store_status(receipt, root=root)
+    except OSError:
+        # No readable status must never be confused with an approved Catalog.
+        pass
+    # Every real Launcher iteration also records what the full formal runtime
+    # still lacks. Tests with an injected root diagnose only that temporary
+    # private directory. Neither report is an authorization token.
+    try:
+        from wlre.services.world.resource_gap_diagnostics import (
+            diagnose_resources, save_report)
+        gaps = diagnose_resources(base=root, checked_at_utc=receipt['checked_at_utc'])
+        save_report(gaps, base=root)
+    except Exception:
+        # Optional gap diagnosis must not prevent LaLa from starting.
+        # This report is informational, not login authorization.
+        pass
+    return receipt
+
+
+def main(argv=None):
+    import sys
+    args = sys.argv[1:] if argv is None else list(argv)
+    if args not in ([], ['--progress']):
+        print('用法：python -m wlre.services.world.launcher_catalog [--progress]',
+              file=sys.stderr)
+        return 2
+    if args == ['--progress']:
+        from wlre.launcher_progress import run_with_progress
+        result = run_with_progress(prepare_on_launch)
+    else:
+        result = prepare_on_launch()
+    status = result['status']
+    # Show the real per-user cache location, not the GitHub checkout folder.
+    # Never print credentials or private account settings.
+    print('LaLa 官方資源資料夾：' + str(data_root() / 'official_sync'), flush=True)
+    print('LaLa Launcher 官方資源檢查：' +
+          ('資料格式檢查通過，協定仍待審核'
+           if status == 'verified_official' and
+           result.get('data_compatibility') == 'compatible'
+           else '已下載，資料尚未完成驗證' if status == 'downloaded_unparsed'
+           else '未完成；仍維持原有登入安全檢查' if status == 'error'
+           else '已略過'), flush=True)
+    # Source discovery never overrides the independent login safety gate.
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

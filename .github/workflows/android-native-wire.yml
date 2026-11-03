@@ -41,6 +41,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Restore verified desktop SQLite resource seed
+        run: python tools/android_resource_seed.py
       - name: Install Android host build dependencies
         run: |
           sudo apt-get update
@@ -97,3 +99,4 @@ jobs:
           path: phase04-arm64-proof/*
           if-no-files-found: error
           retention-days: 7
+

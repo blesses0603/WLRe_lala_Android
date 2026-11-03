@@ -111,8 +111,10 @@ class NonNpcInstanceSafety(unittest.TestCase):
                          [Packet(186,8,Writer().u16(23).build())])
         self.assertEqual(logic.receive(wanted,state),[])
 
-    def test_npc_still_explicitly_excluded_and_paid_reward_not_added(self):
-        for kind in ('npc_start','npc_next','npc_choose','npc_shop',
+    def test_verified_npc_commands_allowed_but_transactions_and_paid_reward_not_added(self):
+        for kind in ('npc_start','npc_next','npc_choose'):
+            self.assertIn(kind,GAME_COMMANDS)
+        for kind in ('npc_shop','npc_shop_buy','npc_shop_sell',
                      'instance_reward_paid','instance_claim'):
             self.assertNotIn(kind,GAME_COMMANDS)
             with self.assertRaises(ValueError):
@@ -157,3 +159,4 @@ class NonNpcInstanceSafety(unittest.TestCase):
 
 if __name__=='__main__':
     unittest.main()
+

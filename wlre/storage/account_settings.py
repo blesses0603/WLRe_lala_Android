@@ -1,6 +1,6 @@
 """Validated preferences keyed by account and server hash; never store credentials."""
-import hashlib,json,os
-from pathlib import Path
+from wlre.storage.paths import account_file
+import hashlib,json
 from wlre.services.battle.auto_battle import defaults,validate
 from wlre.services.battle import party_guard
 from wlre.storage.atomic import file_lock,write_json
@@ -33,9 +33,7 @@ def legacy_identities(host,port,account,line=0):
 
 
 def settings_file(key,base=None):
-    if len(key)!=64 or any(c not in '0123456789abcdef' for c in key):raise ValueError('帳號設定識別碼錯誤')
-    root=Path(base) if base is not None else Path(os.environ.get('LOCALAPPDATA') or Path.home()/'.config')/'WLRE_LaLa'
-    return root/'accounts'/(key+'.json')
+    return account_file(key,base=base)
 
 
 def _read(file):

@@ -39,6 +39,7 @@ class LaLaApp(App):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.manager = SessionManager()
+        self.catalog_sync = None
         self.cards = {}
         self.dashboard = None
         self.lines = []
@@ -87,6 +88,10 @@ class LaLaApp(App):
             from android_app.integrity import require_integrity
             require_integrity(activity)
             directory = Path(str(activity.getNoBackupFilesDir().getAbsolutePath()))
+            from android_app.resource_sync import configure_paths, ResourceSync
+            configure_paths(activity)
+            if self.catalog_sync is None:
+                self.catalog_sync = ResourceSync(download=False)
             stage = 'A02'
             service = autoclass('org.lala.client.wlrelala.ServiceConnections')
             service.start(activity, '')
@@ -217,6 +222,9 @@ class LaLaApp(App):
             width=dp(44), disabled=self.vault is None))
         remember_text = label('加密保存帳密', 48)
         login.add_widget(row(self.remember, remember_text))
+        self.resource_note = label('官方資源狀態：等待背景服務', 68)
+        login.add_widget(self.resource_note)
+        login.add_widget(button('重新檢查官方資源', self.retry_resources))
         connect = button('新增連線並登入', self.connect_account, 52)
         style_button(connect, primary=True); login.add_widget(connect)
         self.message = label('選擇分流登入後，即可開啟角色功能。')
@@ -265,7 +273,19 @@ class LaLaApp(App):
         self.empty_state.height = dp(100) if empty else 0
         self.empty_state.size_hint_y = None
 
+    def retry_resources(self, *_):
+        if hasattr(self.manager, 'retry_resources'):
+            if any(s.active for s in self.manager.sessions.values()):
+                self.message.text = '請先停止所有連線，再更新官方資料'; return
+            self.manager.retry_resources()
+            if self.catalog_sync is not None:
+                self.catalog_sync.reset()
+
     def connect_account(self, *_):
+        if getattr(self, 'catalog_sync', None) is not None and (not self.catalog_sync.snapshot()['ready']
+                or not getattr(self.manager, 'resource_status', {}).get('ready')
+                or self.catalog_sync.snapshot().get('catalog_token') != getattr(self.manager, 'resource_status', {}).get('catalog_token')):
+            self.message.text = self.catalog_sync.snapshot()['message']; return
         if platform == 'android' and not getattr(self.manager, 'background', False):
             self.message.text = '背景服務未就緒，請點擊啟動背景服務'
             return
@@ -328,6 +348,8 @@ class LaLaApp(App):
         self.cards[session.session_id] = (status, choices, title, stop, card)
 
     def open_dashboard(self, sid):
+        if self.catalog_sync is not None and not self.catalog_sync.snapshot()['ready']:
+            self.message.text = '等待手機介面完成官方資料驗證'; return
         if self.dashboard: self.dashboard.close()
         from android_app.dashboard import Dashboard
         self.dashboard = Dashboard(self, sid)
@@ -384,6 +406,14 @@ class LaLaApp(App):
 
     def drain_events(self, *_):
         if getattr(self.manager, 'background', False):
+            resource = getattr(self.manager, 'resource_status', {})
+            sync = self.catalog_sync
+            if sync is not None:
+                local = sync.snapshot()
+                if resource.get('ready') and local['status'] == 'idle':
+                    sync.start()
+                if hasattr(self, 'resource_note'):
+                    self.resource_note.text = ('官方資源：'+(local['message'] if resource.get('ready') else resource.get('message', '等待背景服務')))
             if hasattr(self, 'overlay_button'):
                 self.overlay_button.disabled = not self.manager.available
                 self.overlay_button.text = ('關閉懸浮小球' if
@@ -563,3 +593,4 @@ class LaLaApp(App):
     def on_stop(self):
         self.password.text = ""
         if not getattr(self.manager, 'background', False): self.manager.stop_all()
+

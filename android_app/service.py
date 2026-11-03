@@ -3,6 +3,8 @@ import json
 import os
 import time
 from pathlib import Path
+from android_app.resource_sync import configure_paths, ResourceSync
+configure_paths()
 from android_app.runtime import Runtime
 from android_app.sessions import SessionManager
 from android_app.overlay_state import snapshot as overlay_snapshot
@@ -24,7 +26,9 @@ def main():
     power = cast('android.os.PowerManager', service.getSystemService(context.POWER_SERVICE))
     wake = power.newWakeLock(1, 'WLRe_LaLa:connections')
     wake.setReferenceCounted(False)
-    manager = SessionManager(settings_base=Path(str(service.getNoBackupFilesDir().getAbsolutePath())) / 'preferences')
+    resources = ResourceSync()
+    resources.start()
+    manager = SessionManager(settings_base=Path(str(service.getNoBackupFilesDir().getAbsolutePath())) / 'preferences', resource_sync=resources)
     last_acquire = [0]
     # Keep overlay in the same foreground-service process as game sessions.
     # Failure to load an optional overlay must never terminate game connections.
@@ -92,3 +96,4 @@ def main():
 
 
 if __name__ == '__main__': main()
+

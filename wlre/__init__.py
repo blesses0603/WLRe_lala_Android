@@ -1,2 +1,2 @@
 """WLRe_LaLa Android bundled game core."""
-__version__ = "0.0.6"
+from android_app.version import ANDROID_VERSION as __version__

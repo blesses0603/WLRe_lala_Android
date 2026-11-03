@@ -1,12 +1,16 @@
-"""Numeric UI health metrics only: no accounts, packets, messages or tracebacks."""
-import logging,os,time,traceback
+"""Privacy-safe runtime diagnostics: counters and code locations, never exception text."""
+from collections import deque
+from wlre.storage.paths import data_root as user_data_root
+import logging,os,time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from collections import deque
 
 
 def safe_exception_location(exc_type, tb):
-    """Only exception class + six code locations; no payload, locals or message."""
+    """Return only the exception class and the last six code locations.
+
+    Do not format the exception or inspect frame locals, source lines, or payloads.
+    """
     kind = getattr(exc_type, '__name__', 'unknown')
     frames = deque(maxlen=6)
     while tb is not None:
@@ -19,8 +23,13 @@ def safe_exception_location(exc_type, tb):
 class Diagnostics:
     def __init__(self,base=None):
         self.logger=logging.Logger('wlre-health');self.logger.propagate=False
-        self.last=0;self.errors=0;self.last_connection=None;self.connection_logged=None;self.last_error=None;self.error_logged=None
-        root=Path(base) if base is not None else Path(os.environ.get('LOCALAPPDATA') or Path.home()/'.config')/'WLRE_LaLa'/'diagnostics'
+        self.last=0;self.errors=0;self.worker_errors=0
+        self.last_connection=None;self.connection_logged=None;self.last_error=None;self.error_logged=None
+        self.battle_invalid_count=0;self.battle_invalid_logged={}
+        self.ai_status_logged={}
+        self.post_battle_logged=set()
+        self.coop_state_logged={}
+        root=Path(base) if base is not None else user_data_root()/'diagnostics'
         self.path=root/f'health-{os.getpid()}.log'
         try:
             root.mkdir(parents=True,exist_ok=True)
@@ -37,26 +46,208 @@ class Diagnostics:
 
     def error(self,exc_type=None,exc_value=None,tb=None):
         self.errors+=1
-        frames=traceback.extract_tb(tb) if tb is not None else []
-        # Do not log exception messages, source text, locals, or user directory paths.
-        locations=' > '.join(f'{Path(f.filename).name}:{f.lineno}:{f.name}' for f in frames[-6:])
-        kind=exc_type.__name__ if exc_type is not None else 'unknown'
+        kind,locations=safe_exception_location(exc_type,tb)
         signature=(kind,locations);now=time.monotonic()
         if signature==self.last_error and self.error_logged is not None and now-self.error_logged<60:return False
         self.last_error=signature;self.error_logged=now
         self.logger.info('ui_callback_error count=%d type=%s frames=%s',self.errors,kind,locations)
         return True
 
+    def worker_error(self,exc_type=None,tb=None):
+        """Catch failures before, during, or after a network session."""
+        self.worker_errors+=1
+        kind,locations=safe_exception_location(exc_type,tb)
+        self.logger.info('worker_exception count=%d type=%s frames=%s',self.worker_errors,kind,locations)
+
     def connection(self,value):
         now=time.monotonic();key=(value.get('status'),value.get('reason'),value.get('errno'))
         if key==self.last_connection and self.connection_logged is not None and now-self.connection_logged<300:return
         self.last_connection=key;self.connection_logged=now
-        # Fixed enums and numeric values only; no packet contents or login data.
         status=value.get('status') if value.get('status') in ('waiting','receiving','quiet','closed') else 'unknown'
         reason=value.get('reason') if value.get('reason') in ('server_closed','network_error','client_error','stopped','duration') else 'none'
         self.logger.info('connection=%s reason=%s age_s=%.1f packets=%d errno=%s keepalive=%d',
             status,reason,float(value.get('age',0)),int(value.get('packets',0)),
             value.get('errno') if isinstance(value.get('errno'),int) else 'none',bool(value.get('keepalive')))
+        # These fields are generated from traceback code objects, never from error strings.
+        if status=='closed' and reason in ('client_error','network_error') and value.get('error_type'):
+            # Never trust arbitrary event strings as log metadata.
+            main, sub = value.get('packet_main'), value.get('packet_sub')
+            stage = value.get('packet_stage')
+            if (type(main) is int and 0 <= main <= 255 and
+                    type(sub) is int and 0 <= sub <= 255 and
+                    stage in ('decode', 'state_apply', 'event_handling')):
+                self.logger.info('connection_exception type=%s frames=%s packet_main=%d packet_sub=%d packet_stage=%s',
+                    value['error_type'],value.get('error_frames','none'),main,sub,stage)
+            else:
+                self.logger.info('connection_exception type=%s frames=%s',
+                    value['error_type'],value.get('error_frames','none'))
+
+    def battle_attribute_invalid(self, value):
+        """Log discarded S51-1 shapes and safe battle context without raw bytes."""
+        if not isinstance(value, dict) or value.get('type') != 'battle_attribute_invalid':
+            return False
+        size, tail = value.get('payload_bytes'), value.get('trailing_bytes')
+        count = value.get('battle_count')
+        style = value.get('battle_war_style')
+        active = value.get('battle_active')
+        if (type(value.get('main')) is not int or value['main'] != 51 or
+                type(value.get('sub')) is not int or value['sub'] != 1 or
+                type(size) is not int or not 0 <= size <= 65533 or
+                type(tail) is not int or not 1 <= tail <= 6 or tail != size % 7 or
+                count is not None and (type(count) is not int or not 0 <= count <= 100000000) or
+                style is not None and (type(style) is not int or not 0 <= style <= 255) or
+                active is not None and type(active) is not bool):
+            return False
+        self.battle_invalid_count += 1
+        now = time.monotonic()
+        signature = (size, tail, style, active)
+        previous = self.battle_invalid_logged.get(signature)
+        if previous is not None and now - previous < 60:
+            return False
+        if len(self.battle_invalid_logged) >= 32:
+            self.battle_invalid_logged.clear()
+        self.battle_invalid_logged[signature] = now
+        self.logger.info(
+            'protocol_warning packet_main=51 packet_sub=1 reason=invalid_record_length '
+            'payload_bytes=%d complete_records=%d trailing_bytes=%d count=%d '
+            'battle_count=%s war_style=%s battle_active=%s',
+            size, size // 7, tail, self.battle_invalid_count,
+            count if count is not None else 'none',
+            style if style is not None else 'none',
+            int(active) if active is not None else 'none')
+        return True
+
+    def auto_battle_status(self, value):
+        """Rate-limit per battle instead of hiding new fights for 60 seconds."""
+        allowed = ('disabled', 'armed', 'paused', 'waiting', 'submitted',
+                   'blocked', 'healing', 'waiting_heal', 'maintenance')
+        sources = ('none', 'manual', 'disconnect', 'maintenance_uncertain',
+                   'field_supply_uncertain', 'death_guard', 'other')
+        if (not isinstance(value, dict) or value.get('type') != 'auto_battle_status'
+                or value.get('status') not in allowed
+                or type(value.get('enabled')) is not bool
+                or type(value.get('battle_active')) is not bool):
+            return False
+        style, round_number, living = (
+            value.get('battle_war_style'), value.get('battle_round'),
+            value.get('owned_living'))
+        count = value.get('battle_count', 0)
+        source = value.get('stop_source', 'none')
+        if (style is not None and (type(style) is not int or not 0 <= style <= 255)
+                or round_number is not None and
+                (type(round_number) is not int or not 0 <= round_number <= 65535)
+                or type(living) is not int or not 0 <= living <= 32
+                or type(count) is not int or not 0 <= count <= 100000000
+                or source not in sources):
+            return False
+        status = value['status']
+        signature = (count, status, value['enabled'], value['battle_active'],
+                     style, round_number, living, source)
+        now = time.monotonic()
+        previous = self.ai_status_logged.get(signature)
+        if previous is not None and now - previous < 60:
+            return False
+        if len(self.ai_status_logged) >= 96:
+            self.ai_status_logged.clear()
+        self.ai_status_logged[signature] = now
+        self.logger.info(
+            'auto_battle state=%s enabled=%d battle_active=%d war_style=%s '
+            'round=%s owned_living=%d battle_count=%d stop_source=%s',
+            status, value['enabled'], value['battle_active'],
+            style if style is not None else 'none',
+            round_number if round_number is not None else 'none', living,
+            count, source)
+        return True
+
+    def maintenance_trace(self, value):
+        """Accept only generated status codes and bounded numeric context."""
+        if not isinstance(value, dict) or value.get('type') != 'maintenance_trace':
+            return False
+        phase, action = value.get('phase'), value.get('action')
+        elapsed, count, completed = (value.get('elapsed_s'), value.get('battle_count'),
+                                     value.get('completed'))
+        if (phase not in ('idle', 'checking', 'pending', 'uncertain')
+                or action not in ('none', 'repair', 'sell', 'delete')
+                or type(elapsed) is not int or not 0 <= elapsed <= 3600
+                or type(count) is not int or not 0 <= count <= 100000000
+                or type(completed) is not int or not 0 <= completed <= 100000000):
+            return False
+        self.logger.info(
+            'maintenance phase=%s action=%s elapsed_s=%d battle_count=%d completed=%d',
+            phase, action, elapsed, count, completed)
+        return True
+
+    def post_battle_trace(self, value):
+        """Log only allowlisted continuation stages, never packet text or IDs."""
+        if not isinstance(value, dict) or value.get('type') != 'post_battle_trace':
+            return False
+        phase = value.get('phase')
+        if phase not in ('scheduled', 'sent', 'completed'):
+            return False
+        count = value.get('battle_count')
+        style = value.get('war_style')
+        delay = value.get('delay_seconds')
+        known = value.get('fight_count_known')
+        if (type(count) is not int or not 1 <= count <= 100000000
+                or style is not None and (type(style) is not int or not 0 <= style <= 255)
+                or delay is not None and
+                (type(delay) not in (int, float) or delay not in (2.5, 5.0))
+                or type(known) is not bool):
+            return False
+        signature=(count,phase)
+        if signature in self.post_battle_logged:
+            return False
+        if len(self.post_battle_logged) >= 64:
+            self.post_battle_logged.clear()
+        self.post_battle_logged.add(signature)
+        self.logger.info('post_battle phase=%s battle_count=%d war_style=%s delay_s=%s fight_count_known=%d',
+                         phase, count, style if style is not None else 'none',
+                         delay if delay is not None else 'none', known)
+        return True
+
+    def coop_state_trace(self, value):
+        """Record safe co-op lifecycle booleans/enums, never identifiers or awards."""
+        if not isinstance(value, dict) or value.get('type') != 'coop_state_trace':
+            return False
+        sources = ('instance_members', 'instance_phase', 'instance_reward_status',
+                   'instance_reward_receipt', 'instance_standby', 'instance_coop_match',
+                   'battle_start', 'fight_exit', 'battle_unit_exit', 'event_end')
+        phases = ('idle', 'waiting', 'started', 'matched', 'combat', 'completed', 'unknown')
+        post_stages = ('none', 'cooperative_wait', 'exit_delay',
+                       'awaiting_response', 'completed', 'unknown')
+        source, phase, post = value.get('source'), value.get('phase'), value.get('post_event')
+        standby, open_reward = value.get('standby'), value.get('open_reward')
+        booleans = ('room_known', 'reward_known', 'completed', 'reward_uncertain',
+                    'pending', 'event_blocked')
+        count = value.get('battle_count')
+        if (source not in sources or phase not in phases or post not in post_stages
+                or standby is not None and type(standby) is not bool
+                or open_reward is not None and
+                    (type(open_reward) is not int or open_reward not in (0, 1, 2))
+                or any(type(value.get(field)) is not bool for field in booleans)
+                or not value['reward_known'] and open_reward is not None
+                or type(count) is not int or not 0 <= count <= 100000000):
+            return False
+        signature = (source, phase, post, standby, open_reward, count,
+                     *(value[field] for field in booleans))
+        now = time.monotonic()
+        previous = self.coop_state_logged.get(signature)
+        if previous is not None and now - previous < 60:
+            return False
+        if len(self.coop_state_logged) >= 128:
+            self.coop_state_logged.clear()
+        self.coop_state_logged[signature] = now
+        self.logger.info(
+            'coop_state source=%s phase=%s room_known=%d standby=%s '
+            'reward_known=%d open_reward=%s completed=%d reward_uncertain=%d '
+            'pending=%d event_blocked=%d post_event=%s battle_count=%d',
+            source, phase, value['room_known'],
+            'none' if standby is None else int(standby),
+            value['reward_known'],
+            'none' if open_reward is None else open_reward,
+            value['completed'], value['reward_uncertain'],
+            value['pending'], value['event_blocked'], post, count)
+        return True
 
     def dropped(self,count):self.logger.info('display_events_skipped=%d',count)
 

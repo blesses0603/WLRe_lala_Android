@@ -37,7 +37,7 @@ CORE_LIST = (
     ("wlre/network/client.py", "lalaclient", "_wlre_client_native", "P0"),
     ("wlre/network/protocol.py", "lalaprotocol", "_wlre_protocol_native", "P0"),
     ("wlre/services/battle/auto_battle.py", "lalaautobattle", "_wlre_auto_battle_native", "P1"),
-    ("wlre/services/expedition.py", "lalaexpedition", "_wlre_expedition_native", "P1"),
+    ("wlre/services/expedition/manager.py", "lalaexpedition", "_wlre_expedition_native", "P1"),
 )
 
 
@@ -323,3 +323,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

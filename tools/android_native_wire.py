@@ -82,6 +82,13 @@ def stage(root: Path, output: Path) -> Path:
             raise ValueError("Unexpected wire implementation baseline")
         shutil.copy2(root / RECIPE_ROOT / "__init__.py", output / RECIPE_ROOT / "__init__.py")
         shutil.copy2(root / RECIPE_ROOT / "setup.py", output / RECIPE_ROOT / "src" / "setup.py")
+        # Every staged APK variant needs the same reviewed resource decoder.
+        if 'unitypy' in (root / 'buildozer.spec').read_text(encoding='utf-8'):
+            for decoder in ('unitypy', 'lz4', 'brotli'):
+                source = root / 'p4a-recipes' / decoder
+                if not (source / '__init__.py').is_file():
+                    raise ValueError('Missing resource decoder recipe: ' + decoder)
+                shutil.copytree(source, output / 'p4a-recipes' / decoder)
         spec = output / "buildozer.spec"
         config = configparser.ConfigParser(interpolation=None)
         if not config.read(spec, encoding="utf-8"):
@@ -371,3 +378,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main())
+

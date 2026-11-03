@@ -1,45 +1,16 @@
 """Server-backed inventory/skill knowledge; no inferred learned skills or HP gains."""
-from wlre.paths import RESOURCE_ROOT
-import json
 import math
 from wlre.network.wire import ProtocolError
 from wlre.services.battle.combat import BROKEN
-from wlre.core.inventory_updates import add_item
-from wlre.services.items import reservations
 
-CAT=json.loads(RESOURCE_ROOT.joinpath('combat_catalog.json').read_text(encoding='utf8'))
+from wlre.services.items.catalog import CAT, item_name, skill_name
+from wlre.services.items.inventory import apply_inventory, available, allocate, reserve
 NO_ITEMS={9,12,13,14,15,16,17,18,21,22,23,24}
-
-def item_name(item_id):return CAT['items'].get(str(item_id),{}).get('name',f'物品{item_id}')
-def skill_name(skill_id):return CAT['skills'].get(str(skill_id),{}).get('name',f'技能{skill_id}')
 
 def apply_live(state,event):
     kind=event['type'];inv=state.inventory;k=state.knowledge
-    if kind=='bag_snapshot':
-        fresh={'ready':True,'reliable':True,'capacity':event['capacity'],'items':{},'reserved':{},
-               'revision':inv.get('revision',0)+1,'use_failed':False,'field_supply':inv.get('field_supply',{}),'alchemy_slots':list(inv.get('alchemy_slots',[])),
-               'expedition_slots':list(inv.get('expedition_slots',[])),
-               'maintenance_slots':list(inv.get('maintenance_slots',[]))}
-        for value in event['items']:
-            if not add_item(fresh,dict(value)):break
-        reservations.refreshed(inv,fresh)
-        state.inventory=fresh
-    elif kind=='bag_add':
-        add_item(inv,dict(event['item']));inv['revision']+=1
-    elif kind in ('bag_delete','bag_sell'):
-        index=str(event['index']);value=inv['items'].get(index);count=event['count']
-        if not value or count>value['count']:inv.update(reliable=False,sync_error='物品扣除數量或格位不符')
-        elif value:
-            value['count']-=count
-            if not value['count']:inv['items'].pop(index)
-        reservations.consumed(inv,index,count);inv['revision']+=1
-    elif kind=='bag_damage':
-        item=inv['items'].get(str(event['index']))
-        if item:
-            item['damage']=event['damage'];inv['revision']+=1
-    elif kind=='bag_broken':
-        apply_live(state,{'type':'bag_delete','index':event['index'],'count':1})
-    elif kind in ('equip_damage','equip_broken'):
+    if apply_inventory(state,event):return
+    if kind in ('equip_damage','equip_broken'):
         npc=event.get('npc_index',0)
         profile=k['player'] if not npc else k['companions'].get(str(npc),{})
         equips=profile.get('equips',[])
@@ -80,6 +51,9 @@ def apply_live(state,event):
             if data['index']:set_companion(state,data)
     elif kind=='companion_delete' and event['owner_id']==state.player.get('role_id'):
         k['companions'].pop(str(event['index']),None)
+        # S8-2 values are keyed by *slot*, not permanent companion identity.
+        # A reused slot must never inherit the deleted NPC's old statistics.
+        state.attributes.pop(f"follow:{event['index']}", None)
     elif kind=='active_companion':k['active_npc_id']=event['npc_id']
     elif kind=='attribute_set':
         entity=event['entity'];profile=None
@@ -91,7 +65,9 @@ def apply_live(state,event):
                 if event['value']>0:profile['skills'][sid]={'level':event['value'],'exp':0,'source':f'S8-{event.get("sub",0)}'}
                 else:profile['skills'].pop(sid,None)
             else:
-                names={25:'hp',26:'sp',35:'level',36:'exp',39:'degree',41:'atk',43:'matk',46:'max_hp',47:'max_sp',205:'max_hp',206:'max_sp'}
+                names={25:'hp',26:'sp',27:'int',28:'str',29:'con',30:'agi',33:'wis',
+                       35:'level',36:'exp',38:'attribute_potential',39:'degree',
+                       41:'atk',43:'matk',46:'max_hp',47:'max_sp',205:'max_hp',206:'max_sp'}
                 if event['kind'] in names:profile.setdefault('stats',{})[names[event['kind']]]=event['value']
     elif kind in ('battle_start','battle_units'):
         for unit in event['units']:
@@ -117,6 +93,12 @@ def apply_live(state,event):
             if match:unit['equips'][event['equip_index']-1]={'item_id':event['item_id'],'design_id':event['design_id']}
 
 def set_companion(state,data):
+    index = str(data['index'])
+    previous = state.knowledge['companions'].get(index)
+    if previous and previous.get('npc_id') != data['npc_id']:
+        # The same slot has been reassigned to a different NPC. Buffered
+        # S8 attributes for the previous occupant are no longer trustworthy.
+        state.attributes.pop(f"follow:{index}", None)
     npc=CAT['npcs'].get(str(data['npc_id']),{});skills={}
     for sid,value in zip(npc.get('skills',[]),data['skill_slots']):
         if sid and value['level']>0:skills[str(sid)]={**value,'source':'S15技能槽＋NpcData'}
@@ -127,24 +109,6 @@ def set_companion(state,data):
         attribute,parameter=map(int,key.split(':'))
         apply_live(state,{'type':'attribute_set','entity':f"follow:{data['index']}",'index':data['index'],
             'human_kind':4,'kind':attribute,'parameter':parameter,'value':value})
-
-def available(inv,index):
-    return reservations.available(inv,index)
-
-def allocate(inv,item_id,count):
-    if not inv.get('ready') or not inv.get('reliable'):raise ProtocolError('包包資料尚未同步或已失效')
-    result=[]
-    for index,value in sorted(inv['items'].items(),key=lambda x:int(x[0])):
-        if str(index) in inv.get('alchemy_slots',[]):continue
-        if value['item_id']!=item_id:continue
-        amount=min(count,available(inv,index))
-        if amount:result.append({'index':int(index),'count':amount,'item_id':item_id});count-=amount
-        if not count:return result
-    raise ProtocolError(f'{item_name(item_id)}數量不足或仍待伺服器扣除')
-
-def reserve(state,allocations):
-    # Battle item consumption remains held until authoritative bag deduction.
-    reservations.acquire(state.inventory,'battle',allocations)
 
 def profile_for(state,actor):
     k=state.get('knowledge',{});pid=state.get('player',{}).get('role_id')

@@ -57,18 +57,22 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Restore verified desktop SQLite resource seed
+        run: python tools/android_resource_seed.py
       - name: Install lightweight test dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb xauth libmtdev1 libgl1-mesa-dri
           python -m pip install --upgrade pip
-          python -m pip install 'cython<3' -r requirements-dev.txt
+          python -m pip install 'Cython==3.0.12' -r requirements-dev.txt
       - name: Validate Android source, config and safety
         run: |
           python -c 'from pathlib import Path; from tools.android_release_version import source_version; source_version(Path("buildozer.spec"), Path("android_app/version.py"))'
           python -m compileall -q main.py android_app wlre tools
+          python tools/android_parity_audit.py
           python tools/android_presplash.py check-spec
           python tools/android_hardening.py preflight
           grep -Fqx 'android.archs = arm64-v8a' buildozer.spec
       - name: Run Python regression and workflow policy tests
         run: xvfb-run -a python -m unittest discover -s tests -q
+

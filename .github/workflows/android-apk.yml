@@ -38,6 +38,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Restore verified desktop SQLite resource seed
+        run: python tools/android_resource_seed.py
       - name: Validate tag and resolve Android version
         id: release
         run: |
@@ -59,7 +61,7 @@ jobs:
       - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "buildozer>=1.5,<2" "Cython==3.0.12" "kivy==2.3.1" Pillow cryptography pyjnius==1.7.0
+          python -m pip install "buildozer>=1.5,<2" "Cython==3.0.12" "kivy==2.3.1" Pillow cryptography pyjnius==1.7.0 "UnityPy==1.25.4"
       - name: Test Android isolation, IPC, encrypted storage and UI
         run: xvfb-run -a python -m unittest discover -s tests -q
       - name: Check Python syntax and native startup-screen configuration
@@ -112,6 +114,7 @@ jobs:
           python tools/android_native_wire.py report-apk "android-output/$output" --pyc-python "$hostpython"
           python tools/android_native_vault.py report-apk "android-output/$output" --pyc-python "$hostpython"
           python tools/android_native_cores.py report-apk "android-output/$output" --pyc-python "$hostpython"
+          python tools/android_seed_apk_audit.py "android-output/$output"
           python tools/android_presplash.py check-apk "android-output/$output"
           python tools/android_signing.py report android-output
           python tools/android_integrity.py report "$NATIVE_STAGE" android-output
@@ -134,3 +137,4 @@ jobs:
           path: android-output/*
           if-no-files-found: error
           retention-days: 14
+

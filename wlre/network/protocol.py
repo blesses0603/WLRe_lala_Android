@@ -3,6 +3,7 @@ from wlre.paths import RESOURCE_ROOT
 import json
 from wlre.network.wire import Packet, Reader, Writer, ProtocolError
 from wlre.network.layouts import role_list, world_player, battle_unit
+from wlre.services.time_cube import decode_cube
 from wlre.network.live_data import decode_live
 from wlre.network.social_protocol import decode_social
 from wlre.services.social.chat import decode_chat
@@ -10,11 +11,14 @@ from wlre.services.social.guild import decode_guild
 from wlre.services.items.recovery import decode_recovery
 from wlre.core.activity import decode_activity
 from wlre.services.items.crafting import decode_crafting
+from wlre.services.world.tent import decode_tent
 from wlre.services.items.room_storage import decode_storage
 from wlre.network.expedition import decode_expedition
 from wlre.network.instances import decode_instances
+from wlre.network.npc_dialogue import decode_effect as decode_npc_effect
 
-ENUMS = json.loads(RESOURCE_ROOT.joinpath("enums.json").read_text(encoding="utf-8"))
+from wlre.storage.bundled_database import load_bundled_json
+ENUMS = load_bundled_json('enums.json', root=RESOURCE_ROOT)
 ATTR_NAMES = {v: k for k, v in ENUMS["EAttribute"].items()}
 SKILL_NAMES = {v: k for k, v in ENUMS["ESkill"].items()}
 
@@ -64,8 +68,9 @@ def use_field_item(item_id,index,npc_index):
 def decode(packet, local_role_id=None):
     chat=decode_chat(packet,local_role_id)
     if chat is not None:return chat
-    extra=(decode_instances(packet) or decode_storage(packet) or decode_expedition(packet) or decode_recovery(packet)
-           or decode_guild(packet) or decode_activity(packet) or decode_crafting(packet))
+    extra=(decode_cube(packet) or decode_instances(packet) or decode_storage(packet) or decode_expedition(packet) or decode_recovery(packet)
+           or decode_guild(packet) or decode_activity(packet) or decode_crafting(packet)
+           or decode_tent(packet))
     if extra is not None:return extra
     r = Reader(packet.payload)
     key = (packet.main, packet.sub)
@@ -87,6 +92,24 @@ def decode(packet, local_role_id=None):
     if decode_social(packet,r,event):
         r.end()
         return event
+    # Official 1262 Protocols_026.lua: Gold initialization and signed deltas.
+    # Never use role-list gold as a live transaction authorization.
+    if key in ((26,1),(26,2)):
+        amount=r.u32()
+        flag=r.u8()
+        if flag not in (0,1):
+            raise ProtocolError('S26 金幣通知旗標無效')
+        r.end()
+        return dict(event,type='gold_delta',
+                    delta=amount if packet.sub==1 else -amount,
+                    notify=bool(flag))
+    if key==(26,4):
+        amount=r.u32()
+        r.end()
+        return dict(event,type='gold_snapshot',amount=amount)
+    if key==(26,3):
+        r.take(r.remaining)
+        return dict(event,type='gold_limit')
     if decode_live(packet,r,event):
         r.end()
         return event
@@ -96,7 +119,11 @@ def decode(packet, local_role_id=None):
     if packet.main==20 and packet.sub in (7,10,11,13,14,15,16,17):
         r.take(r.remaining)
         return dict(event,type='event_continue_permission',extension_bytes=len(packet.payload))
-    if packet.main == 20 and packet.sub in (1,2,3,4,5,6,9,12,46,58,67,70):
+    if packet.main == 20 and packet.sub in (1,2,3,4,5,6):
+        # Invalid effects remain blocking, without disconnecting the client.
+        return dict(event,type='event_active',npc_effect=decode_npc_effect(packet.payload),
+                    payload_bytes=len(packet.payload))
+    if packet.main == 20 and packet.sub in (9,12,46,58,67,70):
         # These branches require event/UI processing in the original client.
         # Mark the server gate; do not auto-advance unsupported dialogue or choices.
         r.take(r.remaining)
@@ -135,10 +162,12 @@ def decode(packet, local_role_id=None):
             event.update(stage=r.u8(), fight_number=r.u8())
         event["units"] = [battle_unit(r) for _ in range(r.u8())]
     elif key == (51, 1):
-        # S51-1 consists of fixed 7-byte records. An incomplete update must
-        # not corrupt HP/SP or disconnect the Android foreground service.
+        # 1262 FightManager.RevChangeAttrib reads fixed 7-byte records.
+        # A partial record cannot be attributed safely to a battle unit.
+        # Discard the entire malformed update rather than applying a
+        # possibly incomplete HP/SP snapshot or closing the connection.
         if r.remaining % 7:
-            return dict(event, type='battle_attribute_invalid',
+            return dict(event, type="battle_attribute_invalid",
                         payload_bytes=r.remaining, complete_records=r.remaining // 7,
                         trailing_bytes=r.remaining % 7)
         values = []
@@ -153,6 +182,7 @@ def decode(packet, local_role_id=None):
         # col/row; keep the observed extra byte without assigning semantics.
         if r.remaining == 1: event["extension_byte"] = r.u8()
     elif key == (8, 4):
+        # 1262 Protocols_008.lua: success notification has no payload.
         event.update(type='attribute_allocation_success')
     elif key in ((8, 1), (8, 2), (8, 3)):
         event["type"] = "attribute_set"

@@ -93,18 +93,27 @@ class BattleEscape(unittest.TestCase):
         s,l=battle();l.auto_battle.tick(s,l,0);key,units=l.round_key,set(l.sent_units)
         l.command({'type':'set_party_guard','settings':config(False)},s)
         self.assertEqual((l.round_key,l.sent_units),(key,units));self.assertEqual(l.auto_battle.tick(s,l,1),[])
-    def test_cooperative_battle_uses_normal_round_safety(self):
-        # Desktop v0.5.6 confirms cooperative war_style=16 is not globally blocked.
-        # Missing required members still trigger the usual guarded escape flow.
-        s,l=battle();s.battle['war_style']=16
-        self.assertEqual(len(l.auto_battle.tick(s,l,0)),2)
+    def test_cooperative_event_uses_normal_auto_battle_commands(self):
+        s,l=battle()
+        s.battle['war_style']=16  # Official 1262 FWS_CooperateEventFight
+        packets=l.auto_battle.tick(s,l,0)
+        self.assertEqual(len(packets),2)
+        self.assertTrue(all((p.main,p.sub)==(50,1) for p in packets))
         self.assertEqual(s.auto_battle['status'],'submitted')
-        self.assertTrue(all(d['command']['mode']=='escape'
-                            for d in s.auto_battle['decisions']))
+        self.assertEqual(l.auto_battle.tick(s,l,1),[])  # No double-send in one round
+        s.battle['round']=2
+        self.assertEqual(len(l.auto_battle.tick(s,l,2)),2)
 
-    def test_unsupported_special_battles_still_pause(self):
+    def test_regular_and_void_dungeon_rounds_remain_supported(self):
+        for style in (1,22):
+            with self.subTest(war_style=style):
+                s,l=battle();s.battle['war_style']=style
+                self.assertEqual(len(l.auto_battle.tick(s,l,0)),2)
+                self.assertEqual(s.auto_battle['status'],'submitted')
+
+    def test_official_special_battle_exclusions_still_pause(self):
         for style in (21,23,24):
-            with self.subTest(style=style):
+            with self.subTest(war_style=style):
                 s,l=battle();s.battle['war_style']=style
                 self.assertEqual(l.auto_battle.tick(s,l,0),[])
                 self.assertEqual(s.auto_battle['status'],'paused')

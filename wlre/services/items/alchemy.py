@@ -1,11 +1,13 @@
 """Sequential Lua alchemy requests, gated on results AND bag consumption."""
+from wlre.core.state_ownership import writes
+from wlre.services.items import reservations
+from wlre.services.coordination import reason as coordination_reason
 from wlre.paths import RESOURCE_ROOT
 import json,time,copy
 from wlre.network.wire import Packet, Writer, ProtocolError
 from wlre.services.items.combat_resources import CAT, item_name, available
-from wlre.services.coordination import reason as coordination_reason
-from wlre.services.items import reservations
-META=json.loads(RESOURCE_ROOT.joinpath('alchemy_catalog.json').read_text(encoding='utf8'))['items']
+from wlre.storage.bundled_database import load_bundled_json
+META=load_bundled_json('alchemy_catalog.json', root=RESOURCE_ROOT)['items']
 MODES={'無技能':(150,None),'一般':(14,15997),'中階':(87,15998),'高階':(101,15999)}
 
 
@@ -79,6 +81,7 @@ def prepare(state,command):
 class AutoAlchemy:
     continuation_delay=1.0
     def __init__(self):self.plan=None;self.pending=None;self.next_due=0
+    @writes('alchemy')
     def start(self,state,command,now=None):
         now=time.monotonic() if now is None else now
         if state.alchemy.get('enabled') or self.pending:raise ProtocolError('煉金仍在執行或等待回覆')
@@ -86,10 +89,13 @@ class AutoAlchemy:
         self.plan=plan;self.next_due=now
         state.alchemy={**defaults(),'enabled':True,'requested':plan['runs'],'status':'準備煉金'}
         return self.tick(state,now)
+    @writes('alchemy')
     def pause(self,state,reason):
         if state.alchemy.get('enabled'):state.alchemy.update(paused=True,pause_reason=reason,status=reason+'；保留剩餘次數')
+    @writes('alchemy')
     def stop(self,state,reason='使用者停止'):
         state.alchemy={**state.alchemy,'enabled':False,'paused':False,'pause_reason':None,'status':reason+('；本次已送出，仍等待結果' if self.pending else '')}
+    @writes('alchemy')
     def release(self,state,confirmed=True):
         if confirmed:reservations.release(state.inventory,'alchemy')
         else:reservations.uncertain(state.inventory,'alchemy')
@@ -103,6 +109,7 @@ class AutoAlchemy:
             return counts.get(str(result['item_id']),0)>=p['totals'].get(str(result['item_id']),0)+result['count']
         return False
 
+    @writes('alchemy')
     def observe(self,event,state,now=None):
         if not self.pending and not state.alchemy.get('enabled'):return
         k=event['type']
@@ -141,6 +148,7 @@ class AutoAlchemy:
                 self.next_due=(time.monotonic() if now is None else now)+self.continuation_delay
                 if state.alchemy['completed']>=state.alchemy['requested']:self.stop(state,'設定次數已完成')
                 elif state.alchemy['enabled']:state.alchemy['status']='本次已完成；稍候再執行下一次'
+    @writes('alchemy')
     def tick(self,state,now=None):
         now=time.monotonic() if now is None else now
         plan=self.plan
@@ -166,21 +174,17 @@ class AutoAlchemy:
                 self.pending=None;state.alchemy['pending']=False
             return []
         if not state.alchemy.get('enabled'):return []
-        # A confirmed failure/uncertain supply must stop automation, not pause
-        # and later silently resume after a new packet or transient status.
-        supply=state.inventory.get('field_supply',{})
-        if supply.get('uncertain'):
-            self.stop(state,'補給結果未確認，請重新登入同步後再煉金')
-            return []
-        # Replies above are processed before pausing new consumption.
-        wait_reason=coordination_reason(state,'alchemy')
-        if wait_reason:
-            self.next_due=now+self.continuation_delay
-            self.pause(state,wait_reason)
-            return []
         if battle_pause:
             self.next_due=now+self.continuation_delay
             self.pause(state,'戰鬥／戰後事件中，暫停煉金');return []
+        if state.inventory.get('field_supply',{}).get('uncertain'):
+            self.stop(state,'補給結果未確認，請重新登入同步後再煉金');return []
+        pause=coordination_reason(state,'alchemy')
+        if pause:
+            self.next_due=now+self.continuation_delay
+            self.pause(state,pause);return []
+        supply=state.inventory.get('field_supply',{})
+        if supply.get('uncertain'):self.stop(state,'補給結果未確認，請重新登入同步後再煉金');return []
         if supply.get('pending') or any(state.inventory.get('reserved',{}).values()):
             self.next_due=now+self.continuation_delay
             self.pause(state,'等待補給／包包使用回覆');return []

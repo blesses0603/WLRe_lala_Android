@@ -63,6 +63,7 @@ class InstanceCatalog(Page):
         self.add_widget(self.live_info)
         self.details = label("請選擇副本；此操作不會連線或消耗資源。")
         self.add_widget(self.details)
+        self.next_query = 0
         self.render()
 
     def rows(self):
@@ -121,7 +122,7 @@ class InstanceCatalog(Page):
             item.get('room_id', '未知'), item.get('members', '?'),
             item.get('manager') or '房主 ID '+str(item.get('host_id', '?'))))
             for index, item in enumerate(rooms)]
-        pick('伺服器房間（選擇後確認是否加入）', rows,
+        pick('伺服器房間（選擇加入）', rows,
              lambda index: self.join_room(rooms[index], self.current_mode()))
 
 
@@ -166,7 +167,7 @@ class InstanceCatalog(Page):
                  '\n建立結果需等待伺服器確認。'))
             self._send('instance_create', mode, question, **cmd)
             popup.dismiss()
-        body.add_widget(row(button('下一步：確認建立', submit),
+        body.add_widget(row(button('建立房間', submit),
                             button('取消', lambda: popup.dismiss())))
         popup = dialog('建立副本房間', body, .8)
 
@@ -175,8 +176,15 @@ class InstanceCatalog(Page):
                              '\n'.join('{}：{}'.format(k, v) for k, v in room.items()))
         if not self.d.live:
             return
-        body = column()
         is_public = room.get('public') is True
+        if is_public:
+            cmd = {'room_id': room.get('room_id'), 'password': ''}
+            if mode == 'main': cmd['sn'] = room.get('sn')
+            else: cmd['confirm_cost'] = True
+            self._send('instance_join', mode, **cmd)
+            return
+        body = column()
+        is_public = False
         password = field(body, '私人房間密碼（公開房間免填）')
         password.password = True
         body.add_widget(label('此操作只使用最新伺服器房間清單；結果不明禁止重試。'))
@@ -192,7 +200,7 @@ class InstanceCatalog(Page):
                 ('\n協力入房可能消耗門票或點數。' if mode == 'coop' else '') +
                 '\n若伺服器沒有確認，請勿重送。', **cmd)
             popup.dismiss()
-        body.add_widget(row(button('下一步：確認加入', submit),
+        body.add_widget(row(button('加入房間', submit),
                             button('取消', lambda: popup.dismiss())))
         popup = dialog('加入伺服器房間', body, .7)
 
@@ -243,6 +251,13 @@ class InstanceCatalog(Page):
                    enabled=not enabled)
 
     def refresh(self):
+        import time
+        now = time.monotonic()
+        if (self.d.live and self.d.page_name == '副本資料' and now >= self.next_query
+                and not self.state.get('battle', {}).get('active')
+                and not self.state.get('event_flow', {}).get('blocked') and not self.state.get('activities')):
+            self.next_query = now + 60
+            self.query_rooms()
         data = (self.state.get('instances') or {}).get(self.current_mode()) or {}
         if not self.d.live:
             self.live_info.text = '離線／等待登入：僅能查看官方離線副本資料'
@@ -258,3 +273,4 @@ class InstanceCatalog(Page):
                 ('尚未同步' if not reward else '免費' if reward.get('open_reward') == 1
                  else '付費／其他' if reward.get('open_reward') == 2 else '無可領取寶箱'),
                 '已開啟' if self._data('coop').get('auto_claim_enabled') else '關閉')
+

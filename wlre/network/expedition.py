@@ -47,8 +47,9 @@ def decode_expedition(packet):
         event.update(level=r.u8(), exp=r.u32())
         r.take(27)
     elif sub == 15:
-        # 1262 ExpeditionMgr.RevExpeditionStart never consumes the body.
-        # Accept opaque acknowledgement bytes, but expose only the length.
+        # Official 1262 ExpeditionMgr.RevExpeditionStart reads no body fields.
+        # Acknowledge the event and skip opaque extension bytes, if supplied.
+        # Other S31 layouts remain strictly validated by r.end().
         event = {'type': 'expedition_started', 'extension_bytes': r.remaining}
         r.take(r.remaining)
     elif sub == 16:
@@ -62,8 +63,8 @@ def decode_expedition(packet):
     elif sub == 18:
         event = {'type': 'expedition_team', 'team': team(r)}
     elif sub == 19:
-        # Official 1262 RevExpeditionQuestUpdate reads 50 entries followed by
-        # a mandatory show/refresh byte. It is not an optional extension.
+        # ExpeditionMgr.RevExpeditionQuestUpdate (1262) reads 50 (index, quest)
+        # pairs followed by a mandatory ReadBoolean() refresh/show flag.
         event = {'type': 'expedition_quests', 'quests': {str(r.u8()): r.u16() for _ in range(50)},
                  'show': bool(r.u8())}
     elif sub in (20, 25):

@@ -76,7 +76,7 @@ class ArtifactReceiptTests(unittest.TestCase):
     def test_full_report_chain_signed_identity_and_expected_main_commit(self):
         value = self.check(expected_commit=COMMIT)
         self.assertEqual(value["signed_apk"], "verified")
-        self.assertEqual(value["reports"], 7)
+        self.assertEqual(value["reports"], len(REQUIRED_REPORTS))
         self.assertEqual(value["physical_device_acceptance"], "not_performed")
         self.assertEqual(value["release_commit"], COMMIT)
 
@@ -202,3 +202,4 @@ class PhysicalDeviceReadOnlyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

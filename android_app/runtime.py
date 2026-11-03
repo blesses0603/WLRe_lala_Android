@@ -102,6 +102,13 @@ class Runtime:
                 # strings in the worker remain until no longer referenced.
                 if isinstance(args, dict):
                     args.pop('password', None)
+        if operation == 'resources':
+            resources = getattr(self.manager, 'resource_sync', None)
+            if resources is None: return False
+            with self.manager.lock:
+                if any(s.active for s in self.manager.sessions.values()):
+                    return False
+                return resources.start()
         if operation == 'game': return self.manager.game_command(request['id'], request['command'])
         if operation == 'detail': return self.manager.session_detail(request['id'])
         if operation == 'preferences': return self.manager.save_preferences(request['id'], request['preferences'])
@@ -131,7 +138,8 @@ class Runtime:
                         active=session.active, phase=session.phase, pending=session.selection_pending,
                         stopped=session.stop_event.is_set(), ai_settings=getattr(session, 'ai_settings', {}),
                         automation=getattr(session, 'automation', {}), automation_pending=sorted(getattr(session, 'automation_pending', set())), events=self.latest.get(sid, {})))
-        return {'sessions': sessions, 'metrics': self._safe_monitor(),
+        resources = getattr(self.manager, 'resource_sync', None)
+        return {'sessions': sessions, 'resources': resources.snapshot() if resources else {}, 'metrics': self._safe_monitor(),
                 'overlay_enabled': bool(self.overlay_state())}
 
     def collect_events(self):
@@ -207,6 +215,7 @@ class ServiceManager:
         self.events = LatestEvents()
         self.requests = queue.Queue()
         self.metrics = {}
+        self.resource_status = {}
         self.overlay_enabled = False
         self.available = False
         self._last = {}
@@ -281,6 +290,7 @@ class ServiceManager:
                     self.details[watched] = self.call({'op': 'detail', 'id': watched})
                 else: self.details.clear()
                 self.metrics = data['metrics']
+                self.resource_status = data.get('resources', {})
                 self.overlay_enabled = bool(data.get('overlay_enabled', False))
                 if not self.available: self._last.clear()
                 self.available = True
@@ -312,6 +322,11 @@ class ServiceManager:
                 self.metrics = {}
                 self.details.clear()
                 time.sleep(0.5)
+
+    def retry_resources(self):
+        if not self.available: return False
+        self.requests.put({'op': 'resources'})
+        return True
 
     def set_overlay(self, enabled):
         if type(enabled) is not bool or not self.available: return False
@@ -381,3 +396,4 @@ class ServiceManager:
 
     def stop_all(self):
         for sid in list(self.sessions): self.stop(sid)
+

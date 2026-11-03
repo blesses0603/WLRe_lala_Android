@@ -1,5 +1,6 @@
 """Local plan with unlimited entries and chunked batch submission; server acknowledgement owns every transition."""
 from wlre.services.coordination import reason as coordination_reason
+from wlre.core.state_ownership import writes
 from wlre.network.wire import ProtocolError
 
 
@@ -12,15 +13,18 @@ def validate_rows(rows):
         sid=row.get('item_id');count=row.get('count')
         if type(sid) is not int or str(sid) not in RECIPES:raise ProtocolError('清單包含未知配方')
         r=RECIPES[str(sid)]
+        if r.get('read_only') is True:raise ProtocolError('此配方僅供查看，不能加入製作清單')
         if r.get('open_used',0) or r['design_id'] or r['time_id'] or r['limit_kind']:raise ProtocolError('此配方尚未開放或解鎖條件未同步')
         if type(count) is not int or count<1:raise ProtocolError('每項批數必須為正整數')
         result.append({'item_id':sid,'count':count})
     return result
 
 class PlanMixin:
+    @writes('crafting')
     def plan(self,state):
         return state.crafting.setdefault('local_plan',{'rows':[],'enabled':False,'sent':0,'revision':0,'status':'尚未啟動自訂清單'})
 
+    @writes('crafting')
     def command(self,state,command,now=None):
         p=self.plan(state);action=command.get('action')
         if action=='plan_set':
@@ -43,6 +47,7 @@ class PlanMixin:
         if action=='add' and p['enabled']:raise ProtocolError('自訂清單執行中，請先暫停再手動加入')
         return self._server_command(state,command,now)
 
+    @writes('crafting')
     def observe(self,event,state,now=None):
         old=self.pending
         self._server_observe(event,state,now)
@@ -56,6 +61,7 @@ class PlanMixin:
                 p['status']='已確認送入伺服器；等待下一空位'
         if event['type'] in ('craft_failed','craft_paused'):p.update(enabled=False,status=state.crafting['status'])
 
+    @writes('crafting')
     def tick(self,state,now=None):
         from wlre.services.items.crafting import tools
         p=self.plan(state);c=state.crafting

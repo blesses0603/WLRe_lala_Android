@@ -3,23 +3,8 @@
 Actual-server interoperability is capture-verified, but a live login from this
 implementation still needs to be tested by the account owner.
 """
+from wlre.network.service_scheduler import advance_services, auto_battle_status_event
 from wlre.network.connection_health import ConnectionHealth, configure_keepalive
-from wlre.network.instances import list_request, member_request
-from wlre.network.mobile_instance_commands import dispatch as dispatch_instance
-from wlre.services.instance_combat import consume_coop_fight
-from wlre.services.battle.attribute_points import expire as expire_allocation
-from wlre.services.instance_creation import expire as expire_instance_create, disconnect as disconnect_instance_create
-from wlre.services.instance_room_flow import expire as expire_instance_room, disconnect as disconnect_instance_room
-from wlre.services.instance_standby import expire as expire_instance_standby, disconnect as disconnect_instance_standby
-from wlre.services.instance_start import expire as expire_instance_start, disconnect as disconnect_instance_start
-from wlre.services.instance_entry import expire as expire_instance_entry, disconnect as disconnect_instance_entry
-from wlre.services.instance_rewards import expire as expire_instance_rewards, disconnect as disconnect_instance_rewards, tick as tick_instance_rewards
-from wlre.services.coordination import command_reason
-from wlre.services.items import reservations
-from wlre.network.command_envelope import validate_command, rejected_command_type
-from wlre.network.outbound_observations import observed_outbound
-from wlre.network.non_npc_diagnostics import (coop_state_trace, post_battle_trace,
-    maintenance_trace_event)
 import queue
 from wlre.network.state_updates import StatePublisher, notify_state
 import socket
@@ -27,27 +12,85 @@ import threading
 import time
 from wlre.network.wire import FrameDecoder, Packet, encode, ProtocolError
 from wlre.services.world.portal_travel import PortalTravel
-from wlre.services.battle.party import team_command, own_team, expire as expire_team
-from wlre.services.battle.companions import command as companion_command
+from wlre.services.battle.party import own_team
+from wlre.services.battle.attribute_points import expire as expire_allocation
 from wlre.services.expedition import Expedition
 from wlre.services.items.alchemy import AutoAlchemy
 from wlre.services.items.crafting import Crafting
+from wlre.services.items.room_storage_transfer import RoomStorageTransfer
 from wlre.services.items.field_supply import FieldSupply
 from wlre.services.items.post_battle_maintenance import PostBattleMaintenance
-from wlre.services.items.recovery import storage_plan, storage_packet
-from wlre.services.social.chat import chat_packet, sent_event
-from wlre.network.protocol import login, select_role, decode, attack, cast_skill, use_battle_item, use_field_item
-from wlre.services.items.combat_resources import learned_command, food_command, reserve, field_context
-import copy
-from wlre.network.protocol import decode_outbound_movement
+from wlre.services.social.chat import sent_event
+from wlre.network.protocol import login, select_role, decode
+from wlre.network.instances import member_request
+from wlre.network.command_envelope import validate_command, rejected_command_type
+from wlre.network.outbound_observations import observed_outbound
 from wlre.core.state import State
 from wlre.core.maintenance import PeriodicCleanup
 from wlre.services.world.movement import Movement
 from wlre.services.world.roaming import Roaming
 from wlre.services.battle.auto_battle import AutoBattle
-from wlre.services.battle.party_guard import validate as validate_party_guard
-from wlre.services.battle.combat import normal_skill, NORMALS
-from wlre.services.battle.battle_commands import plan_round, action_command, owned_units, slot
+
+
+from wlre.network.commands import dispatch
+from wlre.network.automatic_flows import AutomaticFlows
+from wlre.network.npc_dialogue import flush_npc_choice
+from wlre.services.items import reservations
+
+
+def post_battle_trace(state, phase):
+    """Small, numeric-only evidence; never include roles, packets or commands."""
+    event = state.battle.get('post_event') or {}
+    delay = event.get('delay_seconds')
+    remaining = state.instances.get('coop', {}).get('fight_count')
+    return {
+        'type': 'post_battle_trace', 'phase': phase,
+        'battle_count': state.battle_count,
+        'war_style': state.battle.get('war_style'),
+        'delay_seconds': delay,
+        'fight_count_known': type(remaining) is int and remaining >= 0,
+    }
+
+
+COOP_TRACE_SOURCES = frozenset((
+    'instance_members', 'instance_phase', 'instance_reward_status',
+    'instance_reward_receipt', 'instance_standby', 'instance_coop_match',
+    'battle_start', 'fight_exit', 'battle_unit_exit', 'event_end',
+))
+
+
+def coop_state_trace(state, source):
+    """Anonymous server/lifecycle evidence; never emit room IDs or rewards."""
+    if source not in COOP_TRACE_SOURCES:
+        return None
+    coop = state.instances['coop']
+    reward = coop.get('reward')
+    room = coop.get('room')
+    phase = coop.get('phase')
+    if phase not in ('idle', 'waiting', 'started', 'matched', 'combat', 'completed'):
+        phase = 'unknown'
+    post = (state.battle.get('post_event') or {}).get('status', 'none')
+    if post not in ('none', 'cooperative_wait', 'exit_delay',
+                    'awaiting_response', 'completed'):
+        post = 'unknown'
+    open_reward = reward.get('open_reward') if isinstance(reward, dict) else None
+    if type(open_reward) is not int or open_reward not in (0, 1, 2):
+        open_reward = None
+    standby = room.get('standby') if isinstance(room, dict) else None
+    if type(standby) is not bool:
+        standby = None
+    pending = any(coop.get(key) is not None for key in (
+        'create_pending', 'join_pending', 'leave_pending', 'standby_pending',
+        'start_pending', 'enter_pending', 'claim_pending', 'cancel_pending'))
+    return {
+        'type': 'coop_state_trace', 'source': source, 'phase': phase,
+        'room_known': isinstance(room, dict), 'standby': standby,
+        'reward_known': isinstance(reward, dict), 'open_reward': open_reward,
+        'completed': coop.get('completed') is True,
+        'reward_uncertain': bool(coop.get('reward_uncertain')),
+        'pending': pending, 'event_blocked': bool(state.event_flow.get('blocked')),
+        'post_event': post, 'battle_count': state.battle_count,
+    }
 
 
 class LoginRejected(ProtocolError):
@@ -59,15 +102,18 @@ def _send(connection, packet, key, emit):
     emit({'type': 'sent', 'main': packet.main, 'sub': packet.sub, 'payload': 'redacted'})
 
 
-def _send_command_packet(connection,packet,key,state,emit,on_state):
-    # Validate locally-observed payloads *before* sending; never let a
-    # malformed candidate reach the socket or be mistaken for a server ACK.
-    observed=observed_outbound(packet)
-    _send(connection,packet,key,emit)
+def _send_command_packet(connection, packet, key, state, emit, on_state):
+    # Reject malformed candidate command packets BEFORE socket.sendall.
+    # An observation records a local send only after the send succeeds.
+    observed = observed_outbound(packet)
+    _send(connection, packet, key, emit)
     if observed is not None:
-        state.apply(observed);emit(observed)
-        if on_state:notify_state(on_state,state)
-    if packet.main==2 and packet.sub in (1,2,3,5,6):emit(sent_event(packet))
+        state.apply(observed)
+        emit(observed)
+        if on_state:
+            notify_state(on_state, state)
+    if packet.main == 2 and packet.sub in (1, 2, 3, 5, 6):
+        emit(sent_event(packet))
 
 
 def verify_account(endpoint, profile, account, password, emit, stop_event, timeout=10):
@@ -98,6 +144,7 @@ def verify_account(endpoint, profile, account, password, emit, stop_event, timeo
 class SessionLogic:
     """Deterministic reactions shared by network operation and tests."""
     def __init__(self, role_index=None):
+        self.flows = AutomaticFlows()
         self.last_chat_time = None
         self.last_companion_time = None
         self.field_supply = FieldSupply()
@@ -105,6 +152,7 @@ class SessionLogic:
         self.expedition = Expedition()
         self.expedition_time_requested = False
         self.crafting = Crafting()
+        self.room_storage = RoomStorageTransfer()
         self.alchemy = AutoAlchemy()
         self.movement = Movement()
         self.portal_travel = PortalTravel()
@@ -121,15 +169,18 @@ class SessionLogic:
         self.battle_exit_key = None
         self.announced_war_style = None
         self.last_main_roster_room = None
-        self.last_coop_roster_refresh = (None, 0)
+        self.last_coop_roster_refresh = (None, float('-inf'))
 
     def receive(self, event, state):
+        state.assert_writer()
         outgoing = []
         kind = event['type']
+        self.room_storage.observe(event,state)
         self.expedition.observe(event,state)
         self.field_supply.observe(event,state)
         self.maintenance.observe(event,state)
         self.crafting.observe(event,state)
+        self.flows.observe(event,state)
         self.alchemy.observe(event,state)
         if kind in ('team_join','team_list','team_new_leader'):
             team=own_team(state)
@@ -138,8 +189,8 @@ class SessionLogic:
                 self.portal_travel.cancel(state,'隊員跟隨隊長')
         self.movement.observe(event,state)
         self.portal_travel.observe(event,state,self.movement)
-        # Original 1262 dungeon/coop requests: once per joined main room
-        # and throttled S186-6 requests for the confirmed co-op room only.
+        # Original Dungeon.SetPlayerDungeonInfo immediately asks C85-4 for
+        # authoritative roster after S85-5 kind 1; once per joined room.
         if kind == 'instance_phase' and event.get('mode') == 'main':
             if event.get('kind') in (2, 4):
                 self.last_main_roster_room = None
@@ -147,6 +198,7 @@ class SessionLogic:
                   and event.get('room_id') != self.last_main_roster_room):
                 self.last_main_roster_room = event['room_id']
                 outgoing.append(member_request('main', event['room_id']))
+        # Original S186-6 asks client to request C186-8 for its own room.
         if kind == 'instance_member_refresh_request' and self.world_acknowledged:
             room = state.instances['coop'].get('room') or {}
             rid = event.get('room_id')
@@ -156,6 +208,7 @@ class SessionLogic:
                 if rid != old_room or moment - old_time >= 1:
                     outgoing.append(member_request('coop', rid))
                     self.last_coop_roster_refresh = (rid, moment)
+
         if (self.world_acknowledged and kind == "position_snapshot"
                 and event["role_id"] == state.player.get("role_id")):
             # Stage.ReceiveChangeMap / Role.OnPlayerAppear. Own packets only.
@@ -171,7 +224,9 @@ class SessionLogic:
             if self.announced_war_style is not None:
                 state.battle['war_style']=self.announced_war_style
                 self.announced_war_style=None
-        if kind=='event_continue_permission':self.pending_event=True
+        if kind=='event_continue_permission':
+            # Only an explicitly manually-opened NPC dialogue suppresses automatic continuation.
+            self.pending_event=not state.npc_dialogue.get('active')
         elif kind=='event_end':
             self.pending_event=False
             self.post_battle_due=None
@@ -190,13 +245,16 @@ class SessionLogic:
             # FightOver waits EndTime=2.5, then SendServerEvent calls C20-6 00.
             # Cooperative event fights have an additional wait-UI/count branch.
             if state.battle.get('war_style')==16:
-                delay=consume_coop_fight(state)
+                from wlre.services.instance_combat import consume_coop_fight
+                delay = consume_coop_fight(state)
+                # A missing S186-15 follows the official FightOver default
+                # branch (2.5s), never an infinite local waiting state.
                 self.post_battle_due=time.monotonic()+delay
                 state.battle['post_event']={'status':'cooperative_wait',
-                    'reason':'依官方協力戰後延遲安全接續一次',
+                    'reason':'依 1262 官方協力戰後延遲，接續伺服器事件一次',
                     'delay_seconds':delay}
                 state.event_flow={**state.event_flow,'blocked':True,
-                    'last_source':'協力戰後等待伺服器接續'}
+                    'last_source':'協力戰後安全等待，準備 C20-6 00'}
             else:
                 self.post_battle_due=time.monotonic()+2.5
                 state.battle['post_event']={'status':'exit_delay','source':kind,'delay_seconds':2.5}
@@ -222,12 +280,20 @@ class SessionLogic:
         return outgoing
 
     def flush_events(self,state):
+        state.assert_writer()
+        # Manual choice is itself a Lua continuation grant; it does not wait
+        # for S20-10. Consume only this one grant, keeping other NPC steps manual.
+        if self.world_acknowledged:
+            choice_packets=flush_npc_choice(state)
+            if choice_packets:
+                self.pending_event=False
+                return choice_packets
         # Lua grants set one boolean; its Update sends once after the packet batch.
         if self.post_battle_due is not None:
             if time.monotonic()<self.post_battle_due:return []
             self.post_battle_due=None
             self.pending_event=True
-        if not self.pending_event or not self.world_acknowledged:return []
+        if not self.pending_event or not self.world_acknowledged or state.npc_dialogue.get('active'):return []
         self.pending_event=False
         if state.battle.get('post_event'):
             state.battle['post_event']['status']='awaiting_response'
@@ -236,237 +302,47 @@ class SessionLogic:
         return [Packet(20,6,b'\x00')]
 
     def command(self, command, state):
-        kind = validate_command(command)
-        if kind == 'select_role':
-            index = command['index']
-            if not self.authenticated or self.selected or state.phase != 'role_selection':
-                raise ProtocolError('role selection is not available')
-            role = next((r for r in state.roles if r['index'] == index), None)
-            if role is None or role['locked']: raise ProtocolError('role is unavailable or locked')
-            packet = select_role(index)
-            self.selected = True
-            state.phase = 'role_selected_awaiting_world'
-            return [packet]
-        if not self.world_acknowledged: raise ProtocolError('world initialization has not completed')
-        pause_reason = command_reason(state,command,
-            maintenance_pending=bool(self.maintenance.pending),
-            maintenance_uncertain=self.maintenance.uncertain)
-        if pause_reason:raise ProtocolError(pause_reason)
-        if kind.startswith('instance_') or kind == 'allocate_points':
-            if kind not in ('instance_refresh','instance_members'):
-                return dispatch_instance(state,command)
-        if kind in ('instance_refresh', 'instance_members'):
-            # Explicit read-only queries. Not an entry point to room mutation.
-            if (state.phase != 'world_ready' or state.battle.get('active')
-                    or state.event_flow.get('blocked') or state.activities):
-                raise ProtocolError('目前無法安全查詢副本房間')
-            mode = command.get('mode')
-            if mode not in ('main', 'coop'):
-                raise ProtocolError('未知副本種類')
-            if kind == 'instance_refresh':
-                if set(command) != {'type', 'mode'}:
-                    raise ProtocolError('副本查詢參數異常')
-                return [list_request(mode)]
-            if set(command) != {'type', 'mode', 'room_id'}:
-                raise ProtocolError('副本成員查詢參數異常')
-            room = state.instances[mode].get('room')
-            if not room or room.get('room_id') != command['room_id']:
-                raise ProtocolError('請先由伺服器確認目前房間')
-            return [member_request(mode, command['room_id'])]
-        if kind == 'start_expedition':
-            self.expedition.start(state, command.get('settings', {}))
-            return []
-        if kind == 'stop_expedition':
-            self.expedition.stop(state)
-            return []
-        if kind == 'companion':
-            packet = companion_command(state, command)
-            now = time.monotonic()
-            if self.last_companion_time is not None and now - self.last_companion_time < 2:
-                raise ProtocolError('夥伴操作間隔至少 2 秒，請等待伺服器回覆')
-            self.last_companion_time = now
-            return [packet]
-        if kind in ('start_auto_battle','start_roaming','battle_item'):self.field_supply.check()
-        if kind=='craft':return self.crafting.command(state,command)
-        if kind=='reset_efficiency':
-            from wlre.core.efficiency import defaults, observe
-            state.efficiency=defaults();observe(state,{'type':'reset_efficiency'})
-            return []
-        if kind=='chat':
-            packet=chat_packet(command,state)
-            now=time.monotonic()
-            if self.last_chat_time is not None and now-self.last_chat_time<2:raise ProtocolError('發話間隔至少 2 秒，請稍候再試')
-            self.last_chat_time=now
-            return [packet]
-        if kind=='team':return team_command(command,state)
-        if kind=='start_alchemy':return self.alchemy.start(state,command)
-        if kind=='stop_alchemy':
-            self.alchemy.stop(state)
-            return []
-        if kind in ('start_roaming','walk','portal_walk','portal_direct'):
-            team=own_team(state)
-            if team and team['leader_id']!=state.player.get('role_id'):raise ProtocolError('隊員跟隨隊長，請先離隊再自主移動')
-        if kind == 'set_party_guard':
-            self.auto_battle.settings['party_guard']=validate_party_guard(command.get('settings',{}))
-            self.auto_battle.status(state,state.auto_battle.get('status','armed'),'必要隊員設定已更新，下次可下令時套用')
-            return []
-        if kind == 'start_auto_battle':
-            self.auto_battle.start(state,command.get('settings',{}))
-            return []
-        if kind == 'stop_auto_battle':
-            self.auto_battle.stop(state)
-            return []
-        if kind == 'portal_walk':
-            if self.roaming.enabled:self.roaming.stop(state,self.movement,'改為前往傳送點')
-            self.portal_travel.start(state,self.movement,command['portal_id'],time.monotonic())
-            return []
-        if kind == 'portal_direct':
-            packets = self.portal_travel.start_direct(state,self.movement,command['portal_id'],time.monotonic())
-            if packets and self.roaming.enabled:
-                self.roaming.stop(state,self.movement,'改為直接觸發出口')
-            return packets
-        if kind == 'start_roaming':
-            self.portal_travel.cancel(state,'改為自動徘徊')
-            self.roaming.start(state,self.movement,now=time.monotonic())
-            return []
-        if kind in ('stop_roaming','stop_walk'):
-            self.portal_travel.cancel(state)
-            self.roaming.stop(state,self.movement)
-            return []
-        if kind == 'walk':
-            self.portal_travel.cancel(state,'改為手動移動')
-            if command.get('scene') is not None and command['scene']!=state.player.get('scene'):
-                raise ProtocolError('目的地所屬地圖已變更，請重新選點')
-            self.movement.start(state,int(command['x']),int(command['y']),time.monotonic())
-            if self.roaming.enabled:self.roaming.manual=True
-            return []
-        if kind in ('field_item','field_storage'):
-            self.field_supply.check()
-            if state.alchemy.get('pending'):raise ProtocolError('本次煉金尚待包包回覆，確認後可補給')
-            if state.battle.get('active') or state.event_flow.get('blocked') or (state.battle_count and state.battle.get('post_event',{}).get('status')!='completed'):
-                raise ProtocolError('等待戰鬥／戰後事件結束後再補給')
-            context,actor=field_context(state.snapshot())
-            if actor.get('hp',0)<=0:raise ProtocolError('角色尚未恢復，不能使用一般補給')
-            npc_index=int(command.get('npc_index',0))
-            target=next((key for key,u in context['battle_units'].items() if u.get('npc_index')==npc_index),None)
-            if target is None:raise ProtocolError('補給對象不是目前角色／出戰夥伴')
-            if kind=='field_storage':
-                unit=context['battle_units'][target];resource=command.get('resource','hp')
-                if resource not in ('hp','sp') or unit.get('hp',0)<=0:raise ProtocolError('無效的儲存槽補給對象')
-                plan=storage_plan(context,unit,resource)
-                if not plan:raise ProtocolError('儲存槽不足或目標已恢復')
-                packet=storage_packet(resource,npc_index,plan['amount'])
-                self.field_supply.begin_storage(state,plan,unit)
-                self.movement.stop(state,'等待儲存槽補給回覆')
-                return [packet]
-            plan=food_command(context,actor,command.get('resource','hp'),command.get('item_id'),target,True,index=command.get('bag_index'))
-            self.field_supply.begin(state,plan,context['battle_units'][target])
-            self.movement.stop(state,'等待補給回覆')
-            # FieldSupply.begin exclusively owns this slot until both confirmations.
-            return [use_field_item(plan['item_id'],plan['bag_index'],npc_index)]
-        if kind in ('learned_action','battle_item'):
-            if not state.battle.get('active') or state.battle.get('round',0)<=0:raise ProtocolError('沒有可下令的戰鬥回合')
-            for field,value in (('battle_count',state.battle_count),('round',state.battle.get('round'))):
-                if field in command and command[field]!=value:raise ProtocolError('戰場／回合已變更')
-            actor=state.battle_units.get(f"{command['col']}:{command['row']}")
-            pid=state.player.get('role_id')
-            if not actor or not pid or not (actor['pid']==pid or actor['master_id']==pid) or actor['pid']!=command['actor_pid']:
-                raise ProtocolError('操作單位已變更或不屬於本機')
-            if actor.get('hp',0)<=0 or actor.get('exited'):raise ProtocolError('操作單位已陣亡／離場')
-            key=(state.battle_count,state.battle['round'])
-            if self.round_key!=key:self.round_key,self.sent_units=key,set()
-            if (actor['col'],actor['row']) in self.sent_units:raise ProtocolError('本單位本回合已下令')
-            target=f"{command['target_col']}:{command['target_row']}"
-            if kind=='learned_action':
-                plan=learned_command(state.snapshot(),actor,int(command['skill_id']),target)
-                packet=cast_skill(actor['col'],actor['row'],plan['target_col'],plan['target_row'],plan['skill_id'])
-            else:
-                plan=food_command(state.snapshot(),actor,command.get('resource','hp'),int(command['item_id']),target,index=int(command['bag_index']))
-                packet=use_battle_item(actor['col'],actor['row'],plan['target_col'],plan['target_row'],plan['item_id'],plan['bag_index'])
-            reserve(state,plan['resource_reservations']);self.sent_units.add((actor['col'],actor['row']))
-            return [packet]
-        if kind == 'battle_submit':
-            if (command.get('battle_count'),command.get('round')) != (state.battle_count,state.battle.get('round')):
-                raise ProtocolError('戰場或回合已變更，請確認後重新送出')
-            for actor in owned_units(state.snapshot()):
-                if command.get('actor_pids',{}).get(slot(actor))!=actor['pid']:
-                    raise ProtocolError('出戰單位已變更，請確認後重新送出')
-            excluded={f'{c}:{r}' for c,r in self.sent_units} if self.round_key==(state.battle_count,state.battle.get('round')) else set()
-            plans=plan_round(state.snapshot(),command.get('modes'),command.get('target_slot'),excluded)
-            previous_key,previous_units=self.round_key,set(self.sent_units)
-            previous_reserved=reservations.checkpoint(state.inventory)
-            try:
-                packets=[]
-                for action in plans:packets.extend(self.command(action,state))
-                return packets
-            except (ValueError,KeyError,TypeError):
-                self.round_key,self.sent_units=previous_key,previous_units
-                reservations.restore(state.inventory,previous_reserved)
-                raise
-        if kind in ('attack','battle_action'):
-            if not state.battle.get('active') or state.battle.get('round', 0) <= 0:
-                raise ProtocolError('no active command round')
-            col, row, tc, tr = (int(command[k]) for k in ('col', 'row', 'target_col', 'target_row'))
-            actor = state.battle_units.get(f'{col}:{row}')
-            target = state.battle_units.get(f'{tc}:{tr}')
-            pid = state.player.get('role_id')
-            if not actor or not pid or not (actor['pid'] == pid or actor['master_id'] == pid):
-                raise ProtocolError('selected unit does not belong to this player')
-            if actor.get('exited') or actor['hp']<=0:raise ProtocolError('操作單位已陣亡或離場')
-            if kind=='battle_action':
-                if command.get('actor_pid')!=actor['pid']:raise ProtocolError('操作單位已變更')
-                resolved=action_command(state.snapshot(),actor,command['mode'],f'{tc}:{tr}' if (tc,tr)!=(0,0) else None)
-                tc,tr=resolved['target_col'],resolved['target_row']
-                skill=resolved['skill_id']
-            else:
-                if not target or target.get('exited') or target['hp']<=0 or (col>2)==(tc>2):
-                    raise ProtocolError('invalid living attacker/opponent')
-                requested = command.get('skill_id', 'auto')
-                skill = normal_skill(actor, pid) if requested == 'auto' else int(requested)
-                if skill not in NORMALS:raise ProtocolError('manual command supports known normal attacks only')
-            key = (state.battle_count, state.battle['round'])
-            if key != self.round_key:
-                self.round_key, self.sent_units = key, set()
-            if (col, row) in self.sent_units: raise ProtocolError('this unit already submitted a command this round')
-            packet = attack(col, row, tc, tr, skill)
-            self.sent_units.add((col, row))
-            return [packet]
-        raise ProtocolError('unknown manual command')
+        state.assert_writer()
+        validate_command(command)
+        packets=dispatch(self, command, state)
+        self.flows.remember(command,state)
+        return packets
 
 
     def disconnect(self,state):
-        """Freeze every unconfirmed operation before publishing disconnected state.
-
-        Android deliberately retains its own Kivy/foreground service lifecycle;
-        no desktop thread ownership or unsupported instance room operations.
-        """
-        for disconnect in (disconnect_instance_create,disconnect_instance_room,
-                           disconnect_instance_standby,disconnect_instance_start,
-                           disconnect_instance_entry,disconnect_instance_rewards):
-            disconnect(state)
-        if state.attribute_allocation.get('pending'):
-            state.attribute_allocation['pending']=False
-            state.attribute_allocation['uncertain']=True
-            state.attribute_allocation['status']='配點結果未確認，請重新登入同步'
-        holds=state.inventory.get('holds',{})
-        if any(holds.values()):
+        """Freeze uncertain bag requests and disable intent before final publication."""
+        from wlre.services.time_cube import disconnect as cube_disconnect
+        cube_disconnect(state)
+        self.flows.clear(state)
+        state.assert_writer()
+        from wlre.services.instance_creation import disconnect as instance_disconnect
+        instance_disconnect(state)
+        from wlre.services.instance_room_flow import disconnect as room_disconnect
+        room_disconnect(state)
+        from wlre.services.instance_standby import disconnect as standby_disconnect
+        standby_disconnect(state)
+        from wlre.services.instance_start import disconnect as start_disconnect
+        start_disconnect(state)
+        from wlre.services.instance_entry import disconnect as entry_disconnect
+        entry_disconnect(state)
+        from wlre.services.instance_rewards import disconnect as reward_disconnect
+        reward_disconnect(state)
+        if any(state.inventory.get('holds',{}).values()):
             state.inventory['reliable']=False
-            state.inventory['sync_error']='連線結束時仍有未確認的道具消耗，請重新登入同步'
-            for owner,records in list(holds.items()):
-                if records:reservations.uncertain(state.inventory,owner)
+            for owner in list(state.inventory['holds']):reservations.uncertain(state.inventory,owner)
         if self.field_supply.pending:
             self.field_supply.uncertain=True
             self.field_supply.status(state,'uncertain','連線結束，補給結果未確認，請重新登入同步')
         if self.maintenance.pending:
             self.maintenance.uncertain=True
             self.maintenance.status(state,'連線結束，修理／整理結果未確認',checking=False)
-        if self.expedition.pending:
-            state.expedition['uncertain']=True
+        if self.expedition.pending:state.expedition['uncertain']=True
         self.expedition.stop(state,'連線結束，遠征自動派遣已停止')
+        self.room_storage.disconnect(state)
         self.crafting.disconnect(state)
         self.alchemy.stop(state,'連線結束')
         self.portal_travel.cancel(state,'連線結束，已取消傳點移動')
-        self.auto_battle.stop(state,'連線結束')
+        self.auto_battle.stop(state,'連線結束',source='disconnect')
         self.roaming.stop(state,self.movement,'連線結束')
 
 
@@ -506,7 +382,8 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
     health = ConnectionHealth(emit)
     cleanup_timer = PeriodicCleanup()
     closed_reason = 'duration'; closed_error = None
-    failed_packet = None; failed_stage = None
+    failed_packet = None
+    failed_stage = None
     try:
         with socket.create_connection((host, port), timeout=timeout) as connection:
             if tcp_keepalive: health.keepalive = configure_keepalive(connection)
@@ -523,114 +400,49 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
                     removed = state.clear_position_history()
                     emit({'type': 'periodic_cleanup', 'positions_removed': removed})
                 health.publish()
+                if expire_allocation(state) and on_state:notify_state(on_state,state)
                 if isinstance(on_state,StatePublisher):on_state.flush(state)
                 event_replies=logic.flush_events(state) if request else []
-                for response in event_replies:_send(connection,response,profile['tx_xor'],emit)
+                for response in event_replies:
+                    _send(connection,response,profile['tx_xor'],emit)
+                    if (response.main, response.sub) == (20, 6):
+                        emit(post_battle_trace(state, 'sent'))
                 if event_replies and on_state:notify_state(on_state,state)
                 for _ in range(20):
                     try: command = commands.get_nowait()
                     except queue.Empty: break
                     try:
-                        # Sanitize before handling, so malformed commands never
-                        # make the network thread disconnect during error logging.
-                        command_type = rejected_command_type(command)
                         for packet in logic.command(command, state):
                             _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
-                        if command_type in ('team','start_alchemy','stop_alchemy','reset_efficiency','craft','start_expedition','stop_expedition') and on_state:notify_state(on_state,state)
-                        if command_type in ('start_auto_battle','stop_auto_battle','set_party_guard'):
+                        if command.get('type') in ('start_auto_battle', 'stop_auto_battle'):
+                            emit(auto_battle_status_event(state))
+                        if command.get('type') in ('team','start_alchemy','stop_alchemy','reset_efficiency','craft','room_storage','start_expedition','stop_expedition','allocate_points','instance_create','instance_join','instance_leave','instance_coop_standby','instance_start','instance_enter','instance_auto_reward','instance_reward_claim','instance_reward_cancel','automatic_flows','time_cube','npc_start','npc_approach','npc_next','npc_close_choice','npc_choose','npc_close_shop','tent') and on_state:notify_state(on_state,state)
+                        if command.get('type') in ('start_auto_battle','stop_auto_battle','set_party_guard'):
                             emit({'type':'auto_battle_status',**state.auto_battle})
                             if on_state:notify_state(on_state,state)
-                        if command_type in ('start_roaming','stop_roaming'):
+                        if command.get('type') in ('start_roaming','stop_roaming'):
                             emit({'type':'roaming_status',**state.roaming})
                             if on_state:notify_state(on_state,state)
-                        if command_type in ('walk','stop_walk','portal_walk','portal_direct'):
+                        if command.get('type') in ('walk','stop_walk','portal_walk','portal_direct'):
                             emit({'type':'local_movement','status':state.local_movement['status'],
                                   'scene':state.player.get('scene'),'target':state.local_movement['target'],
                                   'reason':state.local_movement['reason']}) if state.local_movement else None
                             if on_state:notify_state(on_state,state)
                     except (ValueError, KeyError, TypeError) as exc:
-                        emit({'type': 'command_rejected', 'command_type':command_type,
-                              'error': '指令格式錯誤' if command_type == 'invalid' else str(exc)})
-                before_maintenance=state.maintenance
-                maintenance_now=time.monotonic()
-                for packet in logic.maintenance.tick(state,logic,maintenance_now):
-                    _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
-                if state.maintenance != before_maintenance:
-                    emit({'type':'maintenance_status',**state.maintenance})
-                    if on_state:notify_state(on_state,state)
-                trace=maintenance_trace_event(state,logic,maintenance_now)
-                guard=logic.maintenance
-                trace_key=(trace['phase'],trace['action'],trace['battle_count'],trace['completed'])
-                if (trace_key!=guard.trace_key or
-                    trace['phase'] in ('pending','uncertain') and
-                    (guard.trace_at is None or maintenance_now-guard.trace_at>=10)):
-                    guard.trace_key=trace_key
-                    guard.trace_at=maintenance_now
-                    emit(trace)
-                before_expedition = (state.expedition['status'], state.expedition['pending'], state.expedition['enabled'])
-                for packet in logic.expedition.tick(state,time.monotonic()):
-                    _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
-                if before_expedition != (state.expedition['status'], state.expedition['pending'], state.expedition['enabled']) and on_state:
-                    notify_state(on_state,state)
-                # Keep unresolved room/entry/reward state isolated; never retry
-                # an uncertain request. All expiration handlers only update state.
-                # Evaluate every timeout guard; any(...) would short-circuit
-                # and could leave later paid/reward operations unlocked.
-                expired=[expire(state) for expire in (
-                    expire_instance_create, expire_instance_room,
-                    expire_instance_standby, expire_instance_start,
-                    expire_instance_entry, expire_instance_rewards,
-                    expire_allocation)]
-                changed=any(expired)
-                if changed and on_state:notify_state(on_state,state)
-                for packet in tick_instance_rewards(state):
-                    _send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
-                    if on_state:notify_state(on_state,state)
-                before_craft=(state.crafting['status'],state.crafting['pending'],state.crafting['revision'],state.crafting['auto_continue'],repr(state.crafting.get('local_plan')))
-                for packet in logic.crafting.tick(state,time.monotonic()):_send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
-                if before_craft!=(state.crafting['status'],state.crafting['pending'],state.crafting['revision'],state.crafting['auto_continue'],repr(state.crafting.get('local_plan'))) and on_state:notify_state(on_state,state)
-                supply_event=logic.field_supply.tick(state,time.monotonic())
-                if supply_event:
-                    emit(supply_event)
-                    if logic.field_supply.uncertain:
-                        logic.auto_battle.stop(state,supply_event['reason'])
-                        logic.roaming.stop(state,logic.movement,'補給結果未確認')
-                        emit({'type':'auto_battle_status',**state.auto_battle})
-                    if on_state:notify_state(on_state,state)
-                before_ai=state.auto_battle
-                ai_packets=logic.auto_battle.tick(state,logic,time.monotonic())
-                if state.auto_battle is not before_ai:
-                    emit({'type':'auto_battle_status',**state.auto_battle})
-                    if on_state:notify_state(on_state,state)
-                for packet in ai_packets:_send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
-                before_services=(state.alchemy['status'],state.alchemy['pending'],state.alchemy['completed'],state.party['status'])
-                service_packets=logic.alchemy.tick(state,time.monotonic())
-                expired=expire_team(state)
-                for packet in service_packets:_send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state)
-                after_services=(state.alchemy['status'],state.alchemy['pending'],state.alchemy['completed'],state.party['status'])
-                if (expired or before_services!=after_services) and on_state:notify_state(on_state,state)
-                before_roaming=state.roaming
-                logic.roaming.tick(state,logic.movement,time.monotonic())
-                if state.roaming is not before_roaming:
-                    emit({'type':'roaming_status',**state.roaming})
-                    if on_state:notify_state(on_state,state)
-                before_tick=state.local_movement
-                packets=logic.movement.tick(state,time.monotonic())
-                for packet in packets:
-                    _send(connection,packet,profile['tx_xor'],emit)
-                    movement=decode_outbound_movement(packet)
-                    movement['sync_mode']=True
-                    state.apply(movement);emit(movement)
-                before_portal=state.portal_travel
-                for packet in logic.portal_travel.tick(state,logic.movement,time.monotonic()):
-                    _send(connection,packet,profile['tx_xor'],emit)
-                if on_state and (state.local_movement is not before_tick or state.portal_travel is not before_portal):notify_state(on_state,state)
+                        emit({'type': 'command_rejected',
+                              'command_type': rejected_command_type(command),
+                              'error': str(exc)})
+                advance_services(logic,state,
+                    lambda packet:_send_command_packet(connection,packet,profile['tx_xor'],state,emit,on_state),
+                    lambda packet:_send(connection,packet,profile['tx_xor'],emit),emit,on_state)
                 try: raw = connection.recv(65536)
                 except socket.timeout: continue
                 if not raw:
                     closed_reason = 'server_closed'
                     break
                 for packet in parser.feed(raw):
+                    # Only retain numeric packet IDs and handling stage, no credentials
+                    # or raw payload. This preserves main's PR #25/#26 diagnostics.
                     stage = 'decode'
                     try:
                         event = decode(packet,state.player.get('role_id'))
@@ -643,20 +455,32 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
                         state.apply(event)
                         stage = 'event_handling'
                         emit(event)
-                        trace=coop_state_trace(state,event['type'])
-                        if trace is not None:
-                            emit(trace)
                         if request:
                             for response in logic.receive(event, state):
                                 _send(connection, response, profile['tx_xor'], emit)
+                            if (event['type'] in ('fight_exit', 'battle_unit_exit')
+                                    and (state.battle.get('post_event') or {}).get('status')
+                                    in ('cooperative_wait', 'exit_delay')):
+                                emit(post_battle_trace(state, 'scheduled'))
+                            elif event['type'] == 'event_end' and state.battle.get('post_event'):
+                                emit(post_battle_trace(state, 'completed'))
+                        if (event['type'] in COOP_TRACE_SOURCES
+                                and (event['type'].startswith('instance_')
+                                     and event.get('mode') == 'coop'
+                                     or state.instances['coop'].get('room') is not None
+                                     or state.instances['coop'].get('reward') is not None
+                                     or state.battle.get('war_style') == 16)):
+                            emit(coop_state_trace(state, event['type']))
                         if on_state and event['type'] != 'unimplemented': notify_state(on_state,state)
                     except Exception:
-                        # Do not retain packet bytes, IDs are bounded to uint8.
                         failed_packet = (packet.main, packet.sub)
                         failed_stage = stage
                         raise
                 event_replies=logic.flush_events(state) if request else []
-                for response in event_replies:_send(connection,response,profile['tx_xor'],emit)
+                for response in event_replies:
+                    _send(connection,response,profile['tx_xor'],emit)
+                    if (response.main, response.sub) == (20, 6):
+                        emit(post_battle_trace(state, 'sent'))
                 if event_replies and on_state:notify_state(on_state,state)
             if not stop_event.is_set(): parser.finish()
             else: closed_reason = 'stopped'
@@ -673,6 +497,6 @@ def run_client(host, port, profile, emit, *, account=None, password=None,
         if on_state:notify_state(on_state,state,force=True)
         if closed_error is None and stop_event.is_set():closed_reason='stopped'
         health.close(closed_reason,closed_error,
-                     error_packet=failed_packet,error_stage=failed_stage)
+                     error_packet=failed_packet, error_stage=failed_stage)
         emit({'type': 'connection_closed', 'last_phase': last_phase, 'reason': closed_reason})
     return state

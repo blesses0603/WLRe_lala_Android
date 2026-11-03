@@ -29,7 +29,17 @@ class Overview(Page):
                    lambda: setattr(d.navigation, 'text', 'AI與補給設定')),
             button('遠征詳情／設定',
                    lambda: setattr(d.navigation, 'text', '遠征'))))
+        self.auto_status = label(); self.add_widget(self.auto_status)
+        self.add_widget(button('切換自動接續啟停', lambda:d.send(dict(type='automatic_flows', enabled=not self.state.get('automation', {}).get('enabled', True)))))
+        self.add_widget(label('副本、協力由房主手動開始。'))
+        from wlre.services.world.tent import activity_text
+        self.tent_info = label(); self.add_widget(self.tent_info)
+        for pair in ((('展開帳篷','open'),('收起帳篷','close')), (('進入帳篷','enter'),('離開帳篷','leave'))):
+            self.add_widget(row(*(button(title, lambda a=action:d.send(dict(type='tent',action=a))) for title,action in pair)))
     def refresh(self):
+        from wlre.services.world.tent import activity_text
+        self.tent_info.text = activity_text(self.state.get('tent', {}))
+        self.auto_status.text = self.state.get('automation', {}).get('status', '等待同步')
         self.info.text = '\n\n'.join(overview_lines(self.state))
 
 
@@ -68,3 +78,4 @@ class Efficiency(Page):
                      '升級：'+forecast(remaining, rate, elapsed)+'｜一轉190：'+(forecast(reborn, rate, elapsed) if r.get('degree') == 1 else '—')]
         if r.get('level_inferred') or r.get('degree_inferred'): text.append('此夥伴／坐騎的等級或階段依經驗曲線推估')
         self.info.text = '\n\n'.join(text)+'\n\n預估採用已完成戰鬥的有效樣本；未同步時不推算。'
+

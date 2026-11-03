@@ -74,5 +74,5 @@ jobs:
           python tools/android_hardening.py preflight
           grep -Fqx 'android.archs = arm64-v8a' buildozer.spec
       - name: Run Python regression and workflow policy tests
-        run: xvfb-run -a python -m unittest discover -s tests -v
+        run: python -u tools/android_isolated_unittests.py
 

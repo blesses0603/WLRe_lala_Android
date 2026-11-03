@@ -1,5 +1,13 @@
 # 版本紀錄
 
+## 7.1.8 Android Manifest／Bundle 明確使用已驗證 SSL CA（2026-11-04，開發修補候選）
+
+- 依 v7.1.7 真機畫面確認：DataPackage 1286／MainPackage 1284 版本查詢成功，但 `DataPackage.hash` 顯示 TLS 憑證驗證失敗。截圖不能證明是缺少中繼憑證、手機 CA 還是 HTTPS 處理器的預設信任路徑問題。
+- Android 官方版本查詢已以 `ssl.create_default_context(cafile=SSL_CERT_FILE)` 建立明確驗證環境；Manifest／Bundle 過去使用 `build_opener(_NoRedirect())` 隱含憑證查找，可能在 Android 版 p4a／OpenSSL 環境下與版本查詢不一致。
+- 在 `android_app/tls.py` 增加共用的顯式 HTTPS 驗證處理器，Manifest 與 Bundle 的預設網路入口都使用 Android 已選定的 certifi／系統 CA 憑證來源，保持 `CERT_REQUIRED`、主機名稱比對及無轉址政策。若指定 CA 檔遺失或無效，直接報錯、不降級、不略過 TLS。
+- 保留目前 `.hash`／`.bytes` CRC32、Bundle MD5／CRC、版本身分、Runtime／SQLite 與登入 fail-closed；新增真實 SSL context、CA 缺漏拒絕、Manifest／Bundle 共用驗證處理器的離線測試。
+- Android 預計版號 7.1.7 → 7.1.8，電腦版原始碼與版本維持不變。APK ARM64 編譯、真機官方 CDN 下載與正式伺服器驗收尚需獨立驗證；不可將離線測試通過視為真機 TLS 已修復。
+
 ## 7.1.7 Android 官方 Manifest 網路診斷與同源重試（2026-11-04，修補候選）
 
 - 依 Android v7.1.6 真機畫面確認：官方版本可取得 DataPackage 1286／MainPackage 1284，但完整 Runtime 被 `ManifestSyncError: Official Manifest download failed` 阻擋。無法從畫面判定 .hash／.bytes 及 HTTP／TLS／DNS／逾時根因；未取得真機原始連線 Log。

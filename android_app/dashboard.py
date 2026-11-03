@@ -56,7 +56,8 @@ class Dashboard:
                        color=SURFACE, radius=24)
         self.brand = BrandHeader(
             subtitle='角色功能',
-            verified=bool(getattr(app.manager, 'resource_status', {}).get('ready')
+            verified=bool(getattr(app.manager, 'available', True)
+                          and getattr(app.manager, 'resource_status', {}).get('ready')
                           and self.catalog_ready))
         base.add_widget(self.brand)
         self.status = surface(label('等待服務同步'), color=SOFT, radius=12)
@@ -145,6 +146,7 @@ class Dashboard:
         session = self.app.manager.sessions.get(self.sid)
         if not session: self.close(); return False
         if not getattr(self.app.manager, 'available', True):
+            self.brand.set_verified(False)
             self.status.text = '服務失聯，資料為最後同步內容；操作已停用'
             if self.page_name == '聊天' and self.page:
                 self.page.refresh()  # Clear pending without discarding draft.
@@ -172,7 +174,8 @@ class Dashboard:
                 self.navigation.text = 'NPC'
             connected = self.live
             self.brand.set_verified(bool(
-                getattr(self.app.manager, 'resource_status', {}).get('ready')
+                getattr(self.app.manager, 'available', True)
+                and getattr(self.app.manager, 'resource_status', {}).get('ready')
                 and self.catalog_ready))
             self.status.text = '已連線' if connected else '連線已停止／等待角色登入；以下為最後同步資料'
             if (self.page and self._refresh_policy.should_refresh(

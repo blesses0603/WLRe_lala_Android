@@ -74,7 +74,10 @@ class AndroidBuildCacheTests(unittest.TestCase):
         self.assertLess(restore, build)
         self.assertTrue(build < audit < save < upload)
         self.assertIn("steps.android_dependency_cache.outputs.cache-hit != 'true'", content)
-        self.assertNotIn("restore-keys:", content)
+        # The SDK/NDK cache must use an exact immutable key. The new
+        # ccache cache intentionally uses compiler-validated prefix restores.
+        sdk_restore = content[restore:content.index("      - name:", restore)]
+        self.assertNotIn("restore-keys:", sdk_restore)
         # Original SDK/NDK + new ccache + pinned third-party recipe
         # restore/save actions all fail open without bypassing APK gates.
         self.assertEqual(content.count("continue-on-error: true"), 6)

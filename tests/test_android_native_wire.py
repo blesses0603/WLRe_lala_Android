@@ -52,6 +52,32 @@ class NativeWireTests(unittest.TestCase):
         self.assertIn("source.exclude_dirs = p4a-recipes,docs", spec)
         self.assertIn("android.archs = arm64-v8a", spec)
 
+    def prepare_decoder_recipes(self):
+        spec = self.repo / "buildozer.spec"
+        spec.write_text(spec.read_text().replace(
+            "requirements = python3,kivy",
+            "requirements = python3,kivy,unitypy,tpk_ar==0.2.4"))
+        for decoder in ("unitypy", "lz4", "brotli", "tpk_ar"):
+            folder = self.repo / "p4a-recipes" / decoder
+            folder.mkdir()
+            (folder / "__init__.py").write_text("# " + decoder + "\n")
+
+    def test_stage_includes_source_only_tpk_recipe_for_unitypy(self):
+        self.prepare_decoder_recipes()
+        output = self.base / "native"
+        stage(self.repo, output)
+        self.assertEqual(
+            (output / "p4a-recipes/tpk_ar/__init__.py").read_text(),
+            "# tpk_ar\n")
+
+    def test_missing_tpk_recipe_rejects_and_cleans_stage(self):
+        self.prepare_decoder_recipes()
+        (self.repo / "p4a-recipes/tpk_ar/__init__.py").unlink()
+        output = self.base / "native"
+        with self.assertRaisesRegex(ValueError, "Missing resource decoder recipe: tpk_ar"):
+            stage(self.repo, output)
+        self.assertFalse(output.exists())
+
     def test_refuse_to_overwrite_existing_or_in_tree_staging(self):
         with self.assertRaises(ValueError):
             stage(self.repo, self.repo / "native")

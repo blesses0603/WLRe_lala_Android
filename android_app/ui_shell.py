@@ -53,6 +53,10 @@ class BrandHeader(BoxLayout):
 
     def set_verified(self, verified):
         # Do not paint a success state from a guessed or stale cache.
+        verified = verified is True
+        if getattr(self, '_verified', None) is verified:
+            return
+        self._verified = verified
         self.status.text = ('● 官方資源已驗證' if verified
                             else '○ 官方資源尚未通過驗證')
         self.status.color = ACCENT if verified else MUTED

@@ -21,8 +21,8 @@ def configure_paths(context=None):
         raise RuntimeError('Android 私人資料目錄尚未就緒')
     root = Path(str(context.getNoBackupFilesDir().getAbsolutePath()))
     os.environ['LOCALAPPDATA'] = str(root)
-    import certifi
-    os.environ.setdefault('SSL_CERT_FILE', certifi.where())
+    from android_app.tls import configure_tls
+    configure_tls(root)
     return root
 
 

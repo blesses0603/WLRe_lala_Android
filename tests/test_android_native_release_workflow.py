@@ -15,7 +15,7 @@ class NativeReleasePolicyTests(unittest.TestCase):
 
     def test_versioned_release_is_a_distinct_upgrade(self):
         self.assertEqual(source_version(
-            ROOT / "buildozer.spec", ROOT / "android_app/version.py"), "v0.1.0")
+            ROOT / "buildozer.spec", ROOT / "android_app/version.py"), "v0.1.1")
 
     def test_lz4_versioning_tools_are_installed_in_hostpython(self):
         # Target dependencies do not make setup.py imports available in p4a's

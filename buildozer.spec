@@ -5,7 +5,7 @@ package.domain = org.lala.client
 source.dir = .
 source.include_exts = py,kv,json,zip,gz,sqlite3,png,jpg,jpeg,webp,ttf,ttc,txt
 source.exclude_dirs = .git,.github,docs,tests,tools,.buildozer,bin,dist_nuitka
-version = 0.1.1
+version = 7.1.2
 requirements = python3,kivy==2.3.1,pyjnius,charset-normalizer==3.4.2,sqlite3,openssl,liblzma,pillow,unitypy,lz4,brotli,attrs==26.1.0,fsspec==2026.9.0,tpk_ar==0.2.4,certifi==2026.10.19
 # Native SDL2 splash: 512px canvas with a ~38%-width centered LaLa mark.
 # Run tools/android_presplash.py check-spec before staging/buildozer.

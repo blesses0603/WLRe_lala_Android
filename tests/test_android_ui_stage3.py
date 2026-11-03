@@ -51,7 +51,7 @@ class StageThreeOfflineTests(unittest.TestCase):
         checks = {
             "expedition": (
                 "validate(value)", "self.d.preferences(preferences)",
-                "'start_expedition'", "'stop_expedition'",
+                "start_expedition", "stop_expedition",
                 "available_quests(self.state", "recovery_stock(",
             ),
             "instances": (
@@ -82,7 +82,9 @@ class StageThreeOfflineTests(unittest.TestCase):
                 "not cube.get('uncertain')",
             ),
             "settings": (
-                "SettingsEditor.TABS", "'ai_settings' not in self.d.data",
+                "'一般設定'", "'角色規則'", "'夥伴規則'",
+                "'HP／SP補給'", "'必要成員'", "'修理／整理'",
+                "'匯入／匯出'", "'ai_settings' not in self.d.data",
                 "SettingsEditor(self.d.app,self.d.sid,tab)",
             ),
         }

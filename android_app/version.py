@@ -1,3 +1,3 @@
-"""Android release numbering is separate from the desktop release."""
-ANDROID_VERSION = "0.1.1"
+"""Android Major.Minor tracks the desktop main series; Android Patch is independent."""
+ANDROID_VERSION = "7.1.2"
 

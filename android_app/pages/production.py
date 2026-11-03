@@ -18,17 +18,39 @@ from wlre.core.efficiency import duration
 
 class Alchemy(Page):
     def __init__(self, d):
-        super().__init__(d); self.materials = [None]*5
-        self.mode = select(self, '煉金術', ['無技能'])
-        self.runs = field(self, '執行次數（1～999）', 1, True)
+        super().__init__(d)
+        from android_app.pages.ui_components import feature_card, status_line
+        self.materials = [None]*5
+
+        setup = feature_card('煉金設定',
+                             '模式與次數必須由原有煉金核心驗證')
+        self.mode = select(setup, '煉金術', ['無技能'])
+        self.runs = field(setup, '執行次數（1～999）', 1, True)
+        self.add_widget(setup)
+
+        materials = feature_card('材料槽位',
+                                 '五個來源格位；僅使用已確認且未受限制的背包物品')
         self.slots = []
         for index in range(5):
-            b = button(f'材料 {index+1}：選擇', lambda i=index: self.choose(i))
-            self.add_widget(b); count = field(self, '每次數量', 1, True)
-            self.slots.append((b, count))
-        self.info = label(); self.add_widget(self.info)
-        self.add_widget(button('預覽消耗／開始連續煉金', self.begin))
-        self.add_widget(row(button('停止後續煉金', lambda: d.send({'type':'stop_alchemy'})), button('清空材料', self.clear)))
+            slot = feature_card('材料 {}'.format(index+1))
+            control = button(
+                '材料 {}：選擇'.format(index+1),
+                lambda i=index: self.choose(i))
+            slot.add_widget(control)
+            count = field(slot, '每次數量', 1, True)
+            self.slots.append((control, count))
+            materials.add_widget(slot)
+        self.add_widget(materials)
+
+        actions = feature_card('煉金佇列與執行',
+                               '預覽本次總消耗，確認後才送出')
+        self.info = status_line('等待煉金狀態同步')
+        actions.add_widget(self.info)
+        actions.add_widget(button('預覽消耗／開始連續煉金', self.begin, 56))
+        actions.add_widget(row(
+            button('停止後續煉金', lambda: d.send({'type':'stop_alchemy'})),
+            button('清空材料', self.clear)))
+        self.add_widget(actions)
     def clear(self):
         self.materials = [None]*5
         for i, (b, _) in enumerate(self.slots): b.text = f'材料 {i+1}：選擇'
@@ -62,23 +84,48 @@ class Alchemy(Page):
 
 class Crafting(Page):
     def __init__(self, d):
-        super().__init__(d); self.selected = None; self.offset = 0
-        heading = label('製作工坊 · 配方目錄', 38)
-        heading.font_size = '18sp'; self.add_widget(heading)
-        self.add_widget(row(button('自訂清單', self.plan), button('進入自家帳篷', lambda: d.send(dict(type='craft', action='enter')))))
-        self.query = field(self, '搜尋配方名稱／ID')
-        self.tool = select(self, '工作設備／收藏', ['全部', '我的最愛'])
-        self.only_owned = select(self, '顯示配方', ['全部已確認開放配方', '只列小屋已擺設備'])
-        self.catalog = column(); self.catalog.spacing = dp(9); self.add_widget(self.catalog)
-        self.add_widget(row(button('‹ 上一頁', lambda: self.move(-1)), button('下一頁 ›', lambda: self.move(1))))
-        title = label('製作佇列', 34); title.font_size = '17sp'
-        self.add_widget(title)
-        self.queue_info = label(); self.queue_info.color = MUTED; self.add_widget(self.queue_info)
-        self.queue = column(); self.add_widget(self.queue)
-        self.add_widget(row(button('開始／接續製作', lambda: d.send(dict(type='craft', action='start'))),
-                            button('暫停製作', lambda: d.send(dict(type='craft', action='pause')))))
-        self.add_widget(button('停止後續自動接續', lambda: d.send(dict(type='craft', action='stop_auto'))))
-        self.tool.bind(text=lambda *_: self.find()); self.only_owned.bind(text=lambda *_: self.find()); self.query.bind(text=lambda *_: self.find())
+        super().__init__(d)
+        from android_app.pages.ui_components import feature_card, status_line
+        self.selected = None
+        self.offset = 0
+
+        browse = feature_card('製作工坊 · 配方目錄',
+                              '只列已確認開放配方，可依設備與收藏篩選')
+        browse.add_widget(row(
+            button('自訂清單', self.plan),
+            button('進入自家帳篷',
+                   lambda: d.send(dict(type='craft', action='enter')))))
+        self.query = field(browse, '搜尋配方名稱／ID')
+        self.tool = select(browse, '工作設備／收藏', ['全部', '我的最愛'])
+        self.only_owned = select(
+            browse, '顯示配方', ['全部已確認開放配方', '只列小屋已擺設備'])
+        self.catalog = column()
+        self.catalog.spacing = dp(9)
+        browse.add_widget(self.catalog)
+        browse.add_widget(row(
+            button('‹ 上一頁', lambda: self.move(-1)),
+            button('下一頁 ›', lambda: self.move(1))))
+        self.add_widget(browse)
+
+        execution = feature_card('伺服器製作佇列',
+                                 '順序、用料與剩餘時間由已同步狀態確認',
+                                 variant='highlight')
+        self.queue_info = status_line('等待排程同步')
+        execution.add_widget(self.queue_info)
+        self.queue = column()
+        execution.add_widget(self.queue)
+        execution.add_widget(row(
+            button('開始／接續製作',
+                   lambda: d.send(dict(type='craft', action='start'))),
+            button('暫停製作',
+                   lambda: d.send(dict(type='craft', action='pause')))))
+        execution.add_widget(button(
+            '停止後續自動接續',
+            lambda: d.send(dict(type='craft', action='stop_auto'))))
+        self.add_widget(execution)
+        self.tool.bind(text=lambda *_: self.find())
+        self.only_owned.bind(text=lambda *_: self.find())
+        self.query.bind(text=lambda *_: self.find())
         self.tools = {}
     def find(self): self.offset = 0; self.key = None; self.refresh()
     def move(self, delta): self.offset = max(0, self.offset+delta); self.key = None; self.refresh()

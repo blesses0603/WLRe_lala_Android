@@ -22,7 +22,15 @@ class AndroidCIPolicyTests(unittest.TestCase):
     def test_pr_and_main_only_run_fast_checks(self):
         self.assertRegex(self.fast, r"(?m)^  push:\s*\n    branches: \[main\]")
         self.assertRegex(self.fast, r"(?m)^  pull_request:\s*\n    branches: \[main\]")
-        self.assertIn("xvfb-run -a python -m unittest discover -s tests -q", self.fast)
+        # Fast CI can run the tests through the isolated diagnostic harness,
+        # but the harness must still discover every test file and propagate failures.
+        self.assertIn("run: python -u tools/android_isolated_unittests.py", self.fast)
+        harness = (ROOT / "tools" / "android_isolated_unittests.py").read_text(encoding="utf-8")
+        self.assertIn('TESTS.glob("test*.py")', harness)
+        self.assertIn('"unittest",', harness)
+        self.assertIn('"discover",', harness)
+        self.assertIn("subprocess.run(", harness)
+        self.assertIn("return 1 if failures else 0", harness)
         self.assertIn("python tools/android_hardening.py preflight", self.fast)
         self.assertIn("python tools/android_presplash.py check-spec", self.fast)
         self.assertIn("source_version(", self.fast)

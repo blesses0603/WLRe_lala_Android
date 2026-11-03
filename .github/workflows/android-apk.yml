@@ -27,6 +27,13 @@ jobs:
       KIVY_NO_CONSOLELOG: '1'
       PYTHONUNBUFFERED: '1'
       NATIVE_STAGE: /tmp/wlre-android-native-release
+      # p4a detects ccache directly on PATH and supplies it to NDK Clang.
+      # The compiler binary and flags remain part of ccache's content key.
+      CCACHE_DIR: /home/runner/.cache/lala-android-ccache
+      CCACHE_MAXSIZE: 850M
+      CCACHE_COMPILERCHECK: content
+      CCACHE_BASEDIR: /tmp/wlre-android-native-release
+      USE_CCACHE: '1'
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -59,7 +66,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y autoconf automake libtool pkg-config cmake \
             libffi-dev libssl-dev libsqlite3-dev zlib1g-dev gettext autopoint \
-            libncurses5-dev libncursesw5-dev libltdl-dev git zip unzip \
+            libncurses5-dev libncursesw5-dev libltdl-dev git zip unzip ccache \
             xvfb xauth libmtdev1 libgl1-mesa-dri
       - name: Install Buildozer
         run: |
@@ -83,6 +90,24 @@ jobs:
             ~/.buildozer/android/platform/android-ndk-r28c
             ~/.gradle/caches/modules-2
             ~/.gradle/wrapper/dists
+      # P1: compiler output cache; run-specific immutable keys allow each
+      # successful build to contribute additional objects for the next run.
+      # ccache validates compiler contents, source and invocation flags.
+      - name: Restore vetted NDK compiler ccache
+        id: native_ccache_restore
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-ndk-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.build_cache_key.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            lala-ndk-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.build_cache_key.outputs.key }}-
+          path: ${{ env.CCACHE_DIR }}
+      - name: Confirm ccache is available
+        run: |
+          command -v ccache
+          ccache --version
+          ccache --max-size=850M
+          ccache --zero-stats
       - name: Test Android isolation, IPC, encrypted storage and UI
         run: xvfb-run -a python -m unittest discover -s tests -v
       - name: Check Python syntax and native startup-screen configuration
@@ -96,6 +121,38 @@ jobs:
         run: |
           python tools/android_native_cores.py stage --source "$GITHUB_WORKSPACE" --output "$NATIVE_STAGE"
           python -c 'import os; from pathlib import Path; from tools.android_hardening import check_configuration; from tools.android_release_version import source_version; stage = Path(os.environ["NATIVE_STAGE"]); check_configuration(stage); assert source_version(stage / "buildozer.spec", stage / "android_app/version.py") == os.environ["RELEASE_VERSION"], "Staged Android version differs from source release version"'
+      # P2: only ten pinned third-party recipe roots and their source
+      # downloads. NEVER restore .buildozer dists, python-installs,
+      # bootstrap_builds or any of the eight LaLa native recipes.
+      # ImageVersion and local recipe definitions invalidate the cache.
+      - name: Restore pinned third-party p4a recipe builds
+        id: p4a_thirdparty_restore
+        if: steps.build_cache_key.outputs.native_enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p4a-thirdparty-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.build_cache_key.outputs.native_key }}
+          path: |
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/freetype
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/hostpython3
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/jpeg
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/libffi
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/liblzma
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/libwebp
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/openssl
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/png
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/sqlite3
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/python3-liblzma
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/freetype
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/hostpython3
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/jpeg
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/libffi
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/liblzma
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/libwebp
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/openssl
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/png
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/sqlite3
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/python3
       - name: Pin public signer into Phase07 runtime Java guard (no private key)
         env:
           ANDROID_EXPECTED_SIGNER_SHA256: ${{ vars.ANDROID_EXPECTED_SIGNER_SHA256 }}
@@ -112,6 +169,8 @@ jobs:
         run: |
           cd "$NATIVE_STAGE"
           buildozer -v android debug
+      - name: Display compiler cache statistics
+        run: ccache --show-stats
       - name: Name APK and generate checksum
         env:
           RELEASE_VERSION: ${{ steps.release.outputs.version }}
@@ -166,6 +225,42 @@ jobs:
             ~/.buildozer/android/platform/android-ndk-r28c
             ~/.gradle/caches/modules-2
             ~/.gradle/wrapper/dists
+      # Both caches save only after real APK audits and signature checks.
+      # Missing/unavailable caches must not prevent uploading a valid APK.
+      - name: Save vetted NDK compiler ccache
+        if: steps.native_ccache_restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-ndk-ccache-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.build_cache_key.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.CCACHE_DIR }}
+      - name: Save checked third-party p4a recipe builds
+        if: steps.build_cache_key.outputs.native_enabled == 'true' && steps.p4a_thirdparty_restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p4a-thirdparty-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.build_cache_key.outputs.native_key }}
+          path: |
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/freetype
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/hostpython3
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/jpeg
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/libffi
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/liblzma
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/libwebp
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/openssl
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/png
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/sqlite3
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/build/other_builds/python3-liblzma
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/freetype
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/hostpython3
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/jpeg
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/libffi
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/liblzma
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/libwebp
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/openssl
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/png
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/sqlite3
+            ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/python3
       - name: Upload APK (only after successful build)
         uses: actions/upload-artifact@v7.0.2
         with:

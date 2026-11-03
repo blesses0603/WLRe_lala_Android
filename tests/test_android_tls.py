@@ -5,9 +5,10 @@ import ssl
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
+from urllib.request import HTTPRedirectHandler, HTTPSHandler
 
 import certifi
-from android_app.tls import configure_tls
+from android_app.tls import configure_tls, verified_https_opener
 from android_app.resource_sync import configure_paths
 
 
@@ -31,6 +32,32 @@ class AndroidTlsTests(unittest.TestCase):
         self.assertEqual(context.verify_mode, ssl.CERT_REQUIRED)
         self.assertTrue(context.check_hostname)
         self.assertGreater(context.cert_store_stats()["x509_ca"], 0)
+
+    def test_verified_urllib_handler_uses_explicit_android_ca(self):
+        # The Android version downloader already passes cafile explicitly.
+        # The Manifest/Bundle path must not rely on OpenSSL's default paths.
+        selected = configure_tls(self.root, system_dirs=[])
+        redirect = HTTPRedirectHandler()
+        with patch('android_app.tls.ssl.create_default_context',
+                   wraps=ssl.create_default_context) as create, \
+             patch('android_app.tls.build_opener') as build:
+            opener = verified_https_opener(redirect)
+        create.assert_called_once_with(cafile=str(selected))
+        self.assertIs(opener, build.return_value.open)
+        self.assertEqual(len(build.call_args.args), 2)
+        self.assertIs(build.call_args.args[0], redirect)
+        handler = build.call_args.args[1]
+        self.assertIsInstance(handler, HTTPSHandler)
+        self.assertEqual(handler._context.verify_mode, ssl.CERT_REQUIRED)
+        self.assertTrue(handler._context.check_hostname)
+        self.assertGreater(handler._context.cert_store_stats()['x509_ca'], 0)
+
+    def test_verified_urllib_handler_fails_closed_for_invalid_explicit_ca(self):
+        os.environ['SSL_CERT_FILE'] = str(self.root / 'missing-ca.pem')
+        with self.assertRaises((OSError, ssl.SSLError)):
+            verified_https_opener(HTTPRedirectHandler())
+        self.assertEqual(os.environ['SSL_CERT_FILE'],
+                         str(self.root / 'missing-ca.pem'))
 
     def test_stale_inherited_paths_are_replaced_with_valid_bundle(self):
         os.environ["SSL_CERT_FILE"] = "/missing/build-machine/cacert.pem"

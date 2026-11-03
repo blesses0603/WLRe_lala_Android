@@ -6,6 +6,7 @@ from urllib.error import HTTPError, URLError
 import ssl
 import tempfile
 import unittest
+from unittest.mock import patch
 import zlib
 
 from wlre.services.official_manifest_sync import (
@@ -55,6 +56,16 @@ def responder(*, manifest=CONTENT, hash_bytes=CRC_LE, returned_url=None, request
 
 
 class OfficialManifestSyncTests(unittest.TestCase):
+    def test_default_manifest_download_uses_explicit_verified_opener(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch('wlre.services.official_manifest_sync.verified_https_opener',
+                   return_value=responder()) as make:
+            verified = fetch_official_manifest(
+                spec(), cache_root=tmp, parser=parse_synthetic)
+        self.assertTrue(verified.downloaded)
+        make.assert_called_once()
+        self.assertEqual(type(make.call_args.args[0]).__name__, '_NoRedirect')
+
     def test_exact_official_paths_not_version_suffixed(self):
         for package in ('DataPackage', 'MainPackage'):
             with self.subTest(package=package):

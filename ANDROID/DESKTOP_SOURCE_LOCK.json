@@ -178,8 +178,12 @@
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",
   "android_adaptations": {
     "wlre/services/official_manifest_sync.py": {
-      "reason": "使用可打包的 Manifest parser；Android v7.1.7 增加同源 HTTPS 數字查詢安全重試與網路錯誤階段標記",
-      "sha256": "c3b1b2f451037d0c522eba900d73afd63a42951a98627c5dd73aeba68470d1c2"
+      "reason": "使用可打包的 Manifest parser；Android v7.1.7 增加同源 HTTPS 數字查詢安全重試與網路錯誤階段標記；Android v7.1.8 明確使用已驗證的 Android TLS CA 處理器",
+      "sha256": "fe3eb9c15a67256387d60f582212c00fdc13be27f08f1106ec744e267040ecaa"
+    },
+    "wlre/services/official_bundle_download.py": {
+      "reason": "Android v7.1.8 Bundle HTTPS 明確載入受信任的 Android TLS CA 處理器，保留無轉址與檔案完整性驗證；桌面原始碼 SHA-256 不變",
+      "sha256": "211de83d272ae130266739ffc26f675b1bc7058aa48b0a680b04f9adf24b48fe"
     },
     "wlre/services/official_incremental_sync.py": {
       "reason": "使用可打包的 Manifest parser",

@@ -18,6 +18,7 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import zlib
 
+from android_app.tls import verified_https_opener
 from wlre.storage.paths import data_root
 
 
@@ -242,7 +243,7 @@ def fetch_official_manifest(spec, *, cache_root=None, opener=None, timeout=20, p
     """
     if not isinstance(spec, ManifestSpec):
         raise ManifestSyncError('Manifest requires a validated official version spec')
-    opener = build_opener(_NoRedirect()).open if opener is None else opener
+    opener = verified_https_opener(_NoRedirect()) if opener is None else opener
     hash_body = _fetch(spec.url('hash'), limit=MAX_HASH_BYTES,
                        opener=opener, timeout=timeout)
     try:

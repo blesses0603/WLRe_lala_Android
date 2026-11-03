@@ -5,6 +5,7 @@ import io
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 import zlib
 
 from wlre.services.official_bundle_download import (
@@ -35,6 +36,17 @@ class FakeResponse(io.BytesIO):
 
 
 class BundleDownloadTests(unittest.TestCase):
+    def test_default_bundle_download_uses_explicit_verified_opener(self):
+        def responder(req, timeout):
+            return FakeResponse(req.full_url)
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch('wlre.services.official_bundle_download.verified_https_opener',
+                   return_value=responder) as make:
+            result = fetch_bundle(spec(), cache_root=tmp)
+            self.assertEqual(result.read_bytes(), BODY)
+        make.assert_called_once()
+        self.assertEqual(type(make.call_args.args[0]).__name__, '_NoRedirect')
+
     def test_manifest_crc_is_little_endian_not_conventional_crc_hex(self):
         self.assertEqual(CRC, zlib.crc32(BODY).to_bytes(4, 'little').hex())
         self.assertNotEqual(CRC, f'{zlib.crc32(BODY) & 0xffffffff:08x}')

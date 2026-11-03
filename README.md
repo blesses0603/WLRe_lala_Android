@@ -1,6 +1,6 @@
 # 飄流 RE:LaLa｜Android
 
-目前程式：**v7.1.7 開發修補候選（未正式發布）**。Android Major.Minor 與桌面版最新 main v7.1.1 同為 7.1，Patch 獨立維護。本版針對 Android v7.1.6 真機官方版本已確認、但 Manifest 下載失敗的畫面，加入 Manifest `.hash`／`.bytes`、HTTP／TLS／DNS／逾時的固定安全診斷，以及僅於 CDN 回應 HTTP 400／403／404 時的一次同源 HTTPS 數字查詢重試；保持禁止轉址、憑證驗證、CRC32、Runtime／SQLite 驗證與禁止登入的安全門檻。前版 v7.1.6 已修復 P3 SHA-256 核心快取的 Python 模組入口；v7.1.5 補強 Runtime 錯誤分類。本版是否實際解決官方下載問題，仍須真機重測。
+目前程式：**v7.1.8 開發修補候選（未正式發布）**。Android Major.Minor 與桌面版最新 main v7.1.1 同為 7.1，Patch 獨立維護。本版針對 Android v7.1.7 真機顯示 `DataPackage.hash；TLS 憑證驗證失敗`，修正原 Manifest／Bundle 使用 urllib 預設 SSL 憑證查找路徑、與官方版本查詢不同的問題：改為由 Android 的驗證 HTTPS 處理器明確載入 `SSL_CERT_FILE` 指定的 certifi／Android 系統 CA；仍要求 TLS 憑證鏈及主機名稱驗證，並保留拒絕轉址、Manifest CRC32 與 Bundle MD5／CRC。v7.1.7 已增加 Manifest 下載階段固定診斷與同源受限重試。本次是否真正修復實機憑證連線，仍須完成 v7.1.8 ARM64 APK 及真機實測。
 
 Android 12 以上、ARM64。保留 Kivy 直式觸控介面、前景連線服務、懸浮球、Android Keystore、固定簽章與八核心原生封裝。Android 與桌面版各自維護版本號。
 

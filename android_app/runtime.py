@@ -229,6 +229,7 @@ class ServiceManager:
         self.paused = False
         self.watched = None
         self.details = {}
+        self.detail_revisions = {}
         self._resource_request_pending = False
         threading.Thread(target=self._work, daemon=True, name='service-ui-bridge').start()
 
@@ -313,6 +314,8 @@ class ServiceManager:
                     self.events.put((sid, kind, value))
         for sid in set(self.sessions) - present:
             self.sessions.pop(sid, None)
+            self.details.pop(sid, None)
+            self.detail_revisions.pop(sid, None)
             self.events.put((sid, 'removed', None))
             self._last = {k: v for k, v in self._last.items() if k[0] != sid}
 
@@ -324,10 +327,14 @@ class ServiceManager:
             except (OSError, ValueError, KeyError, TypeError):
                 self.details.pop(watched, None)
             else:
-                if self.watched == watched:
+                if self.watched == watched and detail != self.details.get(watched):
+                    # Compare snapshots in the worker, not the Kivy thread.
+                    # This avoids rebuilding unchanged screens every poll.
                     self.details[watched] = detail
+                    self.detail_revisions[watched] = self.detail_revisions.get(watched, 0) + 1
         else:
             self.details.clear()
+            self.detail_revisions.clear()
         # Keep a queued resource retry guarded until the worker has reported
         # a terminal state, preventing duplicate taps from racing the worker.
         if self.resource_status.get('status') != 'checking':
@@ -367,6 +374,7 @@ class ServiceManager:
                 self.overlay_enabled = False
                 self.metrics = {}
                 self.details.clear()
+                self.detail_revisions.clear()
                 time.sleep(0.5)
 
     def retry_resources(self):
@@ -426,6 +434,7 @@ class ServiceManager:
     def watch(self, sid):
         self.watched = sid
         self.details = {k: v for k, v in self.details.items() if k == sid}
+        self.detail_revisions = {k: v for k, v in self.detail_revisions.items() if k == sid}
 
     def save_preferences(self, sid, value):
         from android_app.preferences import validate

@@ -1,6 +1,14 @@
 # 版本紀錄
 
-## 0.1.1 開發修補版（尚未正式發布）
+## 7.1.2 開發修補版（尚未正式發布）
+
+- Android Major.Minor 跟隨桌面版 main v7.1.1（7.1），Patch 獨立累進；此版為 Android TLS 修補，並不代表桌面功能全數完成實機驗收。
+- 唯讀系統 CA 支援 PEM／DER X.509；載入前使用 OpenSSL 核對，不會降級為無憑證驗證。
+- 官方 urllib HTTPS 明確使用經選定的 CA 建立 CERT_REQUIRED 和 hostname checking 的 SSLContext；CA 設定失敗時保持拒絕登入。
+- 區分 TLS 憑證驗證、TLS 握手與 CA 載入失敗，補充 DER、TLS 分類、信任來源與 UI 診斷離線回歸測試。
+- 本版未進行完整 APK 編譯、手機實機連線與正式服登入驗收。
+
+## 0.1.1 開發修補版（歷史記錄）
 
 - Android Activity 與服務啟動時明確載入並解析 certifi CA bundle，加入 Android 唯讀系統 CA，取代可能保留失效繼承路徑的 `setdefault`。
 - urllib 與 Requests 使用同一份已解析的 CA 檔案；保留憑證、主機名稱與官方資源完整性驗證，不匯入使用者安裝的 CA，也不信任下載的伺服器憑證。

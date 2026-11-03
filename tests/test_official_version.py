@@ -2,6 +2,10 @@
 import io
 import gzip
 import socket
+import ssl
+import os
+from pathlib import Path
+import tempfile
 import unittest
 from urllib.error import HTTPError, URLError
 from unittest.mock import patch
@@ -198,6 +202,34 @@ class OfficialResourceVersionTests(unittest.TestCase):
         self.assertIn("DNS", _request_problem(URLError(socket.gaierror(-2, "name unknown"))))
         self.assertIn("HTTP 403", _request_problem(HTTPError(MAIN, 403, "Forbidden", {}, None)))
         self.assertEqual(_request_problem(TimeoutError()), "連線逾時")
+
+    def test_tls_failure_categories_distinguish_certificate_and_handshake(self):
+        certificate = ssl.SSLCertVerificationError("certificate verification failed")
+        handshake = ssl.SSLError("generic TLS protocol alert")
+        self.assertEqual(_request_problem(certificate), "TLS 憑證驗證失敗")
+        self.assertEqual(_request_problem(URLError(certificate)), "TLS 憑證驗證失敗")
+        self.assertEqual(_request_problem(handshake), "TLS 握手失敗")
+        self.assertEqual(_request_problem(URLError(handshake)), "TLS 握手失敗")
+        self.assertNotIn("protocol alert", _request_problem(URLError(handshake)))
+
+    def test_official_https_uses_explicit_verified_ca_and_rejects_missing_bundle(self):
+        import certifi
+        from wlre.services.official_version import _verified_opener
+        from urllib.request import HTTPSHandler
+        with tempfile.TemporaryDirectory() as directory:
+            ca = Path(directory) / "roots.pem"
+            ca.write_bytes(Path(certifi.where()).read_bytes())
+            with (patch.dict(os.environ, {"SSL_CERT_FILE": str(ca)}),
+                  patch("wlre.services.official_version.build_opener") as builder):
+                _verified_opener()
+                handlers = [v for v in builder.call_args.args if isinstance(v, HTTPSHandler)]
+                self.assertEqual(len(handlers), 1)
+                self.assertTrue(handlers[0]._context.check_hostname)
+                self.assertEqual(handlers[0]._context.verify_mode, ssl.CERT_REQUIRED)
+                self.assertGreater(handlers[0]._context.cert_store_stats()["x509_ca"], 0)
+            with patch.dict(os.environ, {"SSL_CERT_FILE": str(ca) + ".missing"}):
+                with self.assertRaisesRegex(VersionSourceError, "TLS CA 設定失敗"):
+                    fetch_bytes(MAIN)
 
     def test_cdn_query_rejection_retries_canonical_once(self):
         called = []

@@ -4,7 +4,7 @@
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
-  "planned_android_version": "0.1.1",
+  "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
     "size": 95924224,
@@ -196,6 +196,10 @@
     "wlre/services/items/crafting.py": {
       "reason": "同步暫停原因至手機狀態",
       "sha256": "ad02c556a41dcfc39e44a674d71d9ef56c7bdbc9f6b574e02adc36d0fb24780b"
+    },
+    "wlre/services/official_version.py": {
+      "reason": "Android 官方資源 HTTPS 以選定 CA 明確驗證並區分 SSL 憑證與握手錯誤；桌面版本核心來源 SHA 不變，僅追蹤平台差異",
+      "sha256": "24e35c21cad321af34f0eea1e231e189bc5dfa000b9dad7f6fa997fc504df012"
     }
   },
   "desktop_core_sync_ref": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",

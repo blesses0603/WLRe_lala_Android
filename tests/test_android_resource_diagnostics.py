@@ -22,6 +22,14 @@ class ResourceDiagnosticsTests(unittest.TestCase):
         self.assertIn("ResourcePath_PC.dat", text)
         self.assertIn("TLS 憑證驗證失敗", text)
 
+    def test_tls_handshake_and_ca_load_errors_remain_distinct(self):
+        handshake = resource_message(self.report(reason="TLS 握手失敗"))
+        self.assertIn("TLS 握手失敗", handshake)
+        self.assertNotIn("TLS 憑證驗證失敗", handshake)
+        missing_ca = resource_message(self.report(reason="TLS CA 設定失敗"))
+        self.assertIn("TLS 信任憑證載入失敗", missing_ca)
+        self.assertNotIn("TLS 握手失敗", missing_ca)
+
     def test_package_failure_uses_its_own_reason(self):
         report = self.report("DataPackage.version", "連線逾時")
         report["remote"]["reason"] = "TLS 憑證驗證失敗"

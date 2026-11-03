@@ -7,6 +7,7 @@ Both .version responses were 27-byte YooAsset revision identifiers, 1275.
 No local game installation or login credentials are needed.
 """
 import json
+import os
 import re
 import socket
 import ssl
@@ -15,7 +16,7 @@ import zlib
 from urllib.error import HTTPError, URLError
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 from wlre.services.resource_compatibility import (
     baseline_maps, load_supported_resources,
@@ -84,12 +85,16 @@ def _request_problem(exc):
         return f"HTTP {exc.code}（官方 CDN 拒絕或找不到檔案）"
     if isinstance(exc, (TimeoutError, socket.timeout)):
         return "連線逾時"
-    if isinstance(exc, (ssl.SSLError, ssl.CertificateError)):
+    if isinstance(exc, (ssl.SSLCertVerificationError, ssl.CertificateError)):
         return "TLS 憑證驗證失敗"
+    if isinstance(exc, ssl.SSLError):
+        return "TLS 握手失敗"
     if isinstance(exc, URLError):
         reason = exc.reason
-        if isinstance(reason, (ssl.SSLError, ssl.CertificateError)):
+        if isinstance(reason, (ssl.SSLCertVerificationError, ssl.CertificateError)):
             return "TLS 憑證驗證失敗"
+        if isinstance(reason, ssl.SSLError):
+            return "TLS 握手失敗"
         if isinstance(reason, (TimeoutError, socket.timeout)):
             return "連線逾時"
         if isinstance(reason, socket.gaierror):
@@ -104,6 +109,13 @@ def _request_problem(exc):
     return "無法取得回應"
 
 
+def _verified_opener():
+    """Bind official HTTPS to the configured trusted CA bundle."""
+    cafile = os.environ.get("SSL_CERT_FILE")
+    context = ssl.create_default_context(cafile=cafile) if cafile else ssl.create_default_context()
+    return build_opener(_ApprovedRedirect(), HTTPSHandler(context=context)).open
+
+
 def fetch_bytes(url, *, timeout=12, opener=None, cache_bust=True):
     """GET with an optional numeric cache buster and a strict payload cap."""
     validate_source(url)
@@ -113,7 +125,11 @@ def fetch_bytes(url, *, timeout=12, opener=None, cache_bust=True):
               url + "?" + str(time.time()))
     validate_source(target)
     if opener is None:
-        opener = build_opener(_ApprovedRedirect()).open
+        try:
+            opener = _verified_opener()
+        except (OSError, ssl.SSLError, ValueError) as exc:
+            # Never fall back to unverified HTTPS when CA setup fails.
+            raise VersionSourceError("TLS CA 設定失敗") from exc
     headers = {
         "Accept": "text/plain, application/json",
         "Cache-Control": "no-cache",

@@ -54,6 +54,13 @@ class LaLaApp(App):
         self._ui_restoring = False
         self._resume_restore_event = None
         self._drain_timer = None
+        self._login_view = None
+        self._login_host = None
+        self._login_visible = False
+        self._verification_view = None
+        self._verification_status = None
+        self._verification_detail = None
+        self._verification_retry = None
 
     def on_start(self):
         self._ui_started = True
@@ -107,13 +114,16 @@ class LaLaApp(App):
                     raise ValueError('Keystore roundtrip failed')
                 self.vault = AccountVault(directory / 'accounts.enc', cipher)
                 self.saved_accounts = public_accounts(self.vault.load())
-                self.saved.values = self.saved_names()
-                self.remember.disabled = False
+                if hasattr(self, 'saved'):
+                    self.saved.values = self.saved_names()
+                if hasattr(self, 'remember'):
+                    self.remember.disabled = False
                 print('WLRE_ANDROID_KEYSTORE_READY', flush=True)
             except Exception:
                 self.vault_error = True
                 self.vault = None
-                self.remember.disabled = True
+                if hasattr(self, 'remember'):
+                    self.remember.disabled = True
                 self.message.text = '帳密解密／金鑰初始化失敗；原資料已保留，可不保存帳密登入（A03）'
         except Exception as exc:
             # Never show exception text: it may include credentials or paths.
@@ -168,6 +178,113 @@ class LaLaApp(App):
 
 
     def build(self):
+        from android_app.theme import BACKGROUND
+        self.title = "WLRe_LaLa Android v" + ANDROID_VERSION
+        Window.softinput_mode = "below_target"
+        Window.clearcolor = BACKGROUND
+        login_view = self._build_login_view()
+        if platform != 'android':
+            return login_view
+        self._login_view = login_view
+        self._login_visible = False
+        self._login_host = BoxLayout(orientation='vertical')
+        self._verification_view = self._build_verification_view()
+        self._login_host.add_widget(self._verification_view)
+        return self._login_host
+
+    def _build_verification_view(self):
+        """The first Android screen. Login widgets are not attached until verified."""
+        from android_app.widgets import column, label, button
+        from android_app.theme import ACCENT, MUTED, SURFACE, surface, style_button
+        base = column()
+        base.padding = [dp(16), dp(20), dp(16), dp(24)]
+        base.spacing = dp(16)
+        header = surface(BoxLayout(size_hint_y=None, height=dp(96),
+                                   padding=dp(12), spacing=dp(12)), color=SURFACE, radius=24)
+        header.add_widget(Image(source=str(Path(__file__).resolve().parent / 'assets/app.png'),
+                                size_hint_x=None, width=dp(68)))
+        heading = BoxLayout(orientation='vertical', spacing=dp(2))
+        title = label('飄流 RE:LaLa', 42)
+        title.font_size = '25sp'
+        title.color = ACCENT
+        heading.add_widget(title)
+        sub = label('ANDROID  ·  v' + ANDROID_VERSION + '  /  資源驗證', 26)
+        sub.font_size = '12sp'
+        sub.color = MUTED
+        heading.add_widget(sub)
+        header.add_widget(heading)
+        base.add_widget(header)
+        panel = surface(column(), radius=24)
+        panel.padding = dp(16)
+        panel.spacing = dp(12)
+        label_title = label('官方資料與資料庫檢查', 38)
+        label_title.font_size = '19sp'
+        panel.add_widget(label_title)
+        panel.add_widget(label('首次啟動先檢查官方版本、雙 Manifest、必要 Bundle、完整 Runtime 與 SQLite 資料庫。通過前不顯示帳號登入介面。'))
+        self._verification_status = label('等待 Android 背景服務啟動')
+        self._verification_status.color = ACCENT
+        panel.add_widget(self._verification_status)
+        self._verification_detail = label('正在準備官方資料檢查；不會使用未驗證的舊版資源。')
+        self._verification_detail.color = MUTED
+        panel.add_widget(self._verification_detail)
+        self._verification_retry = button('重新檢查官方資料', self._retry_verification, 52)
+        panel.add_widget(self._verification_retry)
+        start = button('啟動／重新連接背景服務', self.initialize_android, 48)
+        style_button(start, primary=True)
+        panel.add_widget(start)
+        panel.add_widget(label('若官方資源校驗失敗，請查看上方原因後重新檢查；不會略過任何驗證。'))
+        base.add_widget(panel)
+        outer = ScrollView(do_scroll_x=False, bar_width=dp(3))
+        outer.add_widget(base)
+        return outer
+
+    def _retry_verification(self, *_):
+        self.retry_resources()
+        if self._verification_detail is not None:
+            self._verification_detail.text = self.message.text
+
+    def _login_ready(self):
+        from android_app.login_gate import verified_for_login
+        local = self.catalog_sync.snapshot() if self.catalog_sync is not None else {}
+        return verified_for_login(
+            getattr(self.manager, 'resource_status', {}), local,
+            connected=bool(getattr(self.manager, 'background', False)
+                           and getattr(self.manager, 'available', False)))
+
+    def _update_verification_gate(self):
+        if platform != 'android' or self._login_host is None or self._login_visible:
+            return
+        service = getattr(self.manager, 'resource_status', {})
+        local = self.catalog_sync.snapshot() if self.catalog_sync is not None else {}
+        connected = bool(getattr(self.manager, 'background', False)
+                         and getattr(self.manager, 'available', False))
+        if self._login_ready():
+            self._login_host.clear_widgets()
+            self._login_host.add_widget(self._login_view)
+            self._login_visible = True
+            print('WLRE_ANDROID_LOGIN_GATE_VERIFIED', flush=True)
+            return
+        if not connected:
+            self._verification_status.text = '等待背景服務'
+            detail = '背景服務尚未就緒。可按「啟動／重新連接背景服務」。'
+        elif service.get('status') == 'checking':
+            self._verification_status.text = '檢查中：下載並核對官方資源'
+            detail = service.get('message', '正在檢查雙 Manifest 與 Runtime')
+        elif service.get('ready') is True:
+            self._verification_status.text = '官方資源已完成，核對手機端資料庫'
+            detail = local.get('message', '正在驗證 Runtime 與 SQLite 資料庫')
+        else:
+            self._verification_status.text = '官方資源尚未通過驗證'
+            detail = service.get('message', '等待官方資源檢查結果')
+        if type(detail) is not str:
+            detail = '檢查狀態暫時無法讀取'
+        self._verification_detail.text = detail[:550]
+        self._verification_retry.disabled = (
+            not connected or service.get('status') == 'checking'
+            or local.get('status') == 'checking'
+            or getattr(self.manager, '_resource_request_pending', False))
+
+    def _build_login_view(self):
         from android_app.widgets import column, label, button, row, RoundedSpinnerOption
         from android_app.theme import BACKGROUND, MUTED, ACCENT, SURFACE, SOFT, surface, style_button, style_input, style_checkbox
         self.title = "WLRe_LaLa Android v" + ANDROID_VERSION
@@ -295,6 +412,11 @@ class LaLaApp(App):
         self.message.text = '已要求背景服務重新檢查官方資源'
 
     def connect_account(self, *_):
+        if platform == 'android' and (not self._login_visible or not self._login_ready()):
+            self.message.text = (self.catalog_sync.snapshot()['message']
+                                 if self.catalog_sync is not None
+                                 else '等待官方 Runtime 與資料庫驗證完成')
+            return
         if getattr(self, 'catalog_sync', None) is not None and (not self.catalog_sync.snapshot()['ready']
                 or not getattr(self.manager, 'resource_status', {}).get('ready')
                 or self.catalog_sync.snapshot().get('catalog_token') != getattr(self.manager, 'resource_status', {}).get('catalog_token')):
@@ -427,6 +549,7 @@ class LaLaApp(App):
                     sync.start()
                 if hasattr(self, 'resource_note'):
                     self.resource_note.text = ('官方資源：'+(local['message'] if resource.get('ready') else resource.get('message', '等待背景服務')))
+            self._update_verification_gate()
             if hasattr(self, 'overlay_button'):
                 self.overlay_button.disabled = not self.manager.available
                 self.overlay_button.text = ('關閉懸浮小球' if
@@ -517,7 +640,8 @@ class LaLaApp(App):
             + '%｜裝置溫度 ' + str(metrics.get('device_temperature_c') if metrics.get('device_temperature_c') is not None else '未知') + '°C｜App 耗電未知｜' + time.strftime('%H:%M:%S', time.localtime(metrics['sample_time'])))
 
     def on_pause(self):
-        self.password.text = ""
+        if hasattr(self, 'password'):
+            self.password.text = ""
         if hasattr(self.manager, 'set_paused'): self.manager.set_paused(True)
         if not getattr(self.manager, 'background', False): self.manager.stop_all()
         return True
@@ -604,6 +728,7 @@ class LaLaApp(App):
             Clock.schedule_once(self.finish_overlay_permission, 0.7)
 
     def on_stop(self):
-        self.password.text = ""
+        if hasattr(self, 'password'):
+            self.password.text = ""
         if not getattr(self.manager, 'background', False): self.manager.stop_all()
 

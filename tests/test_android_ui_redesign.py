@@ -66,6 +66,10 @@ class AndroidVisualRedesignTests(unittest.TestCase):
             ['首頁', '資料／資源', '運行紀錄', '工具箱'])
         self.assertEqual(len(set(v for _, v in routes)), 4)
         self.assertTrue(all(page in pages for _, page in routes))
+        groups = exported_tuple('android_app/ui_shell.py', 'PAGE_GROUPS')
+        self.assertEqual(set(groups), set(pages))
+        self.assertTrue(set(groups.values()).issubset(
+            {target for _, target in routes}))
         source = read('android_app/dashboard.py')
         self.assertIn('NavigationDock(', source)
         self.assertIn('self.dock.set_active(name)', source)

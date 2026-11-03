@@ -106,6 +106,31 @@ class CredentialResidencyTests(unittest.TestCase):
         self.assertEqual(holder.password.text, "")
         self.assertNotIn("PRIVATE_DECRYPTION_DETAILS", holder.message.text)
 
+    def test_unverified_resource_gate_never_saves_or_sends_credentials(self):
+        from android_app.app import LaLaApp
+        starts = []
+        vault = FakeVault()
+        holder = SimpleNamespace(
+            manager=SimpleNamespace(background=True,
+                start=lambda **kwargs: starts.append(kwargs)),
+            _login_visible=False, _login_ready=lambda: False,
+            catalog_sync=SimpleNamespace(snapshot=lambda: {
+                "ready": False, "message": "等待官方 Runtime 與 SQLite 驗證"}),
+            lookup={"A": {"host": "localhost", "port": 1111}},
+            server=SimpleNamespace(text="A"), account=SimpleNamespace(text="alice"),
+            password=SimpleNamespace(text="PRIVATE-LOGIN-SECRET"),
+            remember=SimpleNamespace(active=True), vault=vault,
+            saved_accounts=[], saved=SimpleNamespace(values=[]),
+            message=SimpleNamespace(text=""),
+        )
+        holder.saved_names = lambda: LaLaApp.saved_names(holder)
+        with patch("android_app.app.platform", "android"):
+            LaLaApp.connect_account(holder)
+        self.assertEqual(starts, [])
+        self.assertEqual(vault.rows, [])
+        self.assertEqual(holder.saved_accounts, [])
+        self.assertIn("驗證", holder.message.text)
+
     def test_connect_remembers_encrypted_record_but_only_metadata_in_ui(self):
         from android_app.app import LaLaApp
         vault = FakeVault()

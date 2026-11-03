@@ -206,7 +206,8 @@ class Chat(Page):
             text = '['+message.get('channel', '?')+'] '+message.get('name', str(message.get('role_id', '')))+'：'+plain_text(message.get('text', ''))
             if message.get('reply_text'): text += '\n↳ '+plain_text(message['reply_text'])
             from android_app.pages.ui_components import message_button
-            own=(message.get('role_id') == self.state.get('player', {}).get('role_id'))
+            player_id=self.state.get('player', {}).get('role_id')
+            own=(player_id is not None and message.get('role_id') == player_id)
             self.messages.add_widget(message_button(
                 text, lambda m=message: self.actions(m), own=own))
             import re

@@ -4,6 +4,7 @@ from pathlib import Path
 import re
 import ssl
 import tempfile
+from urllib.request import HTTPSHandler, build_opener
 
 # Android 14+ stores system roots in the Conscrypt APEX; earlier versions
 # expose the read-only system directory. Never read user-installed CA stores.
@@ -12,6 +13,21 @@ SYSTEM_CA_DIRS = (
     Path('/system/etc/security/cacerts'),
 )
 _CA_NAME = re.compile(r'[0-9a-f]{8}\.[0-9]+\Z')
+
+
+
+def verified_https_opener(redirect_handler):
+    """Bind urllib to the Android-selected verified CA file explicitly.
+
+    OpenSSL on some embedded builds does not apply SSL_CERT_FILE to its
+    implicit default certificate lookup. Version checks already pass cafile
+    explicitly; Manifests and Bundles must use the same verified trust roots.
+    The caller supplies its existing strict no-redirect handler.
+    """
+    cafile = os.environ.get('SSL_CERT_FILE')
+    context = (ssl.create_default_context(cafile=cafile) if cafile
+               else ssl.create_default_context())
+    return build_opener(redirect_handler, HTTPSHandler(context=context)).open
 
 
 def configure_tls(root, *, system_dirs=None, cafile=None):

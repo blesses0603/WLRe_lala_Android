@@ -43,13 +43,16 @@ def configure_tls(root, *, system_dirs=None, cafile=None):
             data = path.read_bytes()
             if len(data) > 128 * 1024:
                 raise ValueError('Android system CA certificate exceeds size limit')
-            if data in seen:
+            # Android's read-only system CA entries may be PEM or DER X.509.
+            # OpenSSL validates every candidate before trusting it.
+            pem = (data.decode('ascii') if data.startswith(b'-----BEGIN CERTIFICATE-----')
+                   else ssl.DER_cert_to_PEM_cert(data))
+            normalized = pem.encode('ascii')
+            if normalized in seen:
                 continue
-            # Parse before writing or selecting the bundle; malformed roots
-            # cannot silently cause an unverified HTTPS fallback.
-            context.load_verify_locations(cadata=data.decode('ascii'))
-            seen.add(data)
-            payloads.append(data)
+            context.load_verify_locations(cadata=pem)
+            seen.add(normalized)
+            payloads.append(normalized)
     selected = source
     if seen:
         directory = Path(root) / 'tls'

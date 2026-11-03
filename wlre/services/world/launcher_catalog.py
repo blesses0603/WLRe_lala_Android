@@ -145,9 +145,15 @@ def prepare_on_launch(*, runner=None, root=None, environ=None, progress=None):
             prepare_dynamic_runtime(sync=True)
             if progress is not None:
                 progress('runtime_bundle_ready', {})
-        except (OSError, ValueError, RuntimeError):
+        except (OSError, ValueError, RuntimeError) as exc:
             if progress is not None:
-                progress('runtime_bundle_unavailable', {})
+                # Only pass a reviewed fixed code, never exception strings or
+                # filesystem/network details, into the Android status UI.
+                code = ('download_limit'
+                        if type(exc).__name__ == 'IncrementalSyncError'
+                        and str(exc) == 'Planned downloads exceed the explicit byte/file quota'
+                        else 'prepare_failed')
+                progress('runtime_bundle_unavailable', {'code': code})
     if real_launcher_run and env.get('WLRE_SYNC_LEGACY_1275') == '1':
         # Legacy 1275 synchronization is opt-in only. The primary launcher
         # always discovers the live official MainPackage/DataPackage pair via

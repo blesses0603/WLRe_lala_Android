@@ -89,6 +89,35 @@ def classify_runtime_failure(error):
     # resource pipeline; every public error remains a fixed code.
     if kind == "ManifestSyncError":
         if message == "Official Manifest download failed":
+            # The transport exception is retained as __cause__ only inside
+            # the process. Never copy its path, URL, headers or raw text to
+            # Android IPC / the login screen.
+            import socket
+            import ssl
+            from urllib.error import HTTPError, URLError
+            stage = getattr(error, "stage", None)
+            if stage in ("DataPackage.hash", "DataPackage.bytes",
+                         "MainPackage.hash", "MainPackage.bytes"):
+                cause = error.__cause__
+                reason = "https"
+                if isinstance(cause, HTTPError) and type(cause.code) is int and 100 <= cause.code <= 599:
+                    reason = "http_" + str(cause.code)
+                else:
+                    if isinstance(cause, URLError):
+                        cause = cause.reason
+                    if isinstance(cause, (ssl.SSLCertVerificationError,
+                                          ssl.CertificateError)):
+                        reason = "tls_verify"
+                    elif isinstance(cause, ssl.SSLError):
+                        reason = "tls_handshake"
+                    elif isinstance(cause, (TimeoutError, socket.timeout)):
+                        reason = "timeout"
+                    elif isinstance(cause, socket.gaierror):
+                        reason = "dns"
+                    elif isinstance(cause, ConnectionRefusedError):
+                        reason = "refused"
+                return {"code": "manifest_download_failed", "table": None,
+                        "manifest_stage": stage, "manifest_reason": reason}
             code = "manifest_download_failed"
         elif message == "YooAsset full index parser (#53) is required":
             code = "manifest_parser_missing"

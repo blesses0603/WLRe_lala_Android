@@ -8,7 +8,8 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
 from kivy.uix.spinner import Spinner
-from android_app.widgets import button, label, select, column, GameIconTab, RoundedSpinnerOption
+from android_app.widgets import button, label, select, column, RoundedSpinnerOption
+from android_app.ui_shell import BrandHeader, NavigationDock
 from android_app.theme import TEXT, SURFACE, ACCENT, MUTED, SOFT, surface, style_button
 from android_app.refresh_policy import RefreshPolicy
 
@@ -53,8 +54,15 @@ class Dashboard:
         session = app.manager.sessions[sid]
         base = surface(BoxLayout(orientation='vertical', spacing=dp(10), padding=dp(12)),
                        color=SURFACE, radius=24)
+        self.brand = BrandHeader(
+            subtitle='角色功能',
+            verified=bool(getattr(app.manager, 'available', True)
+                          and getattr(app.manager, 'resource_status', {}).get('ready')
+                          and self.catalog_ready))
+        base.add_widget(self.brand)
         self.status = surface(label('等待服務同步'), color=SOFT, radius=12)
-        self.status.color = MUTED; base.add_widget(self.status)
+        self.status.color = MUTED
+        base.add_widget(self.status)
         # Compact function chooser avoids a tall overlapping selector.
         nav = surface(BoxLayout(orientation='horizontal', size_hint_y=None,
                       height=dp(58), spacing=dp(8), padding=[dp(10), dp(7)]),
@@ -65,26 +73,20 @@ class Dashboard:
         self.navigation = style_button(Spinner(text=PAGES[0], values=PAGES,
             option_cls=RoundedSpinnerOption, size_hint_y=None, height=dp(44)))
         nav.add_widget(self.navigation); base.add_widget(nav)
-        # Original game icons replace desktop multi-window navigation with a
-        # horizontally scrollable, one-hand-friendly Android quick launcher.
-        shortcuts = ('角色概況', '包包與特技', '組隊', '夥伴出戰',
-                     '遠征', '副本資料', '角色能力', '煉金', '製作', '經驗效率', 'AI與補給設定')
-        shortcut_scroll = ScrollView(
-            do_scroll_y=False, do_scroll_x=True,
-            bar_width=dp(2), size_hint_y=None, height=dp(73))
-        shortcut_row = BoxLayout(
-            size_hint_x=None, width=dp(80)*len(shortcuts),
-            size_hint_y=None, height=dp(70), spacing=dp(4))
-        for title in shortcuts:
-            shortcut_row.add_widget(GameIconTab(
-                title, lambda name: setattr(self.navigation, 'text', name)))
-        shortcut_scroll.add_widget(shortcut_row)
-        base.add_widget(shortcut_scroll)
+        # The full 18-page Spinner remains available. Persistent routes in
+        # the dock replace eager horizontal icon strips and save viewport
+        # space for actual game content on small Android screens.
         self.content = BoxLayout(orientation='vertical'); base.add_widget(self.content)
         self.message = label(); self.message.color = MUTED; base.add_widget(self.message)
-        base.add_widget(button('返回帳號列表', self.close))
-        self.popup = Popup(title=session.account+'｜'+session.label, content=base,
-                           size_hint=(.98, .97), background='', background_color=(0, 0, 0, 0),
+        back = button('返回帳號列表', self.close, 48)
+        base.add_widget(back)
+        self.dock = NavigationDock(
+            lambda target: setattr(self.navigation, 'text', target))
+        base.add_widget(self.dock)
+        self.popup = Popup(title='', content=base,
+                           title_size='0sp', separator_height=0,
+                           size_hint=(.99, .99), background='',
+                           background_color=(0, 0, 0, 0),
                            title_color=TEXT, separator_color=ACCENT)
         self.popup.bind(on_dismiss=lambda *_: self.dismissed())
         self.navigation.bind(text=lambda _, value: self.show(value))
@@ -135,6 +137,7 @@ class Dashboard:
         self.page, scroll = self.views[name]
         self.content.clear_widgets()
         self.content.add_widget(scroll)
+        self.dock.set_active(name)
         # Immediate feedback on navigation. Later ticks are coalesced.
         self.page.refresh()
 
@@ -143,6 +146,7 @@ class Dashboard:
         session = self.app.manager.sessions.get(self.sid)
         if not session: self.close(); return False
         if not getattr(self.app.manager, 'available', True):
+            self.brand.set_verified(False)
             self.status.text = '服務失聯，資料為最後同步內容；操作已停用'
             if self.page_name == '聊天' and self.page:
                 self.page.refresh()  # Clear pending without discarding draft.
@@ -169,6 +173,10 @@ class Dashboard:
                 self.last_npc_effect = effect
                 self.navigation.text = 'NPC'
             connected = self.live
+            self.brand.set_verified(bool(
+                getattr(self.app.manager, 'available', True)
+                and getattr(self.app.manager, 'resource_status', {}).get('ready')
+                and self.catalog_ready))
             self.status.text = '已連線' if connected else '連線已停止／等待角色登入；以下為最後同步資料'
             if (self.page and self._refresh_policy.should_refresh(
                     self.page_name, revision, connected, time.monotonic())):

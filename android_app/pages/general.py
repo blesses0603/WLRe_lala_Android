@@ -2,6 +2,7 @@ from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from android_app.widgets import column, label, button, select, row
 from android_app.theme import surface, SURFACE
+from android_app.ui_shell import section_title
 from wlre.core.efficiency import rates, progress, forecast, STAGES
 from android_app.overview_model import overview_lines
 
@@ -12,6 +13,11 @@ class Page(BoxLayout):
         surface(self, color=SURFACE, radius=20)
         self.bind(minimum_height=self.setter('height'))
         self.d = dashboard; self.key = None
+        # Shared section heading applies to every page subclass. Nothing is
+        # removed from feature constructors, commands or permission checks.
+        title = getattr(dashboard, 'page_name', '')
+        if type(title) is str and title:
+            self.add_widget(section_title(title))
     @property
     def state(self): return self.d.state
     def refresh(self): pass

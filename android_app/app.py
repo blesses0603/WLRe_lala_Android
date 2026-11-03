@@ -61,6 +61,8 @@ class LaLaApp(App):
         self._login_host = None
         self._login_visible = False
         self._verification_view = None
+        self._verification_brand_header = None
+        self._login_brand_header = None
         self._verification_status = None
         self._verification_detail = None
         self._verification_retry = None
@@ -197,47 +199,60 @@ class LaLaApp(App):
         return self._login_host
 
     def _build_verification_view(self):
-        """The first Android screen. Login widgets are not attached until verified."""
+        """Android pre-login gate. No account controls before verified."""
         from android_app.widgets import column, label, button
-        from android_app.theme import ACCENT, MUTED, SURFACE, surface, style_button
+        from android_app.theme import MUTED, SURFACE, surface, style_button
+        from android_app.ui_shell import BrandHeader, section_title
+
         base = column()
-        base.padding = [dp(16), dp(20), dp(16), dp(24)]
-        base.spacing = dp(16)
-        header = surface(BoxLayout(size_hint_y=None, height=dp(96),
-                                   padding=dp(12), spacing=dp(12)), color=SURFACE, radius=24)
-        header.add_widget(Image(source=str(Path(__file__).resolve().parent / 'assets/app.png'),
-                                size_hint_x=None, width=dp(68)))
-        heading = BoxLayout(orientation='vertical', spacing=dp(2))
-        title = label('飄流 RE:LaLa', 42)
-        title.font_size = '25sp'
-        title.color = ACCENT
-        heading.add_widget(title)
-        sub = label('ANDROID  ·  v' + ANDROID_VERSION + '  /  資源驗證', 26)
-        sub.font_size = '12sp'
-        sub.color = MUTED
-        heading.add_widget(sub)
-        header.add_widget(heading)
-        base.add_widget(header)
+        base.padding = [dp(14), dp(14), dp(14), dp(24)]
+        base.spacing = dp(14)
+        self._verification_brand_header = BrandHeader(subtitle='資源驗證')
+        base.add_widget(self._verification_brand_header)
+
         panel = surface(column(), radius=24)
         panel.padding = dp(16)
         panel.spacing = dp(12)
-        label_title = label('官方資料與資料庫檢查', 38)
-        label_title.font_size = '19sp'
-        panel.add_widget(label_title)
-        panel.add_widget(label('首次啟動先檢查官方版本、雙 Manifest、必要 Bundle、完整 Runtime 與 SQLite 資料庫。通過前不顯示帳號登入介面。'))
+        panel.add_widget(section_title(
+            '官方資料與資料庫檢查', '啟動前的官方版本與資料完整性驗證'))
+        panel.add_widget(label(
+            '必須確認官方版本、雙 Manifest、必要 Bundle、完整 Runtime '
+            '與 SQLite 資料庫，才能進入帳號登入。'))
+        # These are required checkpoints, NOT fabricated per-stage results.
+        for stage in ('① 官方版本／DataPackage／MainPackage',
+                      '② 雙 Manifest 與必要 Bundle',
+                      '③ Runtime／SQLite 與本機身分核對'):
+            item = surface(BoxLayout(size_hint_y=None, height=dp(48),
+                                     padding=[dp(12), dp(5)]),
+                           color=SURFACE, radius=13)
+            step_text = label(stage, 38)
+            step_text.color = MUTED
+            item.add_widget(step_text)
+            panel.add_widget(item)
+
+        panel.add_widget(section_title('目前驗證狀態'))
         self._verification_status = label('等待 Android 背景服務啟動')
-        self._verification_status.color = ACCENT
+        self._verification_status.color = MUTED
         panel.add_widget(self._verification_status)
-        self._verification_detail = label('正在準備官方資料檢查；不會使用未驗證的舊版資源。')
+        self._verification_detail = label(
+            '正在準備官方資料檢查；不會使用未驗證的舊版資源。')
         self._verification_detail.color = MUTED
         panel.add_widget(self._verification_detail)
-        self._verification_retry = button('重新檢查官方資料', self._retry_verification, 52)
+
+        self._verification_retry = button(
+            '重新檢查官方資料', self._retry_verification, 56)
+        style_button(self._verification_retry, primary=True)
         panel.add_widget(self._verification_retry)
-        start = button('啟動／重新連接背景服務', self.initialize_android, 48)
-        style_button(start, primary=True)
-        panel.add_widget(start)
-        panel.add_widget(label('若官方資源校驗失敗，請查看上方原因後重新檢查；不會略過任何驗證。'))
+        start_service = button(
+            '啟動／重新連接背景服務', self.initialize_android, 50)
+        panel.add_widget(start_service)
+        notice = label(
+            '驗證未完成時不提供帳號登入，也不會略過任何驗證。')
+        notice.font_size = '12sp'
+        notice.color = MUTED
+        panel.add_widget(notice)
         base.add_widget(panel)
+
         outer = ScrollView(do_scroll_x=False, bar_width=dp(3))
         outer.add_widget(base)
         return outer
@@ -266,6 +281,8 @@ class LaLaApp(App):
             self._login_host.clear_widgets()
             self._login_host.add_widget(self._login_view)
             self._login_visible = True
+            if self._login_brand_header is not None:
+                self._login_brand_header.set_verified(True)
             pending = self._pending_dashboard_restore
             self._pending_dashboard_restore = None
             if pending is not None and pending[0] in self.manager.sessions:
@@ -306,6 +323,7 @@ class LaLaApp(App):
     def _build_login_view(self):
         from android_app.widgets import column, label, button, row, RoundedSpinnerOption
         from android_app.theme import BACKGROUND, MUTED, ACCENT, SURFACE, SOFT, surface, style_button, style_input, style_checkbox
+        from android_app.ui_shell import BrandHeader, section_title
         self.title = "WLRe_LaLa Android v" + ANDROID_VERSION
         Window.softinput_mode = "below_target"
         Window.clearcolor = BACKGROUND
@@ -313,24 +331,13 @@ class LaLaApp(App):
         base = column()
         base.padding = [dp(16), dp(20), dp(16), dp(24)]
         base.spacing = dp(16)
-        header = surface(BoxLayout(size_hint_y=None, height=dp(96), spacing=dp(12),
-                                  padding=dp(12)), color=SURFACE, radius=24)
-        icon = Image(source=str(Path(__file__).resolve().parent / 'assets/app.png'),
-                     size_hint_x=None, width=dp(68))
-        header.add_widget(icon)
-        header_text = BoxLayout(orientation='vertical', spacing=dp(2))
-        title = label('飄流 RE:LaLa', 42)
-        title.font_size = '25sp'; title.color = ACCENT
-        header_text.add_widget(title)
-        subtitle = label('ANDROID  ·  v' + ANDROID_VERSION + '  /  多帳號管理', 26)
-        subtitle.color = MUTED; subtitle.font_size = '12sp'
-        header_text.add_widget(subtitle)
-        header.add_widget(header_text)
-        base.add_widget(header)
+        self._login_brand_header = BrandHeader(
+            subtitle='帳號與連線', verified=False)
+        base.add_widget(self._login_brand_header)
 
         login = surface(column(), radius=24); login.padding = dp(16); login.spacing = dp(12)
-        heading = label('登入遊戲', 32); heading.font_size = '19sp'
-        login.add_widget(heading)
+        login.add_widget(section_title(
+            '帳號登入／連線管理', '選擇分流並安全建立多帳號連線'))
         self.saved = style_button(Spinner(text='已保存帳號', values=self.saved_names(),
                                           option_cls=RoundedSpinnerOption))
         self.saved.bind(text=self.switch_saved)
@@ -360,7 +367,7 @@ class LaLaApp(App):
         login.add_widget(row(self.remember, remember_text))
         # Official resource/SQLite verification belongs to the pre-login gate.
         # Existing sessions can still inspect service status in the monitor card.
-        connect = button('新增連線並登入', self.connect_account, 52)
+        connect = button('建立新連線', self.connect_account, 56)
         style_button(connect, primary=True); login.add_widget(connect)
         self.message = label('選擇分流登入後，即可開啟角色功能。')
         self.message.color = MUTED
@@ -368,7 +375,8 @@ class LaLaApp(App):
         login.add_widget(self.message)
         base.add_widget(login)
 
-        base.add_widget(label('帳號連線', 32))
+        base.add_widget(section_title(
+            '連線中的帳號', '每個帳號可獨立管理角色與自動化功能'))
         self.empty_state = surface(BoxLayout(size_hint_y=None, height=dp(100), padding=dp(16)), radius=22)
         empty_text = label('尚未建立連線\n登入後，角色資訊與操作會顯示在這裡。')
         empty_text.color = MUTED
@@ -379,7 +387,8 @@ class LaLaApp(App):
         base.add_widget(self.list_box)
 
         monitor = surface(column(), radius=24); monitor.padding = dp(16); monitor.spacing = dp(12)
-        monitor.add_widget(label('服務與資源', 30))
+        monitor.add_widget(section_title(
+            '資源狀態與連線服務', '顯示背景服務回報的實際狀態'))
         self.resources = label('資源監控：等待服務取樣')
         self.resources.font_size = '12sp'; self.resources.color = MUTED
         monitor.add_widget(self.resources)
@@ -494,7 +503,10 @@ class LaLaApp(App):
         card.add_widget(status)
         card.add_widget(controls)
         from android_app.widgets import button as mobile_button
-        card.add_widget(mobile_button('開啟角色功能', lambda sid=session.session_id: self.open_dashboard(sid)))
+        launch = mobile_button(
+            '開啟角色功能', lambda sid=session.session_id: self.open_dashboard(sid), 54)
+        style_button(launch, primary=True)
+        card.add_widget(launch)
         from android_app.automation_ui import attach
         attach(self, card, session.session_id)
         self.list_box.add_widget(card)

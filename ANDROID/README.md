@@ -13,13 +13,16 @@
 
 本文件集中說明 Android 客戶端的**操作流程、權限、背景機制、APK 建置及驗收限制**。首次安裝與下載入口請先閱讀 [專案首頁 README](../README.md)；功能逐項對照請參考 [FEATURE_PARITY.md](FEATURE_PARITY.md)。
 
-**目前開發候選版本：v7.1.8（尚未正式發布）** ｜ **最低 Android 12（API 31）** ｜ **只建置 ARM64 手機 APK** ｜ **Debug 測試用途**
+**目前開發候選版本：v7.1.9（尚未正式發布）** ｜ **最低 Android 12（API 31）** ｜ **只建置 ARM64 手機 APK** ｜ **Debug 測試用途**
 
 Android Major.Minor 跟隨已核對的桌面 main（此輪桌面 v7.1.1，Android v7.1.5），Android Patch 獨立維護。桌面 Major.Minor 再變動時應先核對最新桌面 main，更新 Android 前兩段並單獨評估 Patch；版本號相近不代表功能已驗收。v7.1.5 針對新版官方 Manifest、Bundle、YooAsset 及 Runtime 失敗加入固定安全分類，仍須驗證實際原因；v7.1.4 強化背景服務 IPC 容錯：單筆角色詳細資料讀取異常不影響全域在線判定、重複資源檢查請求會被抑制、無法序列化的 IPC 回覆改為安全錯誤；v7.1.3 新增必要 Bundle 缺失／校驗／解析等安全診斷，並辨識資源準備超過 32 MiB／24 檔單次額度；v7.1.2 修補官方 TLS 診斷、PEM／DER CA 載入與明確 HTTPS 信任來源；下方 v0.0.8 小節屬於歷史建置紀錄。
 
 新 APK 安裝後按「重新檢查官方資源」，核對完整 Runtime 錯誤分類與 ResourcePath_PC.dat 階段錯誤種類；Chrome 能載入不代表 Python/OpenSSL 能完成驗證。請勿關閉憑證檢查。
 
 > 請勿安裝早期 v0.0.2／v0.0.3 的舊 APK：歷史紀錄曾確認 Keystore／PyJNIUS JNI 初始化崩潰。v0.0.7 新增的懸浮小球與遊戲自動化操作仍需真機驗收；「Actions 成功」不等於正式遊戲連線驗收。
+
+
+**v7.1.9 Android 分頁效能候選：**角色功能頁採按需載入、相同快照合併刷新，背景服務連線／遊戲事件照常處理；裝置記憶體監控每 2 秒讀取、帳號自動化卡片每秒更新，避免 Kivy 主執行緒因重複繪圖而卡頓。此為程式優化，實際 FPS／切頁延遲／耗電仍須手機實測。
 
 ## 操作流程
 

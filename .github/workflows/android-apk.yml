@@ -74,6 +74,8 @@ jobs:
       - name: Restore Android SDK, NDK and Gradle dependency cache
         id: android_dependency_cache
         uses: actions/cache/restore@v4
+        # Cache service outages must not block the original clean build.
+        continue-on-error: true
         with:
           key: lala-android-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.build_cache_key.outputs.key }}
           path: |
@@ -155,6 +157,8 @@ jobs:
       - name: Cache checked non-secret Android build dependencies
         if: steps.android_dependency_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
+        # Successful signed APKs must remain publishable if cache upload fails.
+        continue-on-error: true
         with:
           key: ${{ steps.android_dependency_cache.outputs.cache-primary-key }}
           path: |

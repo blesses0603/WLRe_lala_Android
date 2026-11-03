@@ -29,6 +29,30 @@ class AndroidUI(unittest.TestCase):
         self.app.manager.events.put(('fixture', 'roles', self.session.roles))
         self.app.drain_events()
 
+    def test_neon_login_brand_and_bottom_navigation_are_real_widgets(self):
+        from android_app.ui_shell import NAV_ROUTES, NavigationDock
+        brand = self.app._login_brand_header
+        self.assertIsNotNone(brand)
+        self.assertIn('尚未通過', brand.status.text)
+        brand.set_verified(True)
+        self.assertIn('已驗證', brand.status.text)
+        brand.set_verified(False)
+        self.assertIn('尚未通過', brand.status.text)
+
+        visited = []
+        dock = NavigationDock(lambda route: visited.append(route))
+        for _, destination in NAV_ROUTES:
+            dock.buttons[destination].dispatch('on_release')
+        self.assertEqual(visited, [target for _, target in NAV_ROUTES])
+        dock.set_active('遠征')
+        self.assertEqual(dock.buttons['角色概況']._lala_button_variant,
+                         'primary')
+        dock.set_active('包包與特技')
+        self.assertEqual(dock.buttons['包包與特技']._lala_button_variant,
+                         'primary')
+        self.assertEqual(dock.buttons['角色概況']._lala_button_variant,
+                         'default')
+
     def test_round_theme_styles_buttons_inputs_selectors_cards_and_checks(self):
         from kivy.uix.button import Button
         from kivy.uix.textinput import TextInput

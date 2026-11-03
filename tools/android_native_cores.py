@@ -80,6 +80,13 @@ def stage(source: Path, output: Path) -> Path:
     stage_vault(source, output)
     output = output.resolve()
     try:
+        # The shared P3 recipe helper is build-only (excluded from APK
+        # application sources); synthetic old-stage fixtures may omit it.
+        helper = source / "p4a-recipes" / "lala_core_incremental.py"
+        if helper.exists():
+            if not helper.is_file() or helper.is_symlink():
+                raise ValueError("Unsafe P3 native recipe helper")
+            shutil.copy2(helper, output / "p4a-recipes" / helper.name)
         for rel, recipe, extension, _ in CORE_LIST:
             target = output / rel
             native_root = output / "p4a-recipes" / recipe

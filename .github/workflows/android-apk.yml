@@ -121,6 +121,79 @@ jobs:
         run: |
           python tools/android_native_cores.py stage --source "$GITHUB_WORKSPACE" --output "$NATIVE_STAGE"
           python -c 'import os; from pathlib import Path; from tools.android_hardening import check_configuration; from tools.android_release_version import source_version; stage = Path(os.environ["NATIVE_STAGE"]); check_configuration(stage); assert source_version(stage / "buildozer.spec", stage / "android_app/version.py") == os.environ["RELEASE_VERSION"], "Staged Android version differs from source release version"'
+      # P3: stage-local recipe hooks, then generate independent source,
+      # ABI and toolchain SHA-256 keys. No compiled file is trusted yet.
+      - name: Prepare eight isolated SHA-256 native core hooks
+        run: python tools/android_native_core_cache.py prepare --stage "$NATIVE_STAGE"
+      - name: Calculate eight source-bound native core cache keys
+        id: p3_keys
+        run: python tools/android_native_core_cache.py keys --stage "$NATIVE_STAGE" --output "$GITHUB_OUTPUT"
+      - name: Restore P3 verified source-bound lalawire ARM64 core
+        id: p3_lalawire
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalawire }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalawire/prebuilt
+      - name: Restore P3 verified source-bound lalavault ARM64 core
+        id: p3_lalavault
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalavault }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalavault/prebuilt
+      - name: Restore P3 verified source-bound lalaruntime ARM64 core
+        id: p3_lalaruntime
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaruntime }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalaruntime/prebuilt
+      - name: Restore P3 verified source-bound lalasessions ARM64 core
+        id: p3_lalasessions
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalasessions }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalasessions/prebuilt
+      - name: Restore P3 verified source-bound lalaclient ARM64 core
+        id: p3_lalaclient
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaclient }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalaclient/prebuilt
+      - name: Restore P3 verified source-bound lalaprotocol ARM64 core
+        id: p3_lalaprotocol
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaprotocol }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalaprotocol/prebuilt
+      - name: Restore P3 verified source-bound lalaautobattle ARM64 core
+        id: p3_lalaautobattle
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaautobattle }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalaautobattle/prebuilt
+      - name: Restore P3 verified source-bound lalaexpedition ARM64 core
+        id: p3_lalaexpedition
+        if: steps.p3_keys.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaexpedition }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalaexpedition/prebuilt
+      - name: Verify all restored P3 native objects before Buildozer
+        run: python tools/android_native_core_cache.py verify --stage "$NATIVE_STAGE"
       # P2: only ten pinned third-party recipe roots and their source
       # downloads. NEVER restore .buildozer dists, python-installs,
       # bootstrap_builds or any of the eight LaLa native recipes.
@@ -210,6 +283,13 @@ jobs:
             --ref "$GITHUB_REF" \
             --event "$GITHUB_EVENT_NAME" \
             --signer "$ANDROID_EXPECTED_SIGNER_SHA256"
+      # P3 publication happens only after the existing signed APK release gate
+      # verifies all eight native ELF files, shims and checksums.
+      - name: Export audited eight native cores for future incremental builds
+        id: p3_export
+        if: steps.p3_keys.outputs.enabled == 'true'
+        continue-on-error: true
+        run: python tools/android_native_core_cache.py export --stage "$NATIVE_STAGE"
       # Save only AFTER the complete signed APK and native/security gates pass.
       # A cache miss is not a failed build: the original clean install path
       # remains available; no partial/failed native outputs are published.
@@ -261,6 +341,62 @@ jobs:
             ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/png
             ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/sqlite3
             ${{ env.NATIVE_STAGE }}/.buildozer/android/platform/build-arm64-v8a/packages/python3
+      - name: Save P3 lalawire audited ARM64 core
+        if: steps.p3_export.outcome == 'success' && steps.p3_lalawire.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalawire }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalawire/prebuilt
+      - name: Save P3 lalavault audited ARM64 core
+        if: steps.p3_export.outcome == 'success' && steps.p3_lalavault.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalavault }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalavault/prebuilt
+      - name: Save P3 lalaruntime audited ARM64 core
+        if: steps.p3_export.outcome == 'success' && steps.p3_lalaruntime.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaruntime }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalaruntime/prebuilt
+      - name: Save P3 lalasessions audited ARM64 core
+        if: steps.p3_export.outcome == 'success' && steps.p3_lalasessions.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalasessions }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalasessions/prebuilt
+      - name: Save P3 lalaclient audited ARM64 core
+        if: steps.p3_export.outcome == 'success' && steps.p3_lalaclient.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaclient }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalaclient/prebuilt
+      - name: Save P3 lalaprotocol audited ARM64 core
+        if: steps.p3_export.outcome == 'success' && steps.p3_lalaprotocol.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaprotocol }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalaprotocol/prebuilt
+      - name: Save P3 lalaautobattle audited ARM64 core
+        if: steps.p3_export.outcome == 'success' && steps.p3_lalaautobattle.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaautobattle }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalaautobattle/prebuilt
+      - name: Save P3 lalaexpedition audited ARM64 core
+        if: steps.p3_export.outcome == 'success' && steps.p3_lalaexpedition.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          key: lala-p3-core-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.p3_keys.outputs.lalaexpedition }}
+          path: ${{ env.NATIVE_STAGE }}/p4a-recipes/lalaexpedition/prebuilt
       - name: Upload APK (only after successful build)
         uses: actions/upload-artifact@v7.0.2
         with:

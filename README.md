@@ -1,6 +1,6 @@
 # 飄流 RE:LaLa｜Android
 
-目前程式：**v7.1.6 開發修補候選（未正式發布）**。Android Major.Minor 與桌面版最新 main v7.1.1 同為 7.1，Patch 獨立維護。本版修正 P3 SHA-256 核心快取工作流程直接執行 Python 檔案時發生的 `ModuleNotFoundError: No module named 'tools'`，將規劃、驗證與保存入口統一改為 `python -m tools.android_core_incremental`，並加入實際 CLI 子程序回歸測試。前版 v7.1.5 補強官方 Manifest、Bundle 與 Runtime 錯誤診斷；APK 原生編譯與手機正式服驗收須由本版 Actions 實際結果確認。
+目前程式：**v7.1.7 開發修補候選（未正式發布）**。Android Major.Minor 與桌面版最新 main v7.1.1 同為 7.1，Patch 獨立維護。本版針對 Android v7.1.6 真機官方版本已確認、但 Manifest 下載失敗的畫面，加入 Manifest `.hash`／`.bytes`、HTTP／TLS／DNS／逾時的固定安全診斷，以及僅於 CDN 回應 HTTP 400／403／404 時的一次同源 HTTPS 數字查詢重試；保持禁止轉址、憑證驗證、CRC32、Runtime／SQLite 驗證與禁止登入的安全門檻。前版 v7.1.6 已修復 P3 SHA-256 核心快取的 Python 模組入口；v7.1.5 補強 Runtime 錯誤分類。本版是否實際解決官方下載問題，仍須真機重測。
 
 Android 12 以上、ARM64。保留 Kivy 直式觸控介面、前景連線服務、懸浮球、Android Keystore、固定簽章與八核心原生封裝。Android 與桌面版各自維護版本號。
 

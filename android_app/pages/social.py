@@ -8,16 +8,36 @@ from wlre.services.social.chat import CHANNELS, plain_text
 class Party(Page):
     def __init__(self, d):
         super().__init__(d)
-        self.info = label(); self.add_widget(self.info)
-        self.target = field(self, '目標角色 ID（可由附近玩家選取）', numeric=True)
-        self.add_widget(button('選擇附近玩家', self.choose_nearby))
-        self.add_widget(row(button('邀請組隊', lambda: self.act('invite')), button('申請入隊', lambda: self.act('apply'))))
-        self.add_widget(row(button('開關組隊邀請', self.flag), button('離隊／解散', lambda: d.send(
-            {'type': 'team', 'action': 'leave'}, '確認離開隊伍？隊長離隊會解散隊伍。'))))
-        self.add_widget(button('必要成員設定', self.guard))
-        self.members = column(); self.requests = column()
-        self.add_widget(label('隊伍成員')); self.add_widget(self.members)
-        self.add_widget(label('待確認邀請／申請')); self.add_widget(self.requests)
+        from android_app.pages.ui_components import feature_card, status_line
+        controls = feature_card('組隊管理', '邀請附近玩家、申請入隊或管理既有隊伍')
+        self.info = status_line()
+        controls.add_widget(self.info)
+        self.target = field(controls, '目標角色 ID（可由附近玩家選取）', numeric=True)
+        controls.add_widget(row(
+            button('選擇附近玩家', self.choose_nearby),
+            button('必要成員設定', self.guard)))
+        controls.add_widget(row(
+            button('邀請組隊', lambda: self.act('invite')),
+            button('申請入隊', lambda: self.act('apply'))))
+        controls.add_widget(row(
+            button('開關組隊邀請', self.flag),
+            button('離隊／解散', lambda: d.send(
+                {'type': 'team', 'action': 'leave'},
+                '確認離開隊伍？隊長離隊會解散隊伍。'))))
+        self.add_widget(controls)
+        nearby = feature_card('附近玩家', '只顯示與目前角色同場景的玩家')
+        self.nearby_preview = status_line()
+        nearby.add_widget(self.nearby_preview)
+        nearby.add_widget(button('選擇玩家並操作', self.choose_nearby))
+        self.add_widget(nearby)
+        team = feature_card('我的隊伍', '伺服器已確認的隊員與隊長')
+        self.members = column()
+        team.add_widget(self.members)
+        self.add_widget(team)
+        requests = feature_card('待確認邀請／申請', '接受與拒絕均等待伺服器回覆')
+        self.requests = column()
+        requests.add_widget(self.requests)
+        self.add_widget(requests)
     def act(self, action, rid=None):
         try: rid = int(rid if rid is not None else self.target.text)
         except ValueError: self.d.message.text = '請選擇玩家或輸入有效角色 ID'; return
@@ -44,6 +64,15 @@ class Party(Page):
         if self.key == key: return
         self.key = key
         self.info.text = p.get('status', '等待同步')+'\n'+('隊長：'+player_name(self.state, team['leader_id']) if team else '目前未組隊')
+        nearby = [
+            v.get('name', '未知角色')
+            for v in p.get('nearby', {}).values()
+            if v.get('scene') == self.state.get('player', {}).get('scene')
+        ]
+        self.nearby_preview.text = (
+            '同場景 {} 名：{}'.format(len(nearby),
+                                 '、'.join(str(name) for name in nearby[:4]))
+            if nearby else '尚無已確認的附近玩家')
         self.members.clear_widgets(); self.requests.clear_widgets()
         if team:
             for rid in team['members']:
@@ -61,18 +90,38 @@ class Party(Page):
 
 class Chat(Page):
     def __init__(self, d):
-        super().__init__(d); self.offset = 0; self.quote = None; self.pending = False; self.sent_text = None
-        self.filter = select(self, '顯示頻道', ['全部', *CHANNELS, '跨服', '系統']); self.filter.bind(text=lambda *_: self.render())
-        self.messages = column(); self.add_widget(self.messages)
-        self.add_widget(row(button('較早訊息', lambda: self.move(-1)), button('最新訊息', lambda: self.move(999))))
-        self.channel = select(self, '發送頻道', list(CHANNELS))
-        self.target = field(self, '密語名稱／角色 ID')
-        self.quote_label = label('未引用訊息'); self.add_widget(self.quote_label)
-        self.add_widget(button('取消引用', self.cancel_quote))
-        self.text = field(self, '聊天內容')
-        self.send_button = button('送出', self.send)
-        self.add_widget(row(button('表情', self.emojis), self.send_button))
-        self.channel.bind(text=lambda *_: self.cancel_quote() if self.quote and self.quote['channel'] != self.channel.text else None)
+        super().__init__(d)
+        from android_app.pages.ui_components import feature_card, status_line
+        self.offset=0
+        self.quote=None
+        self.pending=False
+        self.sent_text=None
+        conversation=feature_card(
+            '聊天訊息', '從目前角色同步，點擊訊息可引用或密語')
+        self.filter=select(conversation, '顯示頻道',
+                           ['全部',*CHANNELS,'跨服','系統'])
+        self.filter.bind(text=lambda *_:self.render())
+        self.messages=column()
+        conversation.add_widget(self.messages)
+        conversation.add_widget(row(
+            button('較早訊息',lambda:self.move(-1)),
+            button('最新訊息',lambda:self.move(999))))
+        self.add_widget(conversation)
+        compose=feature_card('發送訊息', '伺服器接受訊息不代表對方已讀')
+        self.channel=select(compose,'發送頻道',list(CHANNELS))
+        self.target=field(compose,'密語名稱／角色 ID')
+        self.quote_label=status_line('未引用訊息')
+        compose.add_widget(self.quote_label)
+        compose.add_widget(button('取消引用',self.cancel_quote))
+        self.text=field(compose,'聊天內容')
+        self.send_button=button('送出',self.send,52)
+        compose.add_widget(row(button('表情',self.emojis),self.send_button))
+        self.delivery_status=status_line('等待輸入訊息')
+        compose.add_widget(self.delivery_status)
+        self.add_widget(compose)
+        self.channel.bind(
+            text=lambda *_:self.cancel_quote()
+            if self.quote and self.quote['channel']!=self.channel.text else None)
     def cancel_quote(self): self.quote = None; self.quote_label.text = '未引用訊息'
     def emojis(self):
         from android_app.assets import emoji_entries, emoji_texture
@@ -91,6 +140,7 @@ class Chat(Page):
         if self.quote: command['reply'] = copy.deepcopy(self.quote)
         if self.d.send(command):
             self.d.message.text = '聊天已排入佇列；請以伺服器轉送／回覆為準'
+            self.delivery_status.text = '發送中，等待伺服器回覆'
             import time
             self.pending = True
             self.pending_started = time.monotonic()
@@ -102,6 +152,8 @@ class Chat(Page):
         self.pending = False
         self.send_button.disabled = False
         status = value.get('status')
+        self.delivery_status.text = {'sent': '伺服器已接受，不代表對方已讀',
+            'uncertain': '發話結果未知，請勿直接重送'}.get(status, '訊息未能送出')
         if status == 'sent':
             # Server accepted the chat packet; no claim that others read it.
             if self.text.text == value.get('text') == self.sent_text: self.text.text = ''
@@ -172,10 +224,12 @@ class Chat(Page):
                 self.pending = False
                 self.send_button.disabled = False
                 self.d.message.text = '遊戲連線中斷；聊天狀態未確認，原文字已保留'
+                self.delivery_status.text = '斷線，發話狀態未確認'
             elif time.monotonic() - getattr(self, 'pending_started', time.monotonic()) >= 20:
                 self.pending = False
                 self.send_button.disabled = False
                 self.d.message.text = '等待伺服器發話結果逾時；原文字已保留，重送前請先檢查聊天紀錄'
+                self.delivery_status.text = '逾時未確認，請先檢查聊天紀錄'
         key = (str(self.d.data.get('chat')), self.filter.text)
         if key != self.key:
             was_latest = self.offset >= max(0, ((len(getattr(self, '_previous', []))+19)//20)-1)

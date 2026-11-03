@@ -58,20 +58,46 @@ class IconBagCell(ButtonBehavior, BoxLayout):
 
 class Resources(Page):
     def __init__(self, d):
-        super().__init__(d); self.offset = 0
-        self.kind = select(self, '顯示', ['包包', '超空間袋', '已確認特技'])
-        self.storage_section = select(self, '超空間袋區域', ['儲藏室', '雜物櫃'])
-        self.display = select(self, '包包檢視方式', ['大圖示（24 格）', '清單'])
-        self.query = field(self, '搜尋名稱／ID')
-        self.info = label(); self.add_widget(self.info)
-        self.add_widget(button('使用 HP／SP 藥水儲存槽', self.storage))
-        self.grid = GridLayout(cols=COLUMNS, spacing=dp(5), size_hint_y=None,
+        super().__init__(d)
+        from android_app.pages.ui_components import feature_card, status_line
+        self.offset = 0
+
+        filters = feature_card('包包／超空間袋／特技', '選擇資料來源、檢視方式及搜尋條件')
+        filters.add_widget(row(
+            button('包包', lambda: setattr(self.kind, 'text', '包包')),
+            button('超空間袋', lambda: setattr(self.kind, 'text', '超空間袋')),
+            button('特技', lambda: setattr(self.kind, 'text', '已確認特技'))))
+        self.kind = select(filters, '目前資料來源',
+                           ['包包', '超空間袋', '已確認特技'])
+        self.storage_section = select(
+            filters, '超空間袋區域', ['儲藏室', '雜物櫃'])
+        self.display = select(
+            filters, '檢視方式', ['大圖示（24 格）', '清單'])
+        self.query = field(filters, '搜尋名稱／ID')
+        self.add_widget(filters)
+
+        inventory = feature_card('道具與特技清單',
+                                 '按格位顯示真實伺服器同步資料；點選可查看詳情')
+        self.info = status_line()
+        inventory.add_widget(self.info)
+        self.grid = GridLayout(cols=COLUMNS, spacing=dp(6), size_hint_y=None,
                                row_default_height=dp(112), row_force_default=True)
         self.grid.bind(minimum_height=self.grid.setter('height'))
-        self.add_widget(self.grid)
-        self.rows = column(); self.add_widget(self.rows)
-        self.add_widget(row(button('上一頁', lambda: self.move(-1)),
-                            button('下一頁', lambda: self.move(1))))
+        inventory.add_widget(self.grid)
+        self.rows = column()
+        inventory.add_widget(self.rows)
+        inventory.add_widget(row(
+            button('上一頁', lambda: self.move(-1)),
+            button('下一頁', lambda: self.move(1))))
+        self.add_widget(inventory)
+
+        selection = feature_card('選取道具', '查看數量、效果與使用限制')
+        self.selected_info = status_line('點選背包格位或清單項目查看詳細資訊')
+        selection.add_widget(self.selected_info)
+        selection.add_widget(button(
+            'HP／SP 藥水儲存槽', self.storage))
+        self.add_widget(selection)
+
         self.kind.bind(text=lambda *_: self.find())
         self.storage_section.bind(text=lambda *_: self.find())
         self.display.bind(text=lambda *_: self.find())
@@ -165,6 +191,11 @@ class Resources(Page):
             self.refresh()
             return
         info = item_details(inventory, index, current)
+        self.selected_info.text = (
+            '{} · 格位 #{} · 持有 {}{}'.format(
+                info['name'], info['index'], info['count'],
+                ' · 遠端唯讀' if read_only else
+                ' · 可用 {}'.format(info['available'])))
         body = column()
         body.add_widget(item_image(info['id'], size=64))
         body.add_widget(label('{}（ID {}）'.format(info['name'], info['id'])))

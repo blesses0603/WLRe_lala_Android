@@ -1,6 +1,10 @@
 """Server-backed ability viewer with explicit, guarded attribute allocation."""
 from android_app.pages.general import Page
-from android_app.widgets import label, field, button
+from android_app.widgets import label, field, button, row
+from android_app.pages.ui_components import feature_card, status_line
+from android_app.theme import style_input
+from kivy.metrics import dp
+from kivy.uix.textinput import TextInput
 from wlre.services.battle.attribute_points import baseline, preview_block_reason
 
 ATTRIBUTES = (("int", "智力 INT"), ("str", "力量 STR"),
@@ -28,17 +32,51 @@ def attribute_lines(state):
 class Attributes(Page):
     def __init__(self, dashboard):
         super().__init__(dashboard)
-        self.add_widget(label("角色能力｜伺服器已確認資訊"))
-        self.info = label()
-        self.add_widget(self.info)
-        self.add_widget(label(
-            "僅以伺服器已同步的五項能力作為基準；送出一次後等成功回覆及能力同步。"
-            " 結果不明時請重新登入，不會自動重送。"))
-        self.inputs = {key: field(self, name + '（本次增加點數）', '0', numeric=True)
-                       for key, name in ATTRIBUTES}
-        self.status = label()
-        self.add_widget(self.status)
-        self.add_widget(button('檢查並確認分配', self.allocate))
+        summary=feature_card('角色能力', '能力值僅取自伺服器確認的角色狀態')
+        self.info=status_line()
+        summary.add_widget(self.info)
+        self.add_widget(summary)
+
+        editor=feature_card('分配屬性點',
+                            '先輸入本次增加點數，確認後才送出')
+        editor.add_widget(status_line(
+            '未同步點數不視為 0；送出一次後等候伺服器同步，'
+            '結果未知不可重送'))
+        self.inputs={}
+        self.stat_values={}
+        for key,name in ATTRIBUTES:
+            stat=feature_card(name)
+            current=status_line('目前值：待同步')
+            stat.add_widget(current)
+            self.stat_values[key]=current
+            editor.add_widget(stat)
+            control=TextInput(
+                text='0',multiline=False,input_filter='int',
+                input_type='number',font_size='15sp',
+                size_hint_x=None,width=dp(94),size_hint_y=None,
+                height=dp(48))
+            style_input(control)
+            self.inputs[key]=control
+            decrement=button('－',lambda k=key:self._step(k,-1))
+            increment=button('＋',lambda k=key:self._step(k,1))
+            for part in (decrement,increment):
+                part.size_hint_x=None
+                part.width=dp(54)
+            editor.add_widget(row(label('增加點數'),
+                                  decrement,control,increment))
+        self.status=status_line()
+        editor.add_widget(self.status)
+        editor.add_widget(button('檢查並確認分配',self.allocate,56))
+        self.add_widget(editor)
+
+    def _step(self,key,delta):
+        """Only change local input; real validation remains in allocate()."""
+        field=self.inputs[key]
+        try:
+            current=int(field.text.strip() or '0')
+        except ValueError:
+            current=0
+        field.text=str(max(0,current+delta))
 
     def allocate(self):
         reason = preview_block_reason(self.state, live=self.d.live)
@@ -63,7 +101,15 @@ class Attributes(Page):
                      'baseline':current}, description)
 
     def refresh(self):
-        self.info.text = "\n\n".join(attribute_lines(self.state))
+        self.info.text = "\n".join(attribute_lines(self.state))
+        player=(self.state.get('knowledge') or {}).get('player') or {}
+        stats=player.get('stats') or {}
+        for key,_ in ATTRIBUTES:
+            value=stats.get(key) if player.get('ready') else None
+            self.stat_values[key].text=(
+                '目前值：{}'.format(value)
+                if type(value) is int and value >= 0
+                else '目前值：等待伺服器同步')
         self.status.text = ((self.state.get('attribute_allocation') or {}).get('status')
                             or preview_block_reason(self.state,live=self.d.live)
                             or '已同步，可以手動配點')

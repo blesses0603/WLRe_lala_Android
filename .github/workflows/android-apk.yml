@@ -55,7 +55,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y autoconf automake libtool pkg-config cmake \
-            libffi-dev libssl-dev libsqlite3-dev zlib1g-dev \
+            libffi-dev libssl-dev libsqlite3-dev zlib1g-dev gettext autopoint \
             libncurses5-dev libncursesw5-dev libltdl-dev git zip unzip \
             xvfb xauth libmtdev1 libgl1-mesa-dri
       - name: Install Buildozer

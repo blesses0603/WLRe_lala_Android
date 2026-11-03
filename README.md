@@ -29,7 +29,9 @@ Android 12 以上、ARM64。保留 Kivy 直式觸控介面、前景連線服務�
   
 手動／版本 Tag 完整 APK 工作流程在受信任 main 執行時，會使用對應的 Python pip 套件快取及 Android SDK／NDK r28c、Gradle 下載快取。平台快取會依 p4a commit、API／ABI、相依需求以及實際 Buildozer／Cython 版本產生指紋，**純 App Patch 版號改變不會造成工具鏈快取失效**。
 
-只快取第三方建置依賴，**不快取 Cython 原生編譯輸出、APK、中繼封裝、Android Keystore 或 GitHub Secret**。每次仍從隔離 staging 重新打包 ARM64 APK、使用既有固定簽章並執行完整檢查。快取失效時仍走原本下載／建置流程；首輪需成功產生快取，後續命中率與時間節省需要以 Actions log 實測。
+原先的工具鏈下載快取不保存原生編譯輸出。新增 P1／P2 後，會另外保存 **ccache 編譯物件**及**明確允許的第三方 p4a Recipe 建置目錄**，但仍**不直接快取八個 LaLa 核心完整 .so、APK、中繼 Distribution、Android Keystore 或 GitHub Secret**。每次從隔離 staging 重新打包 ARM64 APK、使用既有固定簽章並執行完整檢查。快取失效時仍走原本下載／建置流程；首次完整建置後仍須再建置並量測快取命中率與實際時間。
+
+**P1：** p4a 自動辨識 `ccache`，跨次重用編譯器輸出；首次未必加快。**P2：** 只快取 Python、OpenSSL、SQLite 等十項指定第三方 p4a Recipe（及其來源封存），綁定 Runner 映像版本、p4a、NDK、相依套件及 Recipe 內容；缺少安全版本識別則停用 P2。LaLa 自身八個原生核心仍需完成正常 Recipe 建置與原生檔案驗證。
 
 此修改為 CI／文件／測試調整，Android 版本維持 v7.1.4。詳細限制與驗收見 [Android 建置說明](ANDROID/README.md)。
 

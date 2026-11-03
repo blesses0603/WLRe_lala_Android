@@ -103,6 +103,17 @@ App 回到前景時會重新建立 Kivy 畫面，恢復帳號／伺服器欄位�
 
 這次 CI 正式編譯、固定簽章與舊版原地升級仍須以 **v0.0.8 main 工作流程實際成功執行及手機更新結果**驗證，不能用先前實驗 APK 的成功紀錄代替。
 
+## GitHub Actions｜P1／P2 原生編譯快取（2026-11-03）
+
+在既有 SDK／NDK／Gradle 下載快取上新增兩層 **受信任 main 手動／Tag APK 建置專用**優化。此項不更改遊戲程式版本 v7.1.4，也不提前發布或減少既有稽核。
+
+- **P1：ccache**：CI 安裝 ccache，透過 p4a 自動偵測及 NDK Clang 編譯器內容校驗，重用相同 C／C++ 輸入的編譯物件。設定 850 MiB 容量上限；快取鍵包含 Buildozer、p4a、Cython、Android API／ABI 和 requirements，逐次成功建置再以 run ID 保存新物件。執行 `ccache --show-stats` 檢視命中情況。
+- **P2：第三方 p4a Recipe 快取**：只保存指定的 `other_builds` 編譯目錄及 `packages` 來源快取：`freetype`、`hostpython3`、`jpeg`、`libffi`、`liblzma`、`libwebp`、`openssl`、`png`、`sqlite3`、`python3-liblzma`（package 目錄使用 `python3`）。以 Runner `ImageVersion`、p4a pinned commit、NDK r28c、API 31、arm64-v8a、Buildozer／Cython、requirements 及全部本機 Recipe 文字來源內容計算 SHA-256 指紋；Runner 映像版本未知時不恢復已編譯原生快取。
+- **明確不保存**：任何 `lala*` 原生 Recipe 建置結果、`dists`、`python-installs`、`bootstrap_builds`、簽章私鑰、APK、應用程式來源、帳密或遊戲資料庫。八個 LaLa 原生核心依既有流程 Stage／Buildozer 編譯及 APK 稽核，不以快取取代原始碼一致性檢查。
+- **失敗恢復與保護**：快取讀取／寫入異常不阻止原本完整編譯；只有完整 APK 已通過版本／固定簽章／八核心 ELF／SHA-256／安全檢查後才保存。PR 快速 CI 只做離線單元測試，不讀取簽章 Secret、不直接產生 APK。
+
+**驗收**：在 PR 快速 CI 驗證政策／指紋測試；合併 main 後手動建置兩次，首次保存、第二次確認 `Restore pinned third-party p4a recipe builds` 是否 cache-hit、`Display compiler cache statistics` 的 ccache 命中率，檢查 APK 正式簽章與原生稽核全數通過。若 p4a 重建過多、快取過大或儲存／還原耗時，應依 Actions 記錄調整白名單。**目前仍需實際 ARM64 CI 驗證快取可否加快、能否重用選定 Recipe。**
+
 ## GitHub Actions｜安全增量下載快取（2026-11-03）
 
 完整 ARM64 APK 建置新增 Python pip 套件快取，並以 `tools/android_build_cache.py` 的指紋控制下列下載目錄：`~/.buildozer/android/platform/android-sdk`、`~/.buildozer/android/platform/android-ndk-r28c`、`~/.gradle/caches/modules-2`、`~/.gradle/wrapper/dists`。這些全域工具鏈位置已由 v7.1.2 成功的 Buildozer 日誌核對。只有成功通過既有 APK 原生、簽章與完整性檢查，才會保存版本化快取。版本變更但相依不變時可重用工具鏈；p4a commit／編譯器或 Buildozer 版本／API／ABI 或 requirements 異動將使快取鍵變更。

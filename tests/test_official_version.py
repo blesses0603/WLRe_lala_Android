@@ -219,8 +219,8 @@ class OfficialResourceVersionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             ca = Path(directory) / "roots.pem"
             ca.write_bytes(Path(certifi.where()).read_bytes())
-            with patch.dict(os.environ, {"SSL_CERT_FILE": str(ca)}), \\
-                 patch("wlre.services.official_version.build_opener") as builder:
+            with (patch.dict(os.environ, {"SSL_CERT_FILE": str(ca)}),
+                  patch("wlre.services.official_version.build_opener") as builder):
                 _verified_opener()
                 handlers = [v for v in builder.call_args.args if isinstance(v, HTTPSHandler)]
                 self.assertEqual(len(handlers), 1)

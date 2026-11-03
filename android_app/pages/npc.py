@@ -11,18 +11,42 @@ from wlre.services.world.dynamic_bundle_runtime import current_catalog_token
 class NPC(Page):
     def __init__(self, d):
         super().__init__(d)
+        from android_app.pages.ui_components import feature_card, status_line
+
         self.selected = None
         self.selection_token = None
-        self.add_widget(label('NPC｜目前場景官方清單'))
-        self.add_widget(button('選擇 NPC', self.browse))
-        self.selection = label('請選擇 NPC'); self.add_widget(self.selection)
-        self.add_widget(row(button('前往並接續互動', lambda: self.act('npc_approach')),
-                            button('互動', lambda: self.act('npc_start'))))
-        self.add_widget(button('接續對話', lambda: d.send(dict(type='npc_next'))))
-        self.info = label(); self.add_widget(self.info)
+
+        nearby = feature_card(
+            '目前場景 NPC', '只從已驗證官方場景索引挑選 NPC')
+        self.scene_info = status_line('等待角色所在場景')
+        nearby.add_widget(self.scene_info)
+        nearby.add_widget(button('選擇目前場景 NPC', self.browse))
+        self.selection = status_line('尚未選擇 NPC')
+        nearby.add_widget(self.selection)
+        nearby.add_widget(row(
+            button('前往並接續互動',
+                   lambda: self.act('npc_approach')),
+            button('與所選 NPC 互動',
+                   lambda: self.act('npc_start'))))
+        self.add_widget(nearby)
+
+        talk = feature_card('NPC 對話',
+                            '僅顯示官方已驗證文字與伺服器最新對話狀態',
+                            variant='highlight')
+        talk.add_widget(button(
+            '接續對話',
+            lambda: d.send(dict(type='npc_next'))))
+        self.info = status_line('等待 NPC 對話狀態同步')
+        talk.add_widget(self.info)
+        self.add_widget(talk)
+
+        choices = feature_card('選項／商店資訊',
+                               '未知對話不自動代選；商店價格僅供查閱')
         self.options = None
         from android_app.widgets import column
-        self.actions = column(); self.add_widget(self.actions)
+        self.actions = column()
+        choices.add_widget(self.actions)
+        self.add_widget(choices)
 
     def browse(self):
         scene = self.state.get('player', {}).get('scene')
@@ -52,6 +76,9 @@ class NPC(Page):
                          interact_index=index, choice=option['choice'], text_id=option['text_id']))
 
     def refresh(self):
+        scene = self.state.get('player', {}).get('scene')
+        self.scene_info.text = ('目前場景 ID：{}'.format(scene)
+                                if scene is not None else '等待角色所在場景同步')
         info = self.state.get('npc_dialogue', {})
         key = (repr(info), current_catalog_token(), self.d.live)
         if key == self.key: return

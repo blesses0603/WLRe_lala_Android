@@ -84,7 +84,7 @@ def stage(root: Path, output: Path) -> Path:
         shutil.copy2(root / RECIPE_ROOT / "setup.py", output / RECIPE_ROOT / "src" / "setup.py")
         # Every staged APK variant needs the same reviewed resource decoder.
         if 'unitypy' in (root / 'buildozer.spec').read_text(encoding='utf-8'):
-            for decoder in ('unitypy', 'lz4', 'brotli'):
+            for decoder in ('unitypy', 'lz4', 'brotli', 'tpk_ar'):
                 source = root / 'p4a-recipes' / decoder
                 if not (source / '__init__.py').is_file():
                     raise ValueError('Missing resource decoder recipe: ' + decoder)

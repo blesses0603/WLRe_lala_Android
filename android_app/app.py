@@ -61,6 +61,7 @@ class LaLaApp(App):
         self._verification_status = None
         self._verification_detail = None
         self._verification_retry = None
+        self._pending_dashboard_restore = None
 
     def on_start(self):
         self._ui_started = True
@@ -262,16 +263,31 @@ class LaLaApp(App):
             self._login_host.clear_widgets()
             self._login_host.add_widget(self._login_view)
             self._login_visible = True
+            pending = self._pending_dashboard_restore
+            self._pending_dashboard_restore = None
+            if pending is not None and pending[0] in self.manager.sessions:
+                # Reattach the existing role workspace; never log in again.
+                self.drain_events()
+                self.open_dashboard(pending[0])
+                if (self.dashboard is not None and pending[1]
+                        and pending[1] != self.dashboard.page_name):
+                    self.dashboard.navigation.text = pending[1]
             print('WLRE_ANDROID_LOGIN_GATE_VERIFIED', flush=True)
             return
         if not connected:
             self._verification_status.text = '等待背景服務'
-            detail = '背景服務尚未就緒。可按「啟動／重新連接背景服務」。'
+            message = getattr(self.message, 'text', '')
+            detail = (message if message.startswith(('Android 服務初始化失敗',
+                                                     '通知權限'))
+                      else '背景服務尚未就緒。可按「啟動／重新連接背景服務」。')
         elif service.get('status') == 'checking':
             self._verification_status.text = '檢查中：下載並核對官方資源'
             detail = service.get('message', '正在檢查雙 Manifest 與 Runtime')
         elif service.get('ready') is True:
-            self._verification_status.text = '官方資源已完成，核對手機端資料庫'
+            self._verification_status.text = (
+                '手機端 Runtime／資料庫驗證未通過'
+                if local.get('status') in ('blocked', 'error')
+                else '官方資源已完成，核對手機端 Runtime／資料庫')
             detail = local.get('message', '正在驗證 Runtime 與 SQLite 資料庫')
         else:
             self._verification_status.text = '官方資源尚未通過驗證'
@@ -339,9 +355,8 @@ class LaLaApp(App):
             width=dp(44), disabled=self.vault is None))
         remember_text = label('加密保存帳密', 48)
         login.add_widget(row(self.remember, remember_text))
-        self.resource_note = label('官方資源狀態：等待背景服務', 68)
-        login.add_widget(self.resource_note)
-        login.add_widget(button('重新檢查官方資源', self.retry_resources))
+        # Official resource/SQLite verification belongs to the pre-login gate.
+        # Existing sessions can still inspect service status in the monitor card.
         connect = button('新增連線並登入', self.connect_account, 52)
         style_button(connect, primary=True); login.add_widget(connect)
         self.message = label('選擇分流登入後，即可開啟角色功能。')
@@ -545,10 +560,9 @@ class LaLaApp(App):
             sync = self.catalog_sync
             if sync is not None:
                 local = sync.snapshot()
-                if resource.get('ready') and local['status'] == 'idle':
+                if (getattr(self.manager, 'available', False)
+                        and resource.get('ready') and local['status'] == 'idle'):
                     sync.start()
-                if hasattr(self, 'resource_note'):
-                    self.resource_note.text = ('官方資源：'+(local['message'] if resource.get('ready') else resource.get('message', '等待背景服務')))
             self._update_verification_gate()
             if hasattr(self, 'overlay_button'):
                 self.overlay_button.disabled = not self.manager.available
@@ -677,7 +691,10 @@ class LaLaApp(App):
         server = self.server.text
         message = self.message.text
         remember = bool(self.remember.active)
-        scroll_y = old_root.scroll_y if isinstance(old_root, ScrollView) else 1
+        scroll_view = (self._login_view
+                       if platform == 'android' and self._login_view is not None
+                       else old_root)
+        scroll_y = scroll_view.scroll_y if isinstance(scroll_view, ScrollView) else 1
         dashboard_sid = old_dashboard.sid if old_dashboard and not old_dashboard.closed else None
         dashboard_page = old_dashboard.page_name if dashboard_sid else None
         try:
@@ -698,10 +715,16 @@ class LaLaApp(App):
             self.password.text = ''  # Never restore a password after backgrounding.
             self.remember.active = remember and not self.remember.disabled
             self.message.text = message
-            new_root.scroll_y = scroll_y
+            if platform == 'android' and self._login_view is not None:
+                self._login_view.scroll_y = scroll_y
+                self._pending_dashboard_restore = (
+                    (dashboard_sid, dashboard_page) if dashboard_sid else None)
+                self._update_verification_gate()
+            else:
+                new_root.scroll_y = scroll_y
             # Recreate cards from the existing service snapshot, without login.
             self.drain_events()
-            if dashboard_sid in self.manager.sessions:
+            if (platform != 'android' and dashboard_sid in self.manager.sessions):
                 self.open_dashboard(dashboard_sid)
                 if dashboard_page and dashboard_page != self.dashboard.page_name:
                     self.dashboard.navigation.text = dashboard_page

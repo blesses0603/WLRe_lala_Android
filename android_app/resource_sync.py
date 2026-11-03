@@ -62,6 +62,29 @@ def resource_message(report):
                 table = failure.get('table')
                 if type(table) is str and table in _REQUIRED_TABLES:
                     message += '（' + table + '）'
+                if code == 'manifest_download_failed':
+                    # Stage and reason come only from a fixed allowlist;
+                    # untrusted exception text, URLs and device paths stay out.
+                    stage = failure.get('manifest_stage')
+                    reason = failure.get('manifest_reason')
+                    if stage in ('DataPackage.hash', 'DataPackage.bytes',
+                                 'MainPackage.hash', 'MainPackage.bytes'):
+                        message += '\n失敗檔案：' + stage
+                        reasons = {
+                            'tls_verify': 'TLS 憑證驗證失敗',
+                            'tls_handshake': 'TLS 握手失敗',
+                            'dns': 'DNS 無法解析官方網域',
+                            'timeout': '連線逾時',
+                            'refused': '官方伺服器拒絕連線',
+                            'https': 'HTTPS 連線失敗',
+                        }
+                        if type(reason) is str and reason in reasons:
+                            message += '；' + reasons[reason]
+                        elif type(reason) is str:
+                            import re
+                            match = re.fullmatch(r'http_([1-5][0-9]{2})', reason)
+                            if match:
+                                message += '；官方 CDN 回應 HTTP ' + match.group(1)
         return message
     remote = report.get('remote')
     if report.get('login_allowed') is True or type(remote) is not dict:

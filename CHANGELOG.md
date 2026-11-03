@@ -1,5 +1,13 @@
 # 版本紀錄
 
+## 2026-11-03：APK 建置依賴快取（CI-only，不升級版本）
+
+- 手動／Tag APK 工作流程增加 pip 套件快取及版本指紋控制的 SDK／NDK r28c、Gradle 依賴快取，以減少未變動的第三方工具鏈重複下載。
+- 版本指紋由 Buildozer、Cython、p4a pinned commit、API／ABI 與 requirements 等輸入計算，App Patch 版號不會自行清除工具鏈快取。
+- 快取僅保存非敏感依賴，完整 APK、Cython 編譯輸出、簽章私鑰、測試憑證、正式核心與帳密資料皆不快取；所有 ARM64 編譯／安全稽核仍保留。
+- 新增離線測試檢查快取鍵正確性與流程安全邊界；實際快取命中率與加速效果需後續 main 手動建置驗證。
+- 僅改 CI，不修改 Android 程式版本 v7.1.3；不建立 Tag／Release。
+
 ## 7.1.3 開發修補版（尚未正式發布）
 
 - 新增完整 Runtime 失敗的固定、有限診斷分類：必要 Bundle 缺少／校驗失敗、Eve／資料結構解析、版本或 Manifest 身分不符及其他未分類失敗。

@@ -323,6 +323,7 @@ class LaLaApp(App):
     def _build_login_view(self):
         from android_app.widgets import column, label, button, row, RoundedSpinnerOption
         from android_app.theme import BACKGROUND, MUTED, ACCENT, SURFACE, SOFT, surface, style_button, style_input, style_checkbox
+        from android_app.ui_shell import BrandHeader, section_title
         self.title = "WLRe_LaLa Android v" + ANDROID_VERSION
         Window.softinput_mode = "below_target"
         Window.clearcolor = BACKGROUND
@@ -330,24 +331,13 @@ class LaLaApp(App):
         base = column()
         base.padding = [dp(16), dp(20), dp(16), dp(24)]
         base.spacing = dp(16)
-        header = surface(BoxLayout(size_hint_y=None, height=dp(96), spacing=dp(12),
-                                  padding=dp(12)), color=SURFACE, radius=24)
-        icon = Image(source=str(Path(__file__).resolve().parent / 'assets/app.png'),
-                     size_hint_x=None, width=dp(68))
-        header.add_widget(icon)
-        header_text = BoxLayout(orientation='vertical', spacing=dp(2))
-        title = label('飄流 RE:LaLa', 42)
-        title.font_size = '25sp'; title.color = ACCENT
-        header_text.add_widget(title)
-        subtitle = label('ANDROID  ·  v' + ANDROID_VERSION + '  /  多帳號管理', 26)
-        subtitle.color = MUTED; subtitle.font_size = '12sp'
-        header_text.add_widget(subtitle)
-        header.add_widget(header_text)
-        base.add_widget(header)
+        self._login_brand_header = BrandHeader(
+            subtitle='帳號與連線', verified=False)
+        base.add_widget(self._login_brand_header)
 
         login = surface(column(), radius=24); login.padding = dp(16); login.spacing = dp(12)
-        heading = label('登入遊戲', 32); heading.font_size = '19sp'
-        login.add_widget(heading)
+        login.add_widget(section_title(
+            '帳號登入／連線管理', '選擇分流並安全建立多帳號連線'))
         self.saved = style_button(Spinner(text='已保存帳號', values=self.saved_names(),
                                           option_cls=RoundedSpinnerOption))
         self.saved.bind(text=self.switch_saved)
@@ -377,7 +367,7 @@ class LaLaApp(App):
         login.add_widget(row(self.remember, remember_text))
         # Official resource/SQLite verification belongs to the pre-login gate.
         # Existing sessions can still inspect service status in the monitor card.
-        connect = button('新增連線並登入', self.connect_account, 52)
+        connect = button('建立新連線', self.connect_account, 56)
         style_button(connect, primary=True); login.add_widget(connect)
         self.message = label('選擇分流登入後，即可開啟角色功能。')
         self.message.color = MUTED
@@ -385,7 +375,8 @@ class LaLaApp(App):
         login.add_widget(self.message)
         base.add_widget(login)
 
-        base.add_widget(label('帳號連線', 32))
+        base.add_widget(section_title(
+            '連線中的帳號', '每個帳號可獨立管理角色與自動化功能'))
         self.empty_state = surface(BoxLayout(size_hint_y=None, height=dp(100), padding=dp(16)), radius=22)
         empty_text = label('尚未建立連線\n登入後，角色資訊與操作會顯示在這裡。')
         empty_text.color = MUTED
@@ -396,7 +387,8 @@ class LaLaApp(App):
         base.add_widget(self.list_box)
 
         monitor = surface(column(), radius=24); monitor.padding = dp(16); monitor.spacing = dp(12)
-        monitor.add_widget(label('服務與資源', 30))
+        monitor.add_widget(section_title(
+            '資源狀態與連線服務', '顯示背景服務回報的實際狀態'))
         self.resources = label('資源監控：等待服務取樣')
         self.resources.font_size = '12sp'; self.resources.color = MUTED
         monitor.add_widget(self.resources)
@@ -511,7 +503,10 @@ class LaLaApp(App):
         card.add_widget(status)
         card.add_widget(controls)
         from android_app.widgets import button as mobile_button
-        card.add_widget(mobile_button('開啟角色功能', lambda sid=session.session_id: self.open_dashboard(sid)))
+        launch = mobile_button(
+            '開啟角色功能', lambda sid=session.session_id: self.open_dashboard(sid), 54)
+        style_button(launch, primary=True)
+        card.add_widget(launch)
         from android_app.automation_ui import attach
         attach(self, card, session.session_id)
         self.list_box.add_widget(card)

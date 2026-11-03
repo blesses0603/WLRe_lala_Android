@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import subprocess
 from pathlib import Path
 import struct
 import sys
@@ -156,12 +158,34 @@ class P3NativeCoreCacheTests(unittest.TestCase):
             self.assertEqual(len(list(installed.glob(extension + "*.so"))), 1)
             self.assertFalse(module.reuse(native, types.SimpleNamespace(arch="x86_64")))
 
+    def test_cli_import_is_executable_from_ci_worktree(self):
+        # Run the real command, not a mocked import. Previously executing the
+        # tools/ file directly crashed with ModuleNotFoundError: tools.
+        output = self.root / "github-output.txt"
+        env = os.environ.copy()
+        env.pop("ImageVersion", None)
+        env["GITHUB_OUTPUT"] = str(output)
+        command = [sys.executable, "-m", "tools.android_core_incremental",
+                   "plan", "--stage", str(self.stage)]
+        completed = subprocess.run(
+            command, cwd=ROOT, env=env, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("P3 independent core SHA-256 keys: 0", completed.stdout)
+        self.assertIn("enabled=false", output.read_text(encoding="utf-8"))
+
     def test_workflow_has_eight_separate_exact_caches_after_signed_gate(self):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("LALA_P3_CORE_CACHE:", text)
         self.assertIn("LALA_P3_CORE_PLAN:", text)
-        self.assertIn("python tools/android_core_incremental.py prepare", text)
-        self.assertIn("python tools/android_core_incremental.py save", text)
+        # All three CLI entry points must use the module form, so absolute
+        # imports from tools work under the GitHub Actions runner.
+        self.assertIn("python -m tools.android_core_incremental plan", text)
+        self.assertIn("python -m tools.android_core_incremental prepare", text)
+        self.assertIn("python -m tools.android_core_incremental save", text)
+        self.assertNotIn("python tools/android_core_incremental.py", text)
         for recipe, _ in CORES:
             self.assertEqual(text.count("Restore P3 " + recipe + " verified"), 1)
             self.assertEqual(text.count("Save P3 " + recipe + " verified"), 1)

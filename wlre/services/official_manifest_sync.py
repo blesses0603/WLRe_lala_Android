@@ -30,8 +30,8 @@ _DATA_VER = re.compile(r'[0-9]{1,4}(?:\.[0-9]{1,4}){2,3}\Z')
 _REVISION = re.compile(r'[1-9][0-9]{0,5}_20[0-9]{2}(?:_[0-9]{2}){6}\Z')
 _HASH = re.compile(r'[a-fA-F0-9]{8}\Z')
 _MANIFEST_PATH = re.compile(
-    r'/WLN/TW/[0-9]{1,4}(?:\\.[0-9]{1,4}){2,3}/ResourcesPC/AssetBundle/'
-    r'(?:DataPackage|MainPackage)\\.(?:hash|bytes)\\Z'
+    r'/WLN/TW/[0-9]{1,4}(?:\.[0-9]{1,4}){2,3}/ResourcesPC/AssetBundle/'
+    r'(?:DataPackage|MainPackage)\.(?:hash|bytes)\Z'
 )
 PACKAGES = ('DataPackage', 'MainPackage')
 
@@ -110,7 +110,7 @@ def _fetch(url, *, limit, opener, timeout):
             # CDN freshness. Retry once on the SAME file/host over HTTPS;
             # never substitute a mirror or bypass certificate verification.
             target = url + '?' + str(time.time())
-            if not re.fullmatch(r'[0-9]{1,20}(?:\\.[0-9]{1,16})?\\Z',
+            if not re.fullmatch(r'[0-9]{1,20}(?:\.[0-9]{1,16})?\Z',
                                 urlsplit(target).query):
                 raise ManifestSyncError('Manifest retry query invalid') from first
             try:

@@ -205,7 +205,10 @@ class Chat(Page):
         for message in rows[self.offset*20:self.offset*20+20]:
             text = '['+message.get('channel', '?')+'] '+message.get('name', str(message.get('role_id', '')))+'：'+plain_text(message.get('text', ''))
             if message.get('reply_text'): text += '\n↳ '+plain_text(message['reply_text'])
-            self.messages.add_widget(button(text, lambda m=message: self.actions(m), max(64, min(210, 34+len(text)//18*22))))
+            from android_app.pages.ui_components import message_button
+            own=(message.get('role_id') == self.state.get('player', {}).get('role_id'))
+            self.messages.add_widget(message_button(
+                text, lambda m=message: self.actions(m), own=own))
             import re
             from android_app.assets import emoji_texture
             from kivy.uix.image import Image

@@ -14,8 +14,13 @@ class NativeReleasePolicyTests(unittest.TestCase):
         self.text = WORKFLOW.read_text(encoding="utf-8")
 
     def test_versioned_release_is_a_distinct_upgrade(self):
-        self.assertEqual(source_version(
-            ROOT / "buildozer.spec", ROOT / "android_app/version.py"), "v7.1.2")
+        # source_version rejects a spec/Python mismatch; the release must
+        # remain newer than the reviewed Android v7.1.1 baseline without
+        # hard-coding the current patch on every subsequent fix.
+        version = source_version(
+            ROOT / "buildozer.spec", ROOT / "android_app/version.py")
+        numeric_version = tuple(int(part) for part in version[1:].split("."))
+        self.assertGreater(numeric_version, (7, 1, 1))
 
     def test_lz4_versioning_tools_are_installed_in_hostpython(self):
         # Target dependencies do not make setup.py imports available in p4a's

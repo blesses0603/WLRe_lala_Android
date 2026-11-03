@@ -13,11 +13,11 @@
 
 本文件集中說明 Android 客戶端的**操作流程、權限、背景機制、APK 建置及驗收限制**。首次安裝與下載入口請先閱讀 [專案首頁 README](../README.md)；功能逐項對照請參考 [FEATURE_PARITY.md](FEATURE_PARITY.md)。
 
-**目前開發版本：v7.1.2** ｜ **最低 Android 12（API 31）** ｜ **只建置 ARM64 手機 APK** ｜ **Debug 測試用途**
+**目前開發版本：v7.1.3** ｜ **最低 Android 12（API 31）** ｜ **只建置 ARM64 手機 APK** ｜ **Debug 測試用途**
 
-Android Major.Minor 跟隨已核對的桌面 main（此輪桌面 v7.1.1，Android v7.1.2），Android Patch 獨立維護。桌面 Major.Minor 再變動時應先核對最新桌面 main，更新 Android 前兩段並單獨評估 Patch；版本號相近不代表功能已驗收。v7.1.2 修補官方 TLS 診斷、PEM／DER CA 載入與明確 HTTPS 信任來源；下方 v0.0.8 小節屬於歷史建置紀錄。
+Android Major.Minor 跟隨已核對的桌面 main（此輪桌面 v7.1.1，Android v7.1.3），Android Patch 獨立維護。桌面 Major.Minor 再變動時應先核對最新桌面 main，更新 Android 前兩段並單獨評估 Patch；版本號相近不代表功能已驗收。v7.1.3 新增必要 Bundle 缺失／校驗／解析等安全診斷，並辨識資源準備超過 32 MiB／24 檔單次額度；v7.1.2 修補官方 TLS 診斷、PEM／DER CA 載入與明確 HTTPS 信任來源；下方 v0.0.8 小節屬於歷史建置紀錄。
 
-新 APK 安裝後按「重新檢查官方資源」，確認 ResourcePath_PC.dat 階段錯誤種類；Chrome 能載入不代表 Python/OpenSSL 能完成驗證。請勿關閉憑證檢查。
+新 APK 安裝後按「重新檢查官方資源」，核對完整 Runtime 錯誤分類與 ResourcePath_PC.dat 階段錯誤種類；Chrome 能載入不代表 Python/OpenSSL 能完成驗證。請勿關閉憑證檢查。
 
 > 請勿安裝早期 v0.0.2／v0.0.3 的舊 APK：歷史紀錄曾確認 Keystore／PyJNIUS JNI 初始化崩潰。v0.0.7 新增的懸浮小球與遊戲自動化操作仍需真機驗收；「Actions 成功」不等於正式遊戲連線驗收。
 

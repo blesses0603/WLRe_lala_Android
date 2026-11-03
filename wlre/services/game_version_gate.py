@@ -42,6 +42,48 @@ def configured_sources(environ=None):
     return {"ResourcePath_PC.dat": RESOURCE_MAP_URL}
 
 
+
+def classify_runtime_failure(error):
+    """Public, bounded diagnostic labels; never return exception payloads.
+
+    File paths, URLs, package bytes, account fields and arbitrary exception
+    messages must not cross the Android UI/service IPC boundary.
+    """
+    kind = type(error).__name__
+    message = str(error)
+    from wlre.services.world.bundle_runtime_1275 import _REQUIRED_TABLES
+    tables = frozenset(_REQUIRED_TABLES)
+    for prefix, code in (
+        ("仍缺少官方 Bundle：", "required_bundle_missing"),
+        ("Bundle 來源校驗失敗：", "required_bundle_invalid"),
+        ("官方 Bundle 的資料格式無法建立完整 1275 Runtime：", "runtime_parse_failed"),
+    ):
+        if kind == "BundleRuntimeUnavailable" and message.startswith(prefix):
+            table = message[len(prefix):]
+            return {"code": code, "table": table if table in tables else None}
+    if kind == "BundleRuntimeUnavailable":
+        if message == "官方動態 Manifest 身分不一致":
+            return {"code": "manifest_identity_mismatch", "table": None}
+        return {"code": "runtime_data_invalid", "table": None}
+    if kind == "IncrementalSyncError":
+        if message == "Planned downloads exceed the explicit byte/file quota":
+            return {"code": "download_limit", "table": None}
+        if message.startswith("Required resources missing from current Manifest:"):
+            return {"code": "manifest_asset_missing", "table": None}
+    if kind == "DynamicRuntimeUnavailable":
+        if message in (
+            "Official versions changed before Bundle sync",
+            "Official versions changed during runtime load",
+            "Official manifests changed during runtime load",
+        ):
+            return {"code": "official_version_changed", "table": None}
+        if message == "Runtime does not match pre-login official identity":
+            return {"code": "runtime_identity_mismatch", "table": None}
+    if kind == "ValueError" and message == "Runtime identity mismatch":
+        return {"code": "runtime_identity_mismatch", "table": None}
+    return {"code": "runtime_check_failed", "table": None}
+
+
 def _run_dynamic_check(remote):
     """Permit login when current official runtime and database content agree."""
     from wlre.services.world.catalog_runtime import official_package_versions
@@ -75,7 +117,8 @@ def _run_dynamic_check(remote):
         identity=runtime.catalog_identity.as_dict()
         if compare_database_identity(remote,identity)!='same':
             raise ValueError('Runtime identity mismatch')
-    except (OSError,ValueError,RuntimeError,TypeError,AttributeError):
+    except (OSError,ValueError,RuntimeError,TypeError,AttributeError) as exc:
+        result["runtime_failure"] = classify_runtime_failure(exc)
         # Activation clears its own previous generation before loading.
         # A failed older worker must not invalidate a newer successful one.
         return result

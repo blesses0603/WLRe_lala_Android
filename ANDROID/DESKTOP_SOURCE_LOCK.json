@@ -200,6 +200,14 @@
     "wlre/services/official_version.py": {
       "reason": "Android 官方資源 HTTPS 以選定 CA 明確驗證並區分 SSL 憑證與握手錯誤；桌面版本核心來源 SHA 不變，僅追蹤平台差異",
       "sha256": "24e35c21cad321af34f0eea1e231e189bc5dfa000b9dad7f6fa997fc504df012"
+    },
+    "wlre/services/game_version_gate.py": {
+      "reason": "Android 專屬 Runtime 失敗階段與下載額度診斷（保留登入驗證）",
+      "sha256": "e974da34cba3ae46fe8f6ba5364a9c79088b0bc66255716e529c030281977e4a"
+    },
+    "wlre/services/world/launcher_catalog.py": {
+      "reason": "Android 專屬 Runtime 失敗階段與下載額度診斷（保留登入驗證）",
+      "sha256": "80c7943ebfc5db5f6b6196f4dc323070ca8d9d15a7483d1389159936681443c7"
     }
   },
   "desktop_core_sync_ref": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",

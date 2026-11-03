@@ -178,8 +178,8 @@
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",
   "android_adaptations": {
     "wlre/services/official_manifest_sync.py": {
-      "reason": "使用可打包的 Manifest parser",
-      "sha256": "98be9bcf6c74305528947653e10f328b6a80072b7267f861a976514de0444b63"
+      "reason": "使用可打包的 Manifest parser；Android v7.1.7 增加同源 HTTPS 數字查詢安全重試與網路錯誤階段標記",
+      "sha256": "c3b1b2f451037d0c522eba900d73afd63a42951a98627c5dd73aeba68470d1c2"
     },
     "wlre/services/official_incremental_sync.py": {
       "reason": "使用可打包的 Manifest parser",
@@ -202,8 +202,8 @@
       "sha256": "24e35c21cad321af34f0eea1e231e189bc5dfa000b9dad7f6fa997fc504df012"
     },
     "wlre/services/game_version_gate.py": {
-      "reason": "Android 專屬 Runtime 失敗階段與下載額度診斷；額外區分目前官方 Manifest／Bundle／YooAsset 不相容錯誤（保留登入驗證及固定訊息）",
-      "sha256": "115f9da755d5281755034181a36679120b3874d04f3505ecebd707f9b7f321b2"
+      "reason": "Android 專屬 Runtime 失敗階段與下載額度診斷；額外區分目前官方 Manifest／Bundle／YooAsset 不相容錯誤（保留登入驗證及固定訊息）；Android v7.1.7 區分 Manifest .hash／.bytes 的固定安全網路失敗代碼",
+      "sha256": "c0ca7ff5872aa7aa3a310f564518b503a2065026e062d816a28149acdd5b3715"
     },
     "wlre/services/world/launcher_catalog.py": {
       "reason": "Android 專屬 Runtime 失敗階段與下載額度診斷（保留登入驗證）",

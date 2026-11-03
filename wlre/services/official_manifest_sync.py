@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -28,6 +29,10 @@ MAX_RECEIPT_BYTES = 4096
 _DATA_VER = re.compile(r'[0-9]{1,4}(?:\.[0-9]{1,4}){2,3}\Z')
 _REVISION = re.compile(r'[1-9][0-9]{0,5}_20[0-9]{2}(?:_[0-9]{2}){6}\Z')
 _HASH = re.compile(r'[a-fA-F0-9]{8}\Z')
+_MANIFEST_PATH = re.compile(
+    r'/WLN/TW/[0-9]{1,4}(?:\.[0-9]{1,4}){2,3}/ResourcesPC/AssetBundle/'
+    r'(?:DataPackage|MainPackage)\.(?:hash|bytes)\Z'
+)
 PACKAGES = ('DataPackage', 'MainPackage')
 
 
@@ -69,14 +74,23 @@ class _NoRedirect(HTTPRedirectHandler):
 
 def _fetch(url, *, limit, opener, timeout):
     parsed = urlsplit(url)
+    # No redirects, percent encoding, userinfo, alternate hosts or paths.
     if (parsed.scheme != 'https' or parsed.hostname != OFFICIAL_HOST
             or parsed.port is not None or parsed.query or parsed.fragment or
-            parsed.username is not None or parsed.password is not None):
+            parsed.username is not None or parsed.password is not None
+            or not _MANIFEST_PATH.fullmatch(parsed.path)):
         raise ManifestSyncError('Manifest URL is not the approved HTTPS source')
-    try:
-        with opener(Request(url, headers={'User-Agent': 'WLRe-LaLa-ManifestSync/1'}),
-                    timeout=timeout) as response:
-            if response.geturl() != url or getattr(response, 'status', 200) != 200:
+    stage = parsed.path.rsplit('/', 1)[-1]
+
+    def read_one(target):
+        with opener(Request(target, headers={
+                'Accept': 'application/octet-stream, text/plain',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+                'User-Agent': 'WLRe-LaLa-ManifestSync/1',
+            }), timeout=timeout) as response:
+            # No redirects, cross-origin responses, or unreviewed file paths.
+            if response.geturl() != target or getattr(response, 'status', 200) != 200:
                 raise ManifestSyncError('Manifest response location/status unexpected')
             declared = response.headers.get('Content-Length') if hasattr(response, 'headers') else None
             if declared is not None and (not declared.isdecimal() or int(declared) > limit):
@@ -87,8 +101,31 @@ def _fetch(url, *, limit, opener, timeout):
             if declared is not None and len(body) != int(declared):
                 raise ManifestSyncError('Manifest response truncated')
             return body
+
+    try:
+        return read_one(url)
+    except HTTPError as first:
+        if first.code in (400, 403, 404):
+            # The official version client uses an unkeyed numeric query for
+            # CDN freshness. Retry once on the SAME file/host over HTTPS;
+            # never substitute a mirror or bypass certificate verification.
+            target = url + '?' + str(time.time())
+            if not re.fullmatch(r'[0-9]{1,20}(?:\.[0-9]{1,16})?\Z',
+                                urlsplit(target).query):
+                raise ManifestSyncError('Manifest retry query invalid') from first
+            try:
+                return read_one(target)
+            except (OSError, HTTPError, URLError) as retry_error:
+                failure = ManifestSyncError('Official Manifest download failed')
+                failure.stage = stage
+                raise failure from retry_error
+        failure = ManifestSyncError('Official Manifest download failed')
+        failure.stage = stage
+        raise failure from first
     except (OSError, HTTPError, URLError) as exc:
-        raise ManifestSyncError('Official Manifest download failed') from exc
+        failure = ManifestSyncError('Official Manifest download failed')
+        failure.stage = stage
+        raise failure from exc
 
 
 def _crc32_le(data):

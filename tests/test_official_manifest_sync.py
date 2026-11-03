@@ -2,6 +2,8 @@
 
 import io
 from pathlib import Path
+from urllib.error import HTTPError, URLError
+import ssl
 import tempfile
 import unittest
 import zlib
@@ -104,6 +106,56 @@ class OfficialManifestSyncTests(unittest.TestCase):
                                              opener=responder(), parser=parse_synthetic)
             self.assertTrue(result.downloaded)
             self.assertEqual(target.read_bytes(), CONTENT)
+
+    def test_http_404_uses_one_bounded_same_origin_numeric_retry(self):
+        requests = []
+        def cdn(req, timeout):
+            url = req.full_url
+            requests.append(url)
+            if '?' not in url:
+                raise HTTPError(url, 404, 'not found', {}, None)
+            return Response(url, CRC_LE if '.hash?' in url else CONTENT)
+        with tempfile.TemporaryDirectory() as tmp:
+            verified = fetch_official_manifest(
+                spec(), cache_root=tmp, opener=cdn, parser=parse_synthetic)
+            self.assertTrue(verified.downloaded)
+            self.assertEqual(verified.cache_path.read_bytes(), CONTENT)
+        self.assertEqual(len(requests), 4)
+        canonical_hash, retried_hash, canonical_bytes, retried_bytes = requests
+        self.assertEqual(canonical_hash, spec().url('hash'))
+        self.assertEqual(canonical_bytes, spec().url('bytes'))
+        for canonical, retried in ((canonical_hash, retried_hash),
+                                   (canonical_bytes, retried_bytes)):
+            self.assertEqual(retried.split('?', 1)[0], canonical)
+            self.assertTrue(retried.startswith(canonical + '?'))
+            self.assertRegex(retried.split('?', 1)[1],
+                             r'\A[0-9]+(?:\.[0-9]+)?\Z')
+
+    def test_repeated_http_404_reports_fixed_manifest_stage(self):
+        requested = []
+        def missing(req, timeout):
+            requested.append(req.full_url)
+            raise HTTPError(req.full_url, 404, 'PRIVATE remote value', {}, None)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ManifestSyncError, 'download failed') as caught:
+                fetch_official_manifest(spec(), cache_root=tmp, opener=missing)
+            self.assertEqual(caught.exception.stage, 'DataPackage.hash')
+            self.assertIsInstance(caught.exception.__cause__, HTTPError)
+            self.assertEqual(caught.exception.__cause__.code, 404)
+            self.assertEqual(len(requested), 2)
+            self.assertFalse(spec().cache_path(tmp).exists())
+
+    def test_manifest_tls_failure_is_not_downgraded_or_retried(self):
+        requested = []
+        def bad_tls(req, timeout):
+            requested.append(req.full_url)
+            raise URLError(ssl.SSLCertVerificationError('PRIVATE trust detail'))
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ManifestSyncError) as caught:
+                fetch_official_manifest(spec(), cache_root=tmp, opener=bad_tls)
+            self.assertEqual(caught.exception.stage, 'DataPackage.hash')
+            self.assertEqual(len(requested), 1)
+            self.assertFalse(spec().cache_path(tmp).exists())
 
     def test_bad_remote_hash_never_writes(self):
         with tempfile.TemporaryDirectory() as tmp:

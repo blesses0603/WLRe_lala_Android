@@ -1,6 +1,9 @@
 """The Android login gate reports safe Runtime stage codes without unlocking login."""
 import sys
 import unittest
+import socket
+import ssl
+from urllib.error import HTTPError, URLError
 from types import ModuleType
 from unittest.mock import patch
 
@@ -90,6 +93,46 @@ class AndroidRuntimeFailureDiagnostics(unittest.TestCase):
                 self.assertIn(label, public)
                 self.assertIn("禁止登入", public)
                 self.assertNotIn(str(exc), public)
+
+    def test_manifest_transport_failure_reports_safe_stage_and_type(self):
+        cases = (
+            (HTTPError('https://PRIVATE/path', 404, 'secret=PRIVATE', {}, None),
+             'http_404', 'HTTP 404'),
+            (URLError(ssl.SSLCertVerificationError('secret=PRIVATE')),
+             'tls_verify', 'TLS 憑證驗證失敗'),
+            (URLError(socket.gaierror('secret=PRIVATE')),
+             'dns', 'DNS 無法解析'),
+            (URLError(TimeoutError('secret=PRIVATE')),
+             'timeout', '連線逾時'),
+        )
+        for cause, reason, shown in cases:
+            with self.subTest(reason=reason):
+                exc = ManifestSyncError('Official Manifest download failed')
+                exc.stage = 'MainPackage.hash'
+                exc.__cause__ = cause
+                diagnostic = classify_runtime_failure(exc)
+                self.assertEqual(diagnostic, {
+                    'code': 'manifest_download_failed', 'table': None,
+                    'manifest_stage': 'MainPackage.hash',
+                    'manifest_reason': reason,
+                })
+                message = resource_message(self.blocked_report(diagnostic))
+                self.assertIn('MainPackage.hash', message)
+                self.assertIn(shown, message)
+                self.assertIn('禁止登入', message)
+                self.assertNotIn('PRIVATE', message)
+
+    def test_untrusted_manifest_stage_and_reason_are_not_echoed(self):
+        exc = ManifestSyncError('Official Manifest download failed')
+        exc.stage = 'SECRET/private/path'
+        exc.__cause__ = HTTPError('https://private', 401, 'SECRET', {}, None)
+        self.assertEqual(classify_runtime_failure(exc),
+                         {'code': 'manifest_download_failed', 'table': None})
+        forged = self.blocked_report({
+            'code': 'manifest_download_failed', 'table': None,
+            'manifest_stage': 'DataPackage.bytes', 'manifest_reason': 'SECRET',
+        })
+        self.assertNotIn('SECRET', resource_message(forged))
 
     def test_unknown_manifest_text_is_not_echoed_to_screen(self):
         secret = "PRIVATE-DEVICE-PATH secret=PRIVATE-PASSWORD"

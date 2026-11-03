@@ -75,6 +75,7 @@ class AndroidBuildCacheTests(unittest.TestCase):
         self.assertTrue(build < audit < save < upload)
         self.assertIn("steps.android_dependency_cache.outputs.cache-hit != 'true'", content)
         self.assertNotIn("restore-keys:", content)
+        self.assertEqual(content.count("continue-on-error: true"), 2)
         for path in (
             "~/.buildozer/android/platform/android-sdk",
             "~/.buildozer/android/platform/android-ndk-r28c",

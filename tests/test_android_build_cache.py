@@ -78,9 +78,10 @@ class AndroidBuildCacheTests(unittest.TestCase):
         # ccache cache intentionally uses compiler-validated prefix restores.
         sdk_restore = content[restore:content.index("      - name:", restore)]
         self.assertNotIn("restore-keys:", sdk_restore)
-        # Original SDK/NDK + new ccache + pinned third-party recipe
-        # restore/save actions all fail open without bypassing APK gates.
-        self.assertEqual(content.count("continue-on-error: true"), 6)
+        # P1/P2: 6 restore/save steps; P3: 16 per-core restore/save steps
+        # and one non-blocking verified snapshot, total 23 cache actions.
+        # All fail open without bypassing APK security gates.
+        self.assertEqual(content.count("continue-on-error: true"), 23)
         for path in (
             "~/.buildozer/android/platform/android-sdk",
             "~/.buildozer/android/platform/android-ndk-r28c",

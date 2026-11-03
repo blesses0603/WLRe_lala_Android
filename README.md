@@ -1,6 +1,6 @@
 # 飄流 RE:LaLa｜Android
 
-目前程式：**v7.1.8 開發修補候選（未正式發布）**。Android Major.Minor 與桌面版最新 main v7.1.1 同為 7.1，Patch 獨立維護。本版針對 Android v7.1.7 真機顯示 `DataPackage.hash；TLS 憑證驗證失敗`，修正原 Manifest／Bundle 使用 urllib 預設 SSL 憑證查找路徑、與官方版本查詢不同的問題：改為由 Android 的驗證 HTTPS 處理器明確載入 `SSL_CERT_FILE` 指定的 certifi／Android 系統 CA；仍要求 TLS 憑證鏈及主機名稱驗證，並保留拒絕轉址、Manifest CRC32 與 Bundle MD5／CRC。v7.1.7 已增加 Manifest 下載階段固定診斷與同源受限重試。本次是否真正修復實機憑證連線，仍須完成 v7.1.8 ARM64 APK 及真機實測。
+目前程式：**v7.1.9 效能修補候選（未正式發布）**。Android Major.Minor 與桌面版最新 main v7.1.1 同為 7.1，Patch 獨立維護。本版針對 Android 分頁切換與操作嚴重卡頓，將原本首次切換時一口氣匯入 18 個頁面模組，改為只按需載入目前頁面並保留已建立的頁面與表單。IPC 仍以背景執行緒輪詢；只在資料變動時更新畫面，連續快速變更合併繪製，聊天逾時、遠征／製作倒數及副本查詢保留必要的週期更新。前景 Android Debug PSS 記憶體查詢從最多每秒 4 次降至每 2 秒一次；帳號卡片自動化狀態降低至每秒更新一次，其他即時事件仍維持每 0.25 秒處理。v7.1.8 已處理 Manifest／Bundle 使用顯式 CA 的 TLS 問題；本次效能改善是否達到實機流暢度目標，仍需安裝 v7.1.9 APK 量測驗證。
 
 Android 12 以上、ARM64。保留 Kivy 直式觸控介面、前景連線服務、懸浮球、Android Keystore、固定簽章與八核心原生封裝。Android 與桌面版各自維護版本號。
 

@@ -1,6 +1,6 @@
 # 飄流 RE:LaLa｜Android
 
-目前程式：**v7.1.5 開發修補版**。Android Major.Minor 與桌面版最新 main v7.1.1 同為 7.1，Patch 獨立維護。本版針對手機官方 DataPackage 1286／MainPackage 1284 顯示「Runtime 檢查發生未分類錯誤」的情況，補強 Manifest、Bundle 與 Runtime 的固定安全診斷；尚未宣稱新版資料結構相容或可登入。v7.1.4 強化背景服務與 IPC 穩定性；v7.1.3 加入 Runtime 診斷；v7.1.2 改善 TLS 信任；APK 與手機正式服驗收仍待執行。
+目前程式：**v7.1.6 開發修補候選（未正式發布）**。Android Major.Minor 與桌面版最新 main v7.1.1 同為 7.1，Patch 獨立維護。本版修正 P3 SHA-256 核心快取工作流程直接執行 Python 檔案時發生的 `ModuleNotFoundError: No module named 'tools'`，將規劃、驗證與保存入口統一改為 `python -m tools.android_core_incremental`，並加入實際 CLI 子程序回歸測試。前版 v7.1.5 補強官方 Manifest、Bundle 與 Runtime 錯誤診斷；APK 原生編譯與手機正式服驗收須由本版 Actions 實際結果確認。
 
 Android 12 以上、ARM64。保留 Kivy 直式觸控介面、前景連線服務、懸浮球、Android Keystore、固定簽章與八核心原生封裝。Android 與桌面版各自維護版本號。
 

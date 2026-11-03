@@ -1,5 +1,12 @@
 # 版本紀錄
 
+## 7.1.6 APK 編譯啟動修補候選（2026-11-04，尚未正式發布）
+
+- 根據主分支 APK CI #41683915841 的實際日誌，P3 的「Compute P3 SHA-256 keys」在 Step 17 出現 `ModuleNotFoundError: No module named 'tools'`，導致 Buildozer 原生編譯尚未執行就停止。
+- 將 P3 計算快取鍵、恢復前校驗及安全門檻通過後保存的三個工作流程命令改用 `python -m tools.android_core_incremental`，修復專案根目錄套件解析；新增真實 subprocess CLI 和三入口政策測試。
+- 保留八核心各自的 SHA-256 校驗、無效快取自動完整重編、固定簽章、所有 APK 原生／資源／安全 Gate。不變更遊戲指令或帳號、官方資料。Android 程式版本從 7.1.5 調整為 **7.1.6（預計版本）**，桌面版本不變。
+- PR Python 回歸與實際 ARM64 APK 編譯、固定簽章、手機安裝和伺服器 E2E 必須各自驗收；未完成驗證前不合併 main 或建立 Release／Tag。
+
 ## 2026-11-03：P3 八個 LaLa 核心 SHA-256 增量編譯（CI-only）
 
 - Android 八個原生 Cython Recipe 各自以來源 .pyx、Recipe 與 setup.py、共用快取程式、Runner ImageVersion、p4a／Cython／Buildozer／NDK／API／ABI 計算完整 SHA-256 指紋。

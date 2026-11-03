@@ -33,9 +33,10 @@ Android Major.Minor 跟隨已核對的桌面 main（此輪桌面 v7.1.1，Androi
 
 1. 從 [手動／Tag APK 建置流程](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml) 的成功執行紀錄下載帶版本號的 ARM64 APK；舊版的 [ARM64 Artifact](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39141939393) 可在尚未過期時使用。日常 [快速測試流程](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-smoke.yml) **不再上傳 APK**。
 2. 解壓後確認 APK 與 `SHA256SUMS.txt`，在 ARM64 Android 12 以上手機安裝測試包。
-3. 啟動程式、選擇地球／水星及分流，輸入帳號與密碼後登入。帳號驗證、角色清單與角色入場須等待伺服器實際回覆。
-4. 可新增多個獨立連線；各帳號各自擁有停止旗標、指令佇列與狀態，不將一個帳號的操作轉送給另一個帳號。
-5. 入場後在帳號卡片啟動／停止自動戰鬥或徘徊，也可開啟角色功能，操作戰場、地圖、補給、社交與製作等頁面。
+3. 啟動程式後先進入「官方資料與資料庫檢查」頁；前景服務核對官方版本、Manifest、Bundle、Runtime 與 SQLite，Activity 另行確認相同 Catalog 識別。**兩端驗證均通過才顯示帳號登入頁**；失敗可在檢查頁查看原因、重新檢查或重新啟動背景服務，不能跳過驗證。
+4. 進入帳號登入頁後選擇地球／水星及分流，輸入帳號與密碼。帳號驗證、角色清單與角色入場須等待伺服器實際回覆。
+5. 可新增多個獨立連線；各帳號各自擁有停止旗標、指令佇列與狀態，不將一個帳號的操作轉送給另一個帳號。
+6. 入場後在帳號卡片啟動／停止自動戰鬥或徘徊，也可開啟角色功能，操作戰場、地圖、補給、社交與製作等頁面。
 
 停止某個帳號不等於停止其他帳號；「停止全部連線與服務」會關閉整個連線服務。若服務尚未就緒或已失去回應，UI 應顯示未知或失聯，不以先前快照冒充目前在線。
 

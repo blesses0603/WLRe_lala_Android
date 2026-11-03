@@ -14,7 +14,7 @@ class NativeReleasePolicyTests(unittest.TestCase):
 
     def test_versioned_release_is_a_distinct_upgrade(self):
         self.assertEqual(source_version(
-            ROOT / "buildozer.spec", ROOT / "android_app/version.py"), "v0.0.8")
+            ROOT / "buildozer.spec", ROOT / "android_app/version.py"), "v0.1.0")
 
     def test_full_apk_only_on_tag_or_main_manual_not_pull_request(self):
         self.assertIn("workflow_dispatch:", self.text)
@@ -66,7 +66,7 @@ class NativeReleasePolicyTests(unittest.TestCase):
         from tools.android_native_cores import CORE_LIST
         self.assertEqual(len(CORE_LIST), 6)
         self.assertIn("android_app/runtime.py", [row[0] for row in CORE_LIST])
-        self.assertIn("wlre/services/expedition.py", [row[0] for row in CORE_LIST])
+        self.assertIn("wlre/services/expedition/manager.py", [row[0] for row in CORE_LIST])
 
     def test_python_sources_are_not_replaced_in_default_checkout(self):
         config = (ROOT / "buildozer.spec").read_text(encoding="utf-8")
@@ -78,3 +78,4 @@ class NativeReleasePolicyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

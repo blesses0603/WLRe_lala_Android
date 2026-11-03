@@ -41,13 +41,16 @@ class Session:
 
 
 class SessionManager:
-    def __init__(self, settings_base=None):
+    def __init__(self, settings_base=None, resource_sync=None):
         self.settings_base = settings_base
+        self.resource_sync = resource_sync
         self.sessions: dict[str, Session] = {}
         self.events = queue.Queue()
         self.lock = threading.RLock()
 
     def start(self, *, label, host, port, account, password):
+        if self.resource_sync is not None:
+            self.resource_sync.require_ready()
         if not isinstance(account, str) or not account.strip() or not isinstance(password, str) or not password:
             raise ValueError("請輸入帳號和密碼")
         account = account.strip()
@@ -318,3 +321,4 @@ class SessionManager:
     def stop_all(self):
         with self.lock: ids = list(self.sessions)
         for session_id in ids: self.stop(session_id)
+

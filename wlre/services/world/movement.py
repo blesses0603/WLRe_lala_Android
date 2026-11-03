@@ -1,10 +1,12 @@
 """Local path locomotion and C6-1 position reporting, not server arrival ACKs."""
+from wlre.core.state_ownership import writes
 import math
 from wlre.services.world.coordinates import Coordinates
 from wlre.services.world.navigation import Repository
 from wlre.network.protocol import walk
 from wlre.network.wire import ProtocolError
 from wlre.services.battle.party import own_team
+from wlre.services.world.dynamic_bundle_runtime import current_catalog_token
 
 
 class Movement:
@@ -15,11 +17,13 @@ class Movement:
         self.converter=converter
         self.repository=repository
         self.active=False
+        self.catalog_token=current_catalog_token()
         self.points=[]
         self.index=1
         self.position=None
         self.next_due=0.0
 
+    @writes('movement')
     def start(self,state,x,y,now,bounds=None):
         if not (0<=x<=65535 and 0<=y<=65535):raise ProtocolError('目的地超出 UInt16 座標範圍')
         if state.activities:raise ProtocolError('目前'+ '、'.join(state.activities)+'中，無法移動')
@@ -44,6 +48,7 @@ class Movement:
         elif state.location.get('confirmed_is_current'):
             start=(fix['x'],fix['y']);start_height=None
         else:raise ProtocolError('起點位置不明：先前座標同步沒有本機定位或可續用的推算位置')
+        token=current_catalog_token()
         self.converter=self.converter or Coordinates()
         self.repository=self.repository or Repository()
         route=self.converter.route(self.repository,scene,start,(x,y),start_height=start_height)
@@ -61,6 +66,10 @@ class Movement:
                 px,py=self.converter.to_packet(scene,point[0],point[2])
                 if math.hypot(px-cx,py-cy)>radius+1e-6:
                     raise ProtocolError('導航路徑會離開徘徊範圍，重新選點')
+        if current_catalog_token()!=token:
+            raise ProtocolError('規劃途中官方資源已更新，請重新選點。')
+        self.route_id=getattr(self,"route_id",0)+1
+        self.catalog_token=token
         self.points=points;self.position=points[0];self.index=1
         self.scene=scene;self.role_id=state.player['role_id'];self.revision=state.navigation.get('revision')
         self.next_due=now+self.interval
@@ -69,6 +78,7 @@ class Movement:
         state.local_movement={'status':'running' if self.active else 'finished',
             'scene':scene,'role_id':self.role_id,'x':start[0],'y':start[1],
             'nav_height':points[0][1],'base_fix_packet':fix['packet_number'],
+            'catalog_token':token,'navigation_revision':self.revision,'route_id':self.route_id,
             'target':{'scene':scene,'x':x,'y':y,'source':'local_goal','packet_number':state.packet_count},
             'speed_world':3.5,'interval':self.interval,'steps_sent':0,
             'reason':'沿導航路徑推算；伺服器尚未確認抵達','path_points':len(points)}
@@ -76,11 +86,13 @@ class Movement:
                               'role_id':self.role_id,'confirmation':None}
         return route
 
+    @writes('movement')
     def stop(self,state,reason='使用者停止'):
         self.active=False
         if state.local_movement:
             state.local_movement={**state.local_movement,'status':'stopped','reason':reason}
 
+    @writes('movement')
     def observe(self,event,state):
         if not self.active:return
         kind=event['type']
@@ -95,8 +107,11 @@ class Movement:
         elif state.navigation.get('stale') and state.navigation.get('scene')==self.scene:
             self.stop(state,'障礙資料變更，停止舊路徑')
 
+    @writes('movement')
     def tick(self,state,now):
         if not self.active:return []
+        if current_catalog_token()!=self.catalog_token:
+            self.stop(state,'官方資源已更新，請重新選點移動');return []
         if (state.player.get('role_id')!=self.role_id or state.player.get('scene')!=self.scene
                 or state.battle.get('active') or state.event_flow.get('blocked')
                 or state.navigation.get('revision')!=self.revision

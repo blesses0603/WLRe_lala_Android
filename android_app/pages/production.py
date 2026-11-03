@@ -193,7 +193,7 @@ class PlanEditor:
     def clear(self):
         from android_app.widgets import confirm
         def apply(): self.rows = []; self.render()
-        confirm('清空草稿', '清空未送出的編輯草稿？服務中的排程不受影響。', apply)
+        apply()
     def from_runtime(self):
         self.rows = copy.deepcopy(self.d.state.get('crafting', {}).get('local_plan', {}).get('rows', []))
         self.render(); self.message.text = '已讀取服務剩餘清單到草稿，尚未保存'
@@ -240,4 +240,5 @@ class PlanEditor:
         def begin():
             if self.d.send(dict(type='craft', action='plan_set', rows=rows, revision=revision)):
                 self.d.send(dict(type='craft', action='plan_start', revision=revision+1))
-        confirm('開始自訂清單', f'依順序製作 {len(rows)} 項，將消耗材料。材料、設備不足時核心會暫停。確認開始？', begin)
+        begin()
+

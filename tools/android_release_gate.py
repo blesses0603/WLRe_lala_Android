@@ -26,6 +26,7 @@ from tools.android_signing import _fingerprint
 
 PACKAGE = "org.lala.client.wlrelala"
 REQUIRED_REPORTS = {
+    "SHARED_RESOURCE_INFO.txt": ("Pinned shared SQLite seed in APK: VERIFIED",),
     "NATIVE_WIRE_INFO.txt": (
         "Native wire Cython extension: VERIFIED",
         "Original wire implementation source/bytecode leaks: 0",
@@ -279,3 +280,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     main()
+

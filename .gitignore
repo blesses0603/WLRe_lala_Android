@@ -18,3 +18,7 @@ android-smoke-*.txt
 .env
 .env.*
 android-app-signing/
+
+
+# Verified desktop seed is restored before tests/staging.
+wlre/resources/resource_catalog_seed.sqlite3

@@ -48,7 +48,7 @@ class InstanceReadOnlyCore(unittest.TestCase):
 
     def test_explicit_queries_and_allowlist_requires_verified_actions(self):
         logic = SessionLogic()
-        state = State(phase="world_ready")
+        state = State(phase="world_ready", player={"role_id":123})
         logic.world_acknowledged = True
         self.assertEqual(logic.command({"type":"instance_refresh","mode":"main"}, state), [Packet(85, 1)])
         self.assertEqual(logic.command({"type":"instance_refresh","mode":"coop"}, state), [Packet(186, 17)])
@@ -71,7 +71,7 @@ class InstanceReadOnlyCore(unittest.TestCase):
                      "instance_auto_reward","allocate_points"):
             self.assertIn(name, GAME_COMMANDS)
         for name in ("instance_claim","instance_standby","allocate_attributes",
-                     "npc_start","npc_choose"):
+                     "npc_shop_buy","npc_shop_sell"):
             self.assertNotIn(name, GAME_COMMANDS)
             with self.assertRaises(ValueError):
                 checked_command({"type":name})
@@ -121,3 +121,4 @@ class InstanceReadOnlyCore(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

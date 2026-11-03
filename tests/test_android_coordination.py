@@ -124,6 +124,7 @@ class CoordinationAndEventRouting(unittest.TestCase):
         from wlre.services.items.crafting import Crafting
         state = State(phase="world_ready")
         state.crafting["auto_continue"] = True
+        state.crafting["ready"] = True
         state.maintenance["pending"] = {"index": 1}
         service = Crafting()
         self.assertEqual(service._server_tick(state, now=1), [])
@@ -193,3 +194,4 @@ class FieldSupplyReservation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

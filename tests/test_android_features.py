@@ -112,7 +112,7 @@ class MobilePages(unittest.TestCase):
         for name in PAGES:
             d.data={};d.show(name);d.page.refresh()
             d.data=self.app.manager.session_detail('fixture');d.page.refresh()
-        self.assertEqual(len(PAGES),15)
+        self.assertTrue({'NPC', '儲藏存取', '福利'}.issubset(PAGES))
         self.assertFalse(any('tkinter' in type(w).__module__ for w in d.popup.walk()))
     def test_full_settings_drafts_all_fields_cancel_and_validate(self):
         from android_app.settings_ui import SettingsEditor,GROUPS
@@ -288,3 +288,4 @@ class MobilePages(unittest.TestCase):
         numeric = field(column(), '角色 ID', numeric=True)
         self.assertEqual(numeric.input_type, 'number')
         self.assertEqual(numeric.input_filter, 'int')
+

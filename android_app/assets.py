@@ -14,7 +14,8 @@ _CACHE = OrderedDict()
 def texture(archive, entry):
     key = archive, entry
     if key not in _CACHE:
-        with zipfile.ZipFile(RESOURCE_ROOT / archive) as source:
+        from wlre.storage.bundled_database import load_bundled_bytes
+        with zipfile.ZipFile(io.BytesIO(load_bundled_bytes(archive, root=RESOURCE_ROOT))) as source:
             _CACHE[key] = CoreImage(io.BytesIO(source.read(entry)), ext='png')
     _CACHE.move_to_end(key)
     maps = [k for k in _CACHE if k[0] == 'smallmaps.zip']
@@ -25,7 +26,8 @@ def texture(archive, entry):
 
 def item_image(sid, size=40):
     if not hasattr(item_image, 'mapping'):
-        item_image.mapping = json.loads((RESOURCE_ROOT/'item_icon_map.json').read_text(encoding='utf8'))['items']
+        from wlre.storage.bundled_database import load_bundled_json
+        item_image.mapping = load_bundled_json('item_icon_map.json')['items']
     entry = item_image.mapping.get(str(sid), {}).get('icon', 's1000')+'.png'
     try: value = texture('item_icons.zip', entry)
     except (KeyError, OSError, ValueError): value = texture('item_icons.zip', 's1000.png')
@@ -34,7 +36,8 @@ def item_image(sid, size=40):
 
 def emoji_entries():
     if not hasattr(emoji_entries, 'catalog'):
-        emoji_entries.catalog = json.loads((RESOURCE_ROOT/'emoji_catalog.json').read_text(encoding='utf8'))['entries']
+        from wlre.storage.bundled_database import load_bundled_json
+        emoji_entries.catalog = load_bundled_json('emoji_catalog.json')['entries']
     return emoji_entries.catalog
 
 
@@ -68,3 +71,4 @@ def function_icon(name, size=34):
         return None
     return Image(source=str(path), size_hint=(None, None),
                  size=(dp(size), dp(size)))
+

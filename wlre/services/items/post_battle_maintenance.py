@@ -1,4 +1,5 @@
 """Serialized post-battle maintenance; no assumed success or timeout retries."""
+from wlre.core.state_ownership import writes
 from wlre.services.items import reservations
 from wlre.services.coordination import reason as coordination_reason
 import copy
@@ -41,16 +42,19 @@ class PostBattleMaintenance:
         self.pending=None;self.uncertain=False;self.settle_key=None;self.settle_due=0
         self.trace_key=None;self.trace_at=None
 
+    @writes('maintenance')
     def status(self,state,text,**fields):
         value={**state.maintenance,'status':text,'uncertain':self.uncertain,**fields}
         if value!=state.maintenance:state.maintenance=value
 
+    @writes('maintenance')
     def fail(self,state,logic,text):
         reservations.uncertain(state.inventory,'maintenance')
         self.uncertain=True;state.inventory['use_failed']=True
         self.status(state,text+'；請重新登入同步',checking=False)
-        logic.auto_battle.stop(state,text);logic.roaming.stop(state,logic.movement,text)
+        logic.auto_battle.stop(state,text,source='maintenance_uncertain');logic.roaming.stop(state,logic.movement,text)
 
+    @writes('maintenance')
     def observe(self,event,state):
         p=self.pending
         if not p or self.uncertain:return
@@ -75,6 +79,7 @@ class PostBattleMaintenance:
                 spent=spent or same and item.get('damage',0)>p['before'].get('damage',0)
             if spent:p['spent']=True
 
+    @writes('maintenance')
     def tick(self,state,logic,now):
         if self.pending:
             p=self.pending

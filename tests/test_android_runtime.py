@@ -12,6 +12,17 @@ from android_app.runtime import Runtime, LatestEvents, ServiceManager, receive, 
 from android_app.vault import AccountVault
 
 
+def unix_socket_available():
+    try:
+        stream = socket.socket(socket.AF_UNIX)
+        stream.close()
+        return True
+    except (OSError, AttributeError):
+        return False
+
+HAS_UNIX_SOCKET = unix_socket_available()
+
+
 class FakeManager:
     def __init__(self):
         self.sessions = {}
@@ -55,6 +66,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(manager.stopped, ['0'])
         self.assertFalse(manager.sessions['1'].stop_event.is_set())
 
+    @unittest.skipUnless(HAS_UNIX_SOCKET, 'Current environment cannot create Unix sockets')
     def test_monitor_failure_does_not_terminate_sessions_or_idle_server(self):
         def fail_telemetry():
             raise RuntimeError("DO_NOT_SHOW_ACCOUNT_PASSWORD")
@@ -116,6 +128,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(any("結果無法確認" in value for _, kind, value in events
                             if kind == "error"))
 
+    @unittest.skipUnless(HAS_UNIX_SOCKET, 'Current environment cannot create Unix sockets')
     def test_private_socket_roundtrip_and_sanitized_error(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'ipc/sock'
@@ -144,6 +157,7 @@ class RuntimeTests(unittest.TestCase):
                 thread.join(3)
                 self.assertFalse(thread.is_alive())
 
+    @unittest.skipUnless(HAS_UNIX_SOCKET, 'Current environment cannot create Unix sockets')
     def test_service_drains_events_without_an_activity(self):
         with tempfile.TemporaryDirectory() as directory:
             manager = FakeManager()
@@ -216,3 +230,4 @@ class VaultTests(unittest.TestCase):
             path.write_text(json.dumps(value))
             with self.assertRaises(Exception): vault.load()
             self.assertEqual(json.loads(path.read_text()), value)
+

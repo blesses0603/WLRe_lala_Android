@@ -1,8 +1,11 @@
 """Read-only craft browser: explicit unknowns, own-house evidence and bag counts."""
+from wlre.storage.paths import favorites_file,legacy_favorites_file
 import json
 from pathlib import Path
 from wlre.services.items.crafting import RECIPES
-from wlre.services.items.combat_resources import item_name, available
+from wlre.services.items.catalog import item_display_name as item_name
+from wlre.services.items.combat_resources import available
+from wlre.services.items.room_storage import confirmed_material_count
 
 
 def room_known(state):return bool(state.get('player',{}).get('role_id') and state.get('furniture',{}).get('ready') and state.get('furniture',{}).get('owner')==state.get('player',{}).get('role_id'))
@@ -33,27 +36,42 @@ def material_rows(state,recipe,count):
         sid=material['item_id'];owned=owned_counts(state,sid)
         usable=sum(available(inventory,index) for index,item in inventory.get('items',{}).items() if item['item_id']==sid and not item.get('locked') and not item.get('enhance_level') and not item.get('magic_spar') and not item.get('beat_level')) if ready else None
         required=material['count']*count
-        rows.append({'item_id':sid,'name':item_name(sid),'required':required,'usable':usable,**owned})
+        rows.append({'item_id':sid,'name':item_name(sid),'required':required,'usable':usable,
+                     'cupboard':confirmed_material_count(state.get('room_storage',{}),sid),**owned})
     return rows
 
 def availability(state,recipe,count=1):
     if recipe.get('open_used',0)!=0:return '鎖定','此製作物目前尚未開放'
     if recipe['design_id']:return '鎖定','圖紙解鎖狀態尚未同步'
     if recipe['time_id'] or recipe['limit_kind']:return '鎖定','活動／次數條件尚未確認'
+    if recipe.get('read_only') is True:
+        return '參考配方','可查看材料與設備需求；此配方目前不送出製作排程'
     status=tool_status(state,recipe['tool_id'])
     if status!='已擺放':return '設備不足',item_name(recipe['tool_id'])+'：'+status
     materials=material_rows(state,recipe,count)
     if any(v['usable'] is None for v in materials):return '待同步','背包材料尚未同步'
-    if any(v['usable']<v['required'] for v in materials):return '缺材料','背包可用材料不足'
+    missing=[v for v in materials if v['usable']<v['required']]
+    if any(v['cupboard'] is None for v in missing):
+        return '待同步','背包不足，等待可靠的雜物櫃材料資料'
+    if any(v['usable']+v['cupboard']<v['required'] for v in missing):
+        return '缺材料','背包與雜物櫃可用材料不足'
+    if missing:return '可製作','將先使用背包材料，不足部分由雜物櫃取用'
     return '可製作','設備與背包材料已確認；仍需伺服器接受'
 
 class Favorites:
     limit=100
     def __init__(self,path=None):
-        self.path=Path(path) if path else Path.home()/'.wlre_client'/'crafting_favorites.json'
+        self.path=Path(path) if path else favorites_file()
         self.ids=[];self.load_error=None
         try:
             from wlre.storage.atomic import file_lock
+            if path is None and not self.path.exists() and legacy_favorites_file().exists():
+                from wlre.storage.atomic import write_json
+                with file_lock(self.path):
+                    if not self.path.exists():
+                        old=Favorites(legacy_favorites_file())
+                        if old.load_error:raise ValueError(old.load_error)
+                        write_json(self.path,{'version':1,'items':old.ids})
             if not self.path.exists():raise FileNotFoundError
             with file_lock(self.path):data=json.loads(self.path.read_text(encoding='utf-8'))
             if not isinstance(data,dict) or data.get('version',1)!=1 or not isinstance(data.get('items',[]),list):raise ValueError('收藏格式錯誤')

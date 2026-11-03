@@ -28,7 +28,7 @@ class AndroidReadOnlyParity(unittest.TestCase):
             self.assertEqual(checked_command({"type": name}), {"type": name})
         # Never accidentally allow unknown, paid or NPC actions.
         for name in ("instance_claim", "allocate_attributes",
-                     "npc_start", "npc_next", "npc_choose", "npc_shop", "instance_paid_reward"):
+                     "npc_shop", "npc_shop_buy", "npc_shop_sell", "instance_paid_reward"):
             self.assertNotIn(name, GAME_COMMANDS)
             with self.assertRaises(ValueError):
                 checked_command({"type": name})
@@ -47,3 +47,4 @@ class AndroidReadOnlyParity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

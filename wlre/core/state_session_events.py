@@ -2,7 +2,8 @@
 SESSION_KINDS = frozenset((
     'login_result', 'role_list_available', 'movement_stop', 'event_active',
     'event_continue_permission', 'event_end', 'initial_data_complete',
-    'attribute_set', 'unimplemented',
+    'attribute_set', 'unimplemented', 'event_rejected',
+    'gold_snapshot', 'gold_delta', 'gold_limit',
 ))
 
 
@@ -13,17 +14,67 @@ def apply_session_event(state, event):
     elif kind == "role_list_available":
         state.phase = "role_selection"
         state.roles = event.get("roles", [])
+        state.gold={'ready':False,'reliable':False,'amount':None,'revision':0,'source':None}
+    elif kind == 'gold_snapshot':
+        amount=event['amount']
+        state.gold={'ready':True,'reliable':True,'amount':amount,
+                    'revision':state.gold.get('revision',0)+1,'source':'S26-4'}
+    elif kind == 'gold_delta':
+        gold=state.gold
+        amount=gold.get('amount')
+        if not gold.get('ready') or not gold.get('reliable') or type(amount) is not int:
+            state.gold={**gold,'ready':False,'reliable':False,'amount':None,
+                        'source':'S26 增減早於初始化'}
+        else:
+            value=amount+event['delta']
+            if value<0 or value>0xffffffff:
+                state.gold={**gold,'reliable':False,'amount':None,
+                            'source':'S26 金幣增減溢位／不足'}
+            else:
+                state.gold={**gold,'amount':value,'revision':gold['revision']+1,
+                            'source':'S26-'+str(event['sub'])}
+    elif kind == 'gold_limit':
+        state.gold={**state.gold,'reliable':False,'source':'S26-3 金幣上限未知'}
     elif kind == 'movement_stop':
         state.event_flow={**state.event_flow,'blocked':True,'last_source':f"S6-2 kind={event['kind']}"}
     elif kind == 'event_active':
+        state.npc_dialogue={**state.npc_dialogue,'choice_continuation_pending':False}
+        effect=event.get('npc_effect')
+        if effect is not None:
+            if state.npc_dialogue.get('active'):
+                effect_type=effect['effect_type']
+                talk_history=list(state.npc_dialogue.get('history') or [])
+                if effect_type == 1 and type(effect.get('mean_number')) is int:
+                    talk_history.append(effect['mean_number'])
+                    talk_history=talk_history[-50:]
+                state.npc_dialogue={**state.npc_dialogue,
+                    'history':talk_history,'effect_packet':state.packet_count,
+                    'phase': ('talk' if effect_type==1 else
+                              'choice_unavailable' if effect_type==6 else 'effect_unavailable'),
+                    'effect_type':effect_type,
+                    'text_id':effect['mean_number'] if effect_type==1 else None,
+                    'option_index':effect['mean_number'] if effect_type==6 else None}
+            else:
+                state.npc_dialogue={**state.npc_dialogue,'last_effect':effect}
+        elif state.npc_dialogue.get('active'):
+            state.npc_dialogue={**state.npc_dialogue,'phase':'effect_unavailable'}
         state.event_flow={**state.event_flow,'blocked':True,'awaiting_response':False,
                          'last_source':f"S20-{event['sub']}（事件處理尚未完成）"}
     elif kind == 'event_continue_permission':
         state.event_flow={**state.event_flow,'blocked':True,'awaiting_response':False,
                          'last_source':f"S20-{event['sub']}"}
+        if (state.npc_dialogue.get('active')
+                and state.npc_dialogue.get('phase') in ('requesting','awaiting_reply','awaiting_choice')):
+            state.npc_dialogue={**state.npc_dialogue,'phase':'continue'}
     elif kind == 'event_end':
         state.event_flow={**state.event_flow,'blocked':False,'awaiting_response':False,'last_source':'S20-8'}
 
+        if state.npc_dialogue.get('active'):
+            state.npc_dialogue={**state.npc_dialogue,'active':False,'phase':'ended','choice_continuation_pending':False}
+    elif kind == 'event_rejected' and state.npc_dialogue.get('active'):
+        state.event_flow={**state.event_flow,'blocked':False,'awaiting_response':False,
+                          'last_source':'S20-74'}
+        state.npc_dialogue={**state.npc_dialogue,'active':False,'phase':'rejected','choice_continuation_pending':False,'reason':event.get('reason','')}
     elif kind == "initial_data_complete":
         state.initial_data_complete = True
 

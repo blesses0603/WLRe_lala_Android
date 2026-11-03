@@ -1,3 +1,5 @@
+> 歷史紀錄：本次同步進度請以 [2026-11-03 同步紀錄](DESKTOP_SYNC_20261103.md) 為準。
+
 # Android / Desktop parity checkpoint (2026-10-20)
 
 ## Baselines and truthfulness
@@ -121,3 +123,4 @@ Git SHA do not by themselves prove functional incompatibility.
 - 同步部分跨服務／事件安全：對外指令格式先驗證、操作逾時各自處理、斷線防重送、匿名協力與維護診斷。
 - 不加入 NPC 對話、選項、購物、NPC 資料資產或相關網路指令；電腦版原生視窗與桌面發布工具不適用於手機。
 - 尚未執行正式伺服器的消耗性操作、ARM64 固定簽章 APK 編譯及實機驗收。Android 版本 0.0.8、簽章、原生防護維持不變。
+

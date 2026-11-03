@@ -9,7 +9,7 @@ from android_app.widgets import button, label, select, column, GameIconTab, Roun
 from android_app.theme import TEXT, SURFACE, ACCENT, MUTED, SOFT, surface, style_button
 
 PAGES = ('角色概況', '包包與特技', '小地圖', '戰場陣形', '聊天', '組隊',
-         '夥伴出戰', '遠征', '副本資料', '角色能力', '煉金', '製作', '經驗效率', '事件紀錄', 'AI與補給設定')
+         '夥伴出戰', '遠征', '副本資料', '角色能力', '煉金', '製作', '經驗效率', '事件紀錄', 'AI與補給設定', 'NPC', '儲藏存取', '福利')
 
 
 class Dashboard:
@@ -17,6 +17,7 @@ class Dashboard:
         self.app, self.sid = app, sid
         self.data = {}; self.page = None; self.page_name = None; self.signature = None
         self.closed = False
+        self.last_npc_effect = None
         self.views = {}
         session = app.manager.sessions[sid]
         base = surface(BoxLayout(orientation='vertical', spacing=dp(10), padding=dp(12)),
@@ -64,15 +65,19 @@ class Dashboard:
     def state(self): return self.data.get('state', {})
 
     @property
+    def catalog_ready(self):
+        sync = getattr(self.app, 'catalog_sync', None)
+        return sync is None or (sync.snapshot()['ready'] and getattr(self.app.manager, 'resource_status', {}).get('ready')
+                                and sync.snapshot().get('catalog_token') == getattr(self.app.manager, 'resource_status', {}).get('catalog_token'))
+
+    @property
     def live(self):
         s = self.app.manager.sessions.get(self.sid)
         return bool(s and s.active and not s.stop_event.is_set() and s.phase == 'world_ready'
+                    and self.catalog_ready
                     and getattr(self.app.manager, 'available', True))
 
     def send(self, command, question=None):
-        if question:
-            from android_app.widgets import confirm
-            return confirm('確認操作', question, lambda: self.send(command))
         try:
             if not self.live or not self.app.manager.game_command(self.sid, command): raise ValueError('請先完成角色登入，並確認背景服務正常')
             self.message.text = '已排入操作佇列，等待核心與伺服器回覆'
@@ -97,9 +102,12 @@ class Dashboard:
         from android_app.pages.expedition import Expedition
         from android_app.pages.instances import InstanceCatalog
         from android_app.pages.attributes import Attributes
+        from android_app.pages.npc import NPC
+        from android_app.pages.storage import Storage
+        from android_app.pages.benefits import Benefits
         classes = dict(zip(PAGES, (Overview, Resources, MapPage, Battle, Chat,
                                   Party, Companions, Expedition, InstanceCatalog, Attributes, Alchemy,
-                                  Crafting, Efficiency, Events, SettingsPage)))
+                                  Crafting, Efficiency, Events, SettingsPage, NPC, Storage, Benefits)))
         if name not in self.views:
             page = classes[name](self)
             scroll = ScrollView(do_scroll_x=False); scroll.add_widget(page)
@@ -121,6 +129,13 @@ class Dashboard:
         except ValueError: return True
         if data:
             self.data = data
+            npc = self.state.get('npc_dialogue', {})
+            effect = (npc.get('scene'), npc.get('npc_index'), npc.get('effect_packet'))
+            if (npc.get('active') and npc.get('phase') == 'choice_unavailable'
+                    and self.state.get('automation', {}).get('enabled', True)
+                    and effect != self.last_npc_effect):
+                self.last_npc_effect = effect
+                self.navigation.text = 'NPC'
             self.status.text = '已連線' if self.live else '連線已停止／等待角色登入；以下為最後同步資料'
             if self.page: self.page.refresh()
         return True
@@ -137,3 +152,4 @@ class Dashboard:
             if hasattr(page, 'close'): page.close()
         if hasattr(self.app.manager, 'watch'): self.app.manager.watch(None)
         self.app.dashboard = None
+

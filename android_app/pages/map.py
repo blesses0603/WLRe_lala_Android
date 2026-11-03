@@ -4,10 +4,16 @@ from kivy.uix.widget import Widget
 from android_app.pages.general import Page
 from android_app.widgets import label, button, row, field, pick
 from android_app.assets import texture
-from wlre.services.world.minimap import SmallMaps
+from wlre.services.world.smallmaps import SmallMaps
 from wlre.services.world.portals import Portals
 from wlre.services.world.portal_policy import allowed_rows
-from wlre.services.world.map_names import map_label, parse_map_id
+from wlre.services.world.map_names import parse_map_id
+from wlre.services.world.scene_names_1275 import source_scene_label
+
+def map_label(scene):
+    from wlre.services.world.dynamic_bundle_runtime import current_runtime
+    runtime=current_runtime()
+    return source_scene_label(scene, getattr(runtime, 'scene_names', {}))
 from wlre.services.world.display_position import current_position
 
 
@@ -48,7 +54,7 @@ class MapCanvas(Widget):
 
 class MapPage(Page):
     def __init__(self,d):
-        super().__init__(d);self.maps=SmallMaps();self.portals=Portals();self.scene=None
+        super().__init__(d);self.maps=SmallMaps();self.portals=Portals();self.scene=None;self.token=None
         self.title=label('自動跟隨目前地圖');self.add_widget(self.title)
         self.image=MapCanvas(self.picked);self.add_widget(self.image)
         self.note=label('紅點：角色｜黃點：選取目的地｜青圈：出口');self.add_widget(self.note)
@@ -56,6 +62,7 @@ class MapPage(Page):
         self.x_input=field(self,'目的地 X',numeric=True);self.y_input=field(self,'目的地 Y',numeric=True)
         self.add_widget(row(button('移動到選取座標',self.walk),button('停止移動',lambda:d.send({'type':'stop_walk'}))))
         self.portal=None
+        self.add_widget(button('前往所選出口',self.portal_walk))
         self.add_widget(button('直接嘗試所選出口換圖',self.direct))
         self.add_widget(button('逐圖核對',self.audit))
     def picked(self,x,y):
@@ -63,6 +70,9 @@ class MapPage(Page):
     def walk(self):
         try:self.d.send(dict(type='walk',scene=self.scene,x=int(self.x_input.text),y=int(self.y_input.text)))
         except ValueError:self.d.message.text='請選取地圖座標或輸入有效 X、Y'
+    def portal_walk(self):
+        if self.portal:self.d.send(dict(type='portal_walk',portal_id=self.portal['id']))
+        else:self.d.message.text='請先選擇出口'
     def direct(self):
         if not self.portal:self.d.message.text='請先選擇出口';return
         self.d.send(dict(type='portal_direct',portal_id=self.portal['id']), '確認嘗試換圖至 '+self.portal.get('name','所選出口')+'？')
@@ -82,14 +92,18 @@ class MapPage(Page):
         pick('怪物' if monsters else 'NPC／出口',rows,choose)
     def audit(self):
         rows=[]
-        for scene,data in sorted(self.maps.coordinates.stages.items(),key=lambda p:int(p[0])):
+        from wlre.services.world.catalog_source_policy import official_runtime
+        for scene,data in sorted(official_runtime('maps').stages.items(),key=lambda p:int(p[0])):
             has=self.maps.has_image(int(scene));portals=self.portals.for_scene(int(scene))
             rows.append((int(scene),map_label(int(scene))+(' · 有原圖' if has else ' · 無原圖')+f' · 出口 {len(portals)}'))
         pick('逐圖核對（只讀；目前地圖持續自動跟隨）',rows,lambda scene:setattr(self.note,'text',map_label(scene)+' · 原圖 '+('有' if self.maps.has_image(scene) else '無')))
     def refresh(self):
         scene=self.state.get('player',{}).get('scene')
         self.title.text='小地圖｜'+(map_label(scene) if scene is not None else '等待角色位置')
-        if scene!=self.scene:
+        from wlre.services.world.dynamic_bundle_runtime import current_catalog_token
+        token=current_catalog_token()
+        if scene!=self.scene or token!=self.token:
+            self.token=token;self.maps=SmallMaps();self.portals=Portals()
             self.scene=scene;self.portal=None;self.image.selected=None;self.x_input.text=self.y_input.text=''
             self.image.texture=None;self.image.projection=None
             if scene is not None:
@@ -103,3 +117,4 @@ class MapPage(Page):
         point=current_position(self.state)
         self.image.player=point if point and point.get('scene')==scene else None
         self.image.draw()
+

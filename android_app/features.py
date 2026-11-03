@@ -9,12 +9,15 @@ GAME_COMMANDS = frozenset(('chat', 'team', 'start_alchemy', 'stop_alchemy', 'cra
     'instance_refresh', 'instance_members',
     'instance_create','instance_join','instance_leave','instance_coop_standby',
     'instance_start','instance_enter','instance_auto_reward',
-    'instance_reward_claim','instance_reward_cancel','allocate_points'))
+    'instance_reward_claim','instance_reward_cancel','allocate_points',
+    'npc_approach','npc_start','npc_next','npc_choose','npc_close_choice','npc_close_shop',
+    'room_storage','tent','time_cube','automatic_flows'))
 STATE_FIELDS = ('phase', 'player', 'knowledge', 'inventory', 'potion_storage', 'party',
     'alchemy', 'crafting', 'furniture', 'efficiency', 'battle', 'battle_units', 'battle_count',
     'auto_battle', 'roaming', 'portal_travel', 'event_flow', 'activities', 'location',
     'local_movement', 'movement_check', 'navigation', 'guild', 'attributes',
-    'expedition', 'maintenance', 'room_storage', 'instances', 'attribute_allocation')
+    'expedition', 'maintenance', 'room_storage', 'instances', 'attribute_allocation',
+    'npc_dialogue', 'shop_evidence', 'gold', 'tent', 'time_cube', 'automation', 'initial_data_complete')
 
 
 def checked_command(command):
@@ -37,3 +40,4 @@ def detail(session):
     return dict(state=copy.deepcopy(session.game_state), chat=chat,
                 log=list(session.log_history), ai_settings=copy.deepcopy(session.ai_settings),
                 preferences=copy.deepcopy(session.preferences), revision=session.detail_revision)
+

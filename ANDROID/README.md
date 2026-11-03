@@ -102,6 +102,14 @@ App 回到前景時會重新建立 Kivy 畫面，恢復帳號／伺服器欄位�
 
 這次 CI 正式編譯、固定簽章與舊版原地升級仍須以 **v0.0.8 main 工作流程實際成功執行及手機更新結果**驗證，不能用先前實驗 APK 的成功紀錄代替。
 
+## GitHub Actions｜安全增量下載快取（2026-11-03）
+
+完整 ARM64 APK 建置新增 Python pip 套件快取，並以 `tools/android_build_cache.py` 的指紋控制下列下載目錄：`~/.buildozer/android/platform/android-sdk`、`~/.buildozer/android/platform/android-ndk-r28c`、`~/.gradle/caches/modules-2`、`~/.gradle/wrapper/dists`。這些全域工具鏈位置已由 v7.1.2 成功的 Buildozer 日誌核對。只有成功通過既有 APK 原生、簽章與完整性檢查，才會保存版本化快取。版本變更但相依不變時可重用工具鏈；p4a commit／編譯器或 Buildozer 版本／API／ABI 或 requirements 異動將使快取鍵變更。
+
+**安全邊界**：不快取隔離 staging、p4a 編譯輸出、`android-output`、APK、中繼封裝、私鑰、簽章或帳密。每次仍完整重建八個 ARM64 原生核心、產出 APK 並執行安全稽核及固定簽章。這是「增量依賴下載」，不是已實現「只編譯變動的 Cython 模組」；後者需驗證 p4a 依賴圖及原生產物清潔性後才能逐步導入。
+
+**驗收方式**：先由 PR 快速 CI 確認 Python 與快取政策測試；合併 main 後由使用者手動執行 APK workflow，首次正常保存快取，後續相同相依環境的建置觀察 `Restore Android SDK, NDK and Gradle dependency cache` 是否顯示 cache-hit，並比對 Buildozer 執行時間。快取上限與清除由 GitHub 管理；下載及壓縮耗時不保證每次都更快。僅調整 CI，不變更 Android v7.1.3 版號。
+
 ## GitHub Actions｜節省額度的兩階段模式（2026-10-19）
 
 因 GitHub-hosted Runner 免費分鐘數有限，已將日常 Python 測試與完整 Android 原生編譯分開。**一般 PR／main push 不再自動執行 Buildozer，也不會產生 APK。** 此模式不更改 Android 12（API 31）、ARM64-only、APK 版號、功能或既有固定簽章。

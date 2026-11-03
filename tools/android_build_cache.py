@@ -100,7 +100,7 @@ def native_cache_key(spec_path=ROOT / "buildozer.spec", *,
     for path in source_files:
         if path.is_symlink() or path.stat().st_size > 2 * 1024 * 1024:
             raise ValueError("Untrusted p4a recipe input")
-        digest.update(path.relative_to(root).as_posix().encode("utf-8") + b"\\0")
+        digest.update(path.relative_to(root).as_posix().encode("utf-8") + b"\0")
         digest.update(hashlib.sha256(path.read_bytes()).digest())
     inputs = {
         "schema": NATIVE_CACHE_SCHEMA,
@@ -137,8 +137,8 @@ def main():
         stream.write("key=" + digest + "\n")
     compiled = native_cache_key()
     with open(output, "a", encoding="utf-8") as stream:
-        stream.write("native_key=" + (compiled or "disabled") + "\\n")
-        stream.write("native_enabled=" + ("true" if compiled else "false") + "\\n")
+        stream.write("native_key=" + (compiled or "disabled") + "\n")
+        stream.write("native_enabled=" + ("true" if compiled else "false") + "\n")
     print("Android non-secret dependency cache fingerprint prepared")
     if compiled:
         print("Version-locked p4a third-party build cache enabled")

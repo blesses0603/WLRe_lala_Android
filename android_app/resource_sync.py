@@ -44,6 +44,8 @@ def resource_message(report):
     # Never echo arbitrary remote/error strings into the login page or IPC.
     categories = {
         'TLS 憑證驗證失敗': 'TLS 憑證驗證失敗，請確認手機日期與網路憑證',
+        'TLS 握手失敗': 'TLS 握手失敗，請切換網路後重試；不代表憑證一定失效',
+        'TLS CA 設定失敗': 'TLS 信任憑證載入失敗，請確認 APK 安裝版本',
         'DNS 無法解析官方網域': 'DNS 無法解析官方網域，請確認目前網路',
         '連線逾時': '連線逾時，請稍後重新檢查',
         '官方伺服器拒絕連線': '官方伺服器拒絕連線',

@@ -1,6 +1,6 @@
 # 飄流 RE:LaLa｜Android
 
-目前程式：**v7.1.2 開發修補版**。Android Major.Minor 與桌面版最新 main v7.1.1 同為 7.1，Patch 由 Android 獨立維護。本版強化 PEM／DER 系統 CA 相容性、官方 HTTPS 明確憑證驗證與 TLS 診斷；APK 建置與手機登入仍待驗收。v0.1.0 已有成功 APK 建置及手機啟動畫面，尚未通過官方資源與登入驗收。
+目前程式：**v7.1.3 開發修補版**。Android Major.Minor 與桌面版最新 main v7.1.1 同為 7.1，Patch 由 Android 獨立維護。本版新增完整 Runtime 失敗階段與下載額度的安全診斷，保留 TLS、Manifest、Bundle 完整性及登入阻擋規則；APK 建置與手機登入仍待驗收。v7.1.2 為 TLS 修補版。v0.1.0 已有成功 APK 建置及手機啟動畫面，尚未通過官方資源與登入驗收。
 
 Android 12 以上、ARM64。保留 Kivy 直式觸控介面、前景連線服務、懸浮球、Android Keystore、固定簽章與八核心原生封裝。Android 與桌面版各自維護版本號。
 

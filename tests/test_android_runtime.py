@@ -174,6 +174,103 @@ class RuntimeTests(unittest.TestCase):
                 runtime.exit_requested = True
                 thread.join(3)
 
+    @unittest.skipUnless(HAS_UNIX_SOCKET, 'Current environment cannot create Unix sockets')
+    def test_unserializable_poll_reply_rejected_without_killing_background_service(self):
+        manager = FakeManager()
+        session = manager.start(label='server', account='test', password='secret')
+        session.label = object()  # An unexpected internal object cannot cross IPC.
+        runtime = Runtime(manager)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'ipc/sessions.sock'
+            worker = threading.Thread(target=runtime.serve, args=(path,))
+            worker.start()
+            try:
+                deadline = time.monotonic() + 3
+                while not path.exists() and time.monotonic() < deadline:
+                    time.sleep(.02)
+                self.assertTrue(path.exists())
+
+                def poll():
+                    with socket.socket(socket.AF_UNIX) as client:
+                        client.connect(str(path))
+                        with client.makefile('rwb') as stream:
+                            send(stream, {'op': 'poll'})
+                            return receive(stream)
+
+                failed = poll()
+                self.assertFalse(failed['ok'])
+                self.assertNotIn('secret', json.dumps(failed))
+                self.assertTrue(worker.is_alive())
+                session.label = 'server'
+                recovered = poll()
+                self.assertTrue(recovered['ok'])
+                self.assertEqual(recovered['value']['sessions'][0]['label'], 'server')
+                self.assertTrue(worker.is_alive())
+                self.assertFalse(session.stop_event.is_set())
+            finally:
+                runtime.exit_requested = True
+                worker.join(3)
+                self.assertFalse(worker.is_alive())
+
+    def test_optional_detail_failure_keeps_service_and_other_accounts_online(self):
+        client = ServiceManager.__new__(ServiceManager)
+        client.sessions = {}
+        client.events = LatestEvents()
+        client.metrics = {}
+        client.resource_status = {}
+        client.overlay_enabled = False
+        client.available = False
+        client._last = {}
+        client.details = {'A': {'stale': 'must clear'}}
+        client.watched = 'A'
+        client._resource_request_pending = True
+        snapshot = {
+            'sessions': [
+                {'id': sid, 'label': 'server', 'account': sid,
+                 'active': True, 'phase': 'world_ready', 'pending': False,
+                 'stopped': False, 'events': {'status': '已連線'}}
+                for sid in ('A', 'B')],
+            'metrics': {'active': 2},
+            'resources': {'status': 'ready', 'ready': True},
+            'overlay_enabled': False,
+        }
+        requests = []
+
+        def call(request):
+            requests.append(request['op'])
+            if request['op'] == 'detail':
+                raise ValueError('watched account detail changed')
+            return snapshot
+
+        client.call = call
+        client._poll_once()
+        self.assertEqual(requests, ['poll', 'detail'])
+        self.assertTrue(client.available)
+        self.assertEqual(set(client.sessions), {'A', 'B'})
+        self.assertEqual(client.metrics['active'], 2)
+        self.assertEqual(client.resource_status['status'], 'ready')
+        self.assertNotIn('A', client.details)
+        self.assertFalse(client._resource_request_pending)
+
+    def test_resource_retry_is_single_flight_and_respects_existing_check(self):
+        client = ServiceManager.__new__(ServiceManager)
+        client.available = True
+        client._resource_request_pending = False
+        client.resource_status = {'status': 'idle'}
+        client.requests = queue.Queue()
+        self.assertTrue(client.retry_resources())
+        self.assertFalse(client.retry_resources())
+        self.assertEqual(client.requests.qsize(), 1)
+        self.assertEqual(client.requests.get_nowait(), {'op': 'resources'})
+
+        client._resource_request_pending = False
+        client.resource_status = {'status': 'checking'}
+        self.assertFalse(client.retry_resources())
+        self.assertTrue(client.requests.empty())
+        client.resource_status = {'status': 'blocked'}
+        self.assertTrue(client.retry_resources())
+        self.assertEqual(client.requests.get_nowait(), {'op': 'resources'})
+
     def test_paused_ui_coalesces_updates_per_account(self):
         inbox = LatestEvents()
         for hp in range(10000):

@@ -202,8 +202,8 @@
       "sha256": "24e35c21cad321af34f0eea1e231e189bc5dfa000b9dad7f6fa997fc504df012"
     },
     "wlre/services/game_version_gate.py": {
-      "reason": "Android 專屬 Runtime 失敗階段與下載額度診斷（保留登入驗證）",
-      "sha256": "e974da34cba3ae46fe8f6ba5364a9c79088b0bc66255716e529c030281977e4a"
+      "reason": "Android 專屬 Runtime 失敗階段與下載額度診斷；額外區分目前官方 Manifest／Bundle／YooAsset 不相容錯誤（保留登入驗證及固定訊息）",
+      "sha256": "115f9da755d5281755034181a36679120b3874d04f3505ecebd707f9b7f321b2"
     },
     "wlre/services/world/launcher_catalog.py": {
       "reason": "Android 專屬 Runtime 失敗階段與下載額度診斷（保留登入驗證）",

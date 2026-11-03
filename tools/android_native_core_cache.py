@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import json
 import os
+import importlib.util
 from pathlib import Path
 import re
 import shutil
@@ -64,8 +65,9 @@ def _inputs(recipe: Path) -> str:
     if recipe.is_symlink() or not recipe.is_dir():
         raise ValueError("Missing or symlinked native recipe")
     paths = sorted(p for p in recipe.rglob("*")
-                   if "prebuilt" not in p.relative_to(recipe).parts
-                   and not p.name.startswith(".p3") and p.is_file())
+                   if not set(p.relative_to(recipe).parts) & {"prebuilt", "__pycache__"}
+                   and not p.name.startswith(".p3") and p.suffix != ".pyc"
+                   and (p.is_file() or p.is_symlink()))
     if not paths:
         raise ValueError("Empty native recipe")
     hashed = hashlib.sha256()
@@ -86,7 +88,11 @@ def _base_key(spec: Path, *, image_version=None, tool_versions=None,
     script = script or Path(__file__)
     if any(not p.is_file() or p.is_symlink() for p in (helper, script)):
         raise ValueError("Missing checked native cache implementation")
+    workflow = ROOT / ".github/workflows/android-apk.yml"
+    if not workflow.is_file() or workflow.is_symlink():
+        raise ValueError("Missing trusted Android build workflow")
     inputs = {
+        "workflow_sha256": _sha256(workflow),
         "schema": SCHEMA,
         "runner": "ubuntu-22.04",
         "image_version": image,
@@ -135,6 +141,46 @@ def write_expected(stage: Path, keys: dict[str, str] | None, output: Path) -> No
             else:
                 expected.write_text(keys[name] + "\n", encoding="ascii")
                 stream.write(name + "=" + keys[name] + "\n")
+
+
+def prepare_recipe_hooks(stage: Path) -> None:
+    """Opt in ONLY the disposable eight-recipe staging tree to P3.
+
+    Keep checked-in p4a recipe definitions untouched: this avoids modifying
+    host-test fixtures and ensures the normal full build remains available.
+    """
+    from importlib.util import find_spec
+
+    helper = ROOT / "p4a-recipes" / "_lala_core_cache.py"
+    if not helper.is_file() or helper.is_symlink():
+        raise ValueError("Missing reviewed P3 Cython recipe helper")
+    for name, _ in CORES:
+        recipe = _recipe_dir(stage, name)
+        definition = recipe / "__init__.py"
+        if definition.is_symlink() or not definition.is_file():
+            raise ValueError("Missing staged native recipe: " + name)
+        source = definition.read_text(encoding="utf-8")
+        old_import = "from pythonforandroid.recipe import CythonRecipe, IncludedFilesBehaviour"
+        old_base = "(IncludedFilesBehaviour, CythonRecipe)"
+        if source.count(old_import) != 1 or source.count(old_base) != 1:
+            raise ValueError("Unexpected original native recipe: " + name)
+        new_import = (
+            "from pythonforandroid.recipe import IncludedFilesBehaviour\\n"
+            "from pathlib import Path\\n"
+            "import importlib.util\\n"
+            "_p3path = Path(__file__).resolve().with_name('_lala_core_cache.py')\\n"
+            "_p3spec = importlib.util.spec_from_file_location('_lala_p3_' + "
+            + repr(name) + ", _p3path)\\n"
+            "_p3module = importlib.util.module_from_spec(_p3spec)\\n"
+            "_p3spec.loader.exec_module(_p3module)\\n"
+            "SHA256CoreRecipe = _p3module.SHA256CoreRecipe"
+        )
+        new_source = source.replace(old_import, new_import)
+        new_source = new_source.replace(old_base,
+                                        "(IncludedFilesBehaviour, SHA256CoreRecipe)")
+        # Patch and copy to stage only; helper can never enter the APK source.
+        definition.write_text(new_source, encoding="utf-8")
+        shutil.copyfile(helper, recipe / "_lala_core_cache.py")
 
 
 def _record(module: str, key: str, source: Path, binary: Path) -> dict:
@@ -222,10 +268,13 @@ def export_audited(stage: Path, keys: dict[str, str]) -> None:
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=("keys", "verify", "export"))
+    parser.add_argument("command", choices=("prepare", "keys", "verify", "export"))
     parser.add_argument("--stage", type=Path, required=True)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args(argv)
+    if args.command == "prepare":
+        prepare_recipe_hooks(args.stage)
+        return
     keys = compute_keys(args.stage)
     if args.command == "keys":
         output = args.output or Path(os.environ.get("GITHUB_OUTPUT", ""))

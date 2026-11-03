@@ -70,6 +70,30 @@ NAV_ROUTES = (
 )
 
 
+# Every existing role function stays available in the 18-item selector.
+# These groups only determine the highlighted bottom route.
+PAGE_GROUPS = {
+    '角色概況': '角色概況',
+    '小地圖': '角色概況',
+    '戰場陣形': '角色概況',
+    '聊天': '角色概況',
+    '組隊': '角色概況',
+    '夥伴出戰': '角色概況',
+    '遠征': '角色概況',
+    '副本資料': '角色概況',
+    '包包與特技': '包包與特技',
+    '角色能力': '包包與特技',
+    '煉金': '包包與特技',
+    '製作': '包包與特技',
+    'NPC': '包包與特技',
+    '儲藏存取': '包包與特技',
+    '事件紀錄': '事件紀錄',
+    '經驗效率': '事件紀錄',
+    'AI與補給設定': 'AI與補給設定',
+    '福利': 'AI與補給設定',
+}
+
+
 class NavigationDock(BoxLayout):
     """Four real, accessible routes to existing Android feature pages."""
 
@@ -90,8 +114,10 @@ class NavigationDock(BoxLayout):
         self.set_active(NAV_ROUTES[0][1])
 
     def set_active(self, page):
+        selected = PAGE_GROUPS.get(page, page)
         for route, button in self.buttons.items():
-            style_button(button, primary=route == page, radius=16)
+            style_button(button, primary=route == selected, radius=16)
+            button.font_size = '12sp'
 
 
 def section_title(title, subtitle=''):

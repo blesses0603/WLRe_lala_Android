@@ -1,8 +1,11 @@
 # 飄流 RE:LaLa｜Android
 
-目前程式：**v7.1.3 開發修補版**。Android Major.Minor 與桌面版最新 main v7.1.1 同為 7.1，Patch 由 Android 獨立維護。本版新增完整 Runtime 失敗階段與下載額度的安全診斷，保留 TLS、Manifest、Bundle 完整性及登入阻擋規則；APK 建置與手機登入仍待驗收。v7.1.2 為 TLS 修補版。v0.1.0 已有成功 APK 建置及手機啟動畫面，尚未通過官方資源與登入驗收。
+目前程式：**v7.1.4 開發修補版**。Android Major.Minor 與桌面版最新 main v7.1.1 同為 7.1，Patch 由 Android 獨立維護。本版提升背景服務與 IPC 穩定性，隔離角色詳細資料錯誤、拒絕重複資源檢查，並避免異常 IPC 回覆使服務停止；原 v7.1.3 的 Runtime 診斷、安全驗證與登入限制全部保留；APK 建置與手機登入仍待驗收。v7.1.2 為 TLS 修補版。v0.1.0 已有成功 APK 建置及手機啟動畫面，尚未通過官方資源與登入驗收。
 
 Android 12 以上、ARM64。保留 Kivy 直式觸控介面、前景連線服務、懸浮球、Android Keystore、固定簽章與八核心原生封裝。Android 與桌面版各自維護版本號。
+
+**Android 啟動流程：**先顯示獨立「官方資料與資料庫檢查」畫面，背景服務完成官方版本、雙 Manifest、必要 Bundle、Runtime 與 SQLite 驗證後，手機介面端再獨立核對同一份 Catalog 身分；**兩端都確認 ready 且 SHA-256 來源識別一致，才顯示帳號／密碼輸入畫面**。未通過時保留原因、重新檢查及啟動服務入口，不提供跳過驗證。
+
 
 ## 本次桌面功能同步
 
@@ -28,7 +31,7 @@ Android 12 以上、ARM64。保留 Kivy 直式觸控介面、前景連線服務�
 
 只快取第三方建置依賴，**不快取 Cython 原生編譯輸出、APK、中繼封裝、Android Keystore 或 GitHub Secret**。每次仍從隔離 staging 重新打包 ARM64 APK、使用既有固定簽章並執行完整檢查。快取失效時仍走原本下載／建置流程；首輪需成功產生快取，後續命中率與時間節省需要以 Actions log 實測。
 
-此修改為 CI／文件／測試調整，Android 版本維持 v7.1.3。詳細限制與驗收見 [Android 建置說明](ANDROID/README.md)。
+此修改為 CI／文件／測試調整，Android 版本維持 v7.1.4。詳細限制與驗收見 [Android 建置說明](ANDROID/README.md)。
 
 ## 開發與驗證
 

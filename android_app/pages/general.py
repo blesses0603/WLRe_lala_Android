@@ -28,10 +28,15 @@ class Overview(Page):
 
     def __init__(self, d):
         super().__init__(d)
-        from android_app.pages.ui_components import feature_card, status_line
+        from android_app.pages.ui_components import (
+            feature_card, status_line, StatMeter)
         from android_app.automation_ui import toggle
 
         profile = feature_card('角色與場景', '角色數據與目前座標依伺服器同步')
+        self.hp_meter = StatMeter('HP', tint=(0.26, 0.86, 0.55, 1))
+        self.sp_meter = StatMeter('SP', tint=(0.26, 0.75, 0.99, 1))
+        profile.add_widget(self.hp_meter)
+        profile.add_widget(self.sp_meter)
         self.info = status_line()
         profile.add_widget(self.info)
         self.add_widget(profile)
@@ -82,6 +87,11 @@ class Overview(Page):
         self.auto_status.text = self.state.get('automation', {}).get(
             'status', '等待同步')
         self.info.text = '\\n'.join(overview_lines(self.state))
+        from android_app.overview_model import overview_model
+        profiles = overview_model(self.state).get('profiles', [])
+        current = profiles[0] if profiles else {}
+        self.hp_meter.set_value(current.get('hp'), current.get('max_hp'))
+        self.sp_meter.set_value(current.get('sp'), current.get('max_sp'))
         recent = self.d.data.get('log', [])
         if type(recent) is list:
             self.recent_events.text = '\\n'.join(str(x) for x in recent[-3:]) or '尚無事件紀錄'

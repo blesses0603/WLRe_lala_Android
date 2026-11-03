@@ -7,14 +7,30 @@ from android_app.widgets import label, button, check
 class Benefits(Page):
     def __init__(self, d):
         super().__init__(d)
-        self.add_widget(label('福利 > 魔方'))
-        self.auto = check(self, '自動開啟已分析完成的時間魔方', True)
-        self.auto.bind(active=self.set_auto)
-        self.info = label(); self.add_widget(self.info)
-        self.open_button = button('開啟魔方', lambda: d.send(dict(type='time_cube', action='open')))
-        self.add_widget(self.open_button)
-        self.add_widget(label('最多儲存 3 次。等待伺服器確認可開啟次數；切換頁面與鎖屏後仍由背景服務處理。'))
+        from android_app.pages.ui_components import feature_card, status_line
+
+        # Reading current service state into this switch must not send a new
+        # auto-enable command; the server owns the source of truth.
         self.rendering = False
+
+        cube = feature_card(
+            '時間魔方', '最多儲存 3 次，次數與倒數依伺服器同步',
+            variant='highlight')
+        self.info = status_line('等待魔方狀態同步')
+        cube.add_widget(self.info)
+        self.add_widget(cube)
+
+        controls = feature_card('魔方自動開啟',
+                                '排程由 Android 背景服務執行，離開頁面仍有效')
+        self.auto = check(controls, '自動開啟已分析完成的時間魔方', True)
+        self.auto.bind(active=self.set_auto)
+        self.open_button = button(
+            '開啟已確認可使用的魔方',
+            lambda: d.send(dict(type='time_cube', action='open')), 56)
+        controls.add_widget(self.open_button)
+        controls.add_widget(status_line(
+            '請先等待伺服器確認可開啟次數；結果未確認前不可重複送出。'))
+        self.add_widget(controls)
 
     def set_auto(self, _, enabled):
         if not self.rendering:

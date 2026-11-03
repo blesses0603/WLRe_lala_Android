@@ -25,6 +25,14 @@ Android 12 以上、ARM64。保留 Kivy 直式觸控介面、前景連線服務�
 
 上表代表原始碼整合範圍，不代表 APK、手機背景執行或正式伺服器已驗收。完整範圍及限制見 [本次同步紀錄](ANDROID/DESKTOP_SYNC_20261103.md)。
 
+## Android APK 建置快取（不更動版本）
+  
+手動／版本 Tag 完整 APK 工作流程在受信任 main 執行時，會使用對應的 Python pip 套件快取及 Android SDK／NDK r28c、Gradle 下載快取。平台快取會依 p4a commit、API／ABI、相依需求以及實際 Buildozer／Cython 版本產生指紋，**純 App Patch 版號改變不會造成工具鏈快取失效**。
+
+只快取第三方建置依賴，**不快取 Cython 原生編譯輸出、APK、中繼封裝、Android Keystore 或 GitHub Secret**。每次仍從隔離 staging 重新打包 ARM64 APK、使用既有固定簽章並執行完整檢查。快取失效時仍走原本下載／建置流程；首輪需成功產生快取，後續命中率與時間節省需要以 Actions log 實測。
+
+此修改為 CI／文件／測試調整，Android 版本維持 v7.1.4。詳細限制與驗收見 [Android 建置說明](ANDROID/README.md)。
+
 ## 開發與驗證
 
 ```bash

@@ -54,17 +54,46 @@ class MapCanvas(Widget):
 
 class MapPage(Page):
     def __init__(self,d):
-        super().__init__(d);self.maps=SmallMaps();self.portals=Portals();self.scene=None;self.token=None
-        self.title=label('自動跟隨目前地圖');self.add_widget(self.title)
-        self.image=MapCanvas(self.picked);self.add_widget(self.image)
-        self.note=label('紅點：角色｜黃點：選取目的地｜青圈：出口');self.add_widget(self.note)
-        self.add_widget(row(button('NPC／出口',lambda:self.entities(False)),button('怪物',lambda:self.entities(True))))
-        self.x_input=field(self,'目的地 X',numeric=True);self.y_input=field(self,'目的地 Y',numeric=True)
-        self.add_widget(row(button('移動到選取座標',self.walk),button('停止移動',lambda:d.send({'type':'stop_walk'}))))
+        super().__init__(d)
+        from android_app.pages.ui_components import feature_card, status_line
+        self.maps=SmallMaps()
+        self.portals=Portals()
+        self.scene=None
+        self.token=None
+
+        map_card=feature_card(
+            '小地圖與即時位置',
+            '紅點代表角色、黃點代表目的地、青色圓圈代表出口')
+        self.title=status_line('等待角色位置')
+        map_card.add_widget(self.title)
+        self.position_label=status_line('座標：尚未同步')
+        map_card.add_widget(self.position_label)
+        self.image=MapCanvas(self.picked)
+        map_card.add_widget(self.image)
+        self.note=status_line('輕觸地圖可選取目標座標')
+        map_card.add_widget(self.note)
+        self.add_widget(map_card)
+
+        destination=feature_card(
+            '目標座標與移動',
+            '座標需由地圖確認或手動輸入；指令由伺服器確認')
+        self.x_input=field(destination,'目的地 X',numeric=True)
+        self.y_input=field(destination,'目的地 Y',numeric=True)
+        destination.add_widget(row(
+            button('步行前往',self.walk),
+            button('停止移動',lambda:d.send({'type':'stop_walk'}))))
+        self.add_widget(destination)
+
+        portals=feature_card('NPC／出口與地圖工具',
+                             '出口須先選取；未知路線不會自動嘗試')
+        portals.add_widget(row(
+            button('NPC／出口',lambda:self.entities(False)),
+            button('怪物',lambda:self.entities(True))))
         self.portal=None
-        self.add_widget(button('前往所選出口',self.portal_walk))
-        self.add_widget(button('直接嘗試所選出口換圖',self.direct))
-        self.add_widget(button('逐圖核對',self.audit))
+        portals.add_widget(button('前往所選出口',self.portal_walk))
+        portals.add_widget(button('直接嘗試所選出口換圖',self.direct))
+        portals.add_widget(button('逐圖核對',self.audit))
+        self.add_widget(portals)
     def picked(self,x,y):
         self.x_input.text=str(x);self.y_input.text=str(y);self.image.selected={'x':x,'y':y};self.image.draw()
     def walk(self):
@@ -116,5 +145,11 @@ class MapPage(Page):
             if not self.image.texture:self.note.text='此圖沒有可顯示的原始小地圖；可從 NPC／出口選擇已確認的返回出口。'
         point=current_position(self.state)
         self.image.player=point if point and point.get('scene')==scene else None
+        if self.image.player:
+            self.position_label.text='目前座標：({}, {})'.format(
+                self.image.player.get('x', '—'),
+                self.image.player.get('y', '—'))
+        else:
+            self.position_label.text='目前座標：等待伺服器同步'
         self.image.draw()
 

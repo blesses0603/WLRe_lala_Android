@@ -1,10 +1,10 @@
 {
-  "desktop_main": "42753557f2e40362d029a693e955a8a9764d2b90",
+  "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
   "desktop_source": "e82a34c1e9fb01d54cfc8c91eda7c627984925ae",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
-  "desktop_version": "7.0.1",
-  "planned_android_version": "0.1.0",
+  "desktop_version": "7.1.1",
+  "planned_android_version": "0.1.1",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
     "size": 95924224,
@@ -101,8 +101,8 @@
     "wlre/services/time_cube.py": "70e2161174b88d5b0656b27fed205fea1dddfd525d0d5317276c27259cad36d5",
     "wlre/services/world/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "wlre/services/world/auto_catalog.py": "ec498e4176d3376f24a248e48001e59af11e1c0ecd2b9f7f04e976c25ed0550e",
-    "wlre/services/world/boundary_portals.py": "c7148458773e6d2e895b27c9421436cf17072297ae248e76734f465ab8c4c235",
-    "wlre/services/world/bundle_runtime_1275.py": "45ca30a2ab967521509409050f173447d0e63217d16787453fbe01dd1af8f3a9",
+    "wlre/services/world/boundary_portals.py": "47ba6e52bbc9a7b7da67c64c3fd6fd43e576735231f410cfbbbf1a692c94ddb9",
+    "wlre/services/world/bundle_runtime_1275.py": "e36af464b5bd9abd8731f677ac7569e3a39003b99ec109cac2e11a9f3f9ee8cd",
     "wlre/services/world/catalog_adapters.py": "9fad8efc2e6b45976f3d6c56ee91e8ed5ff3680182513456e920ccf8e550815f",
     "wlre/services/world/catalog_identity.py": "a620f441f2f7c497316db47f7f77560f04f2e5d5773f8d292285c6988a9724f3",
     "wlre/services/world/catalog_runtime.py": "ff7dd914a08b49947b1156eb77236422af3b09aecf25b3930286fd218ac445c7",
@@ -111,7 +111,7 @@
     "wlre/services/world/coordinates.py": "c22a207863534134ff2130cc42b849a93d2b459f964fba2235e49fbd819ea419",
     "wlre/services/world/daily_task_1275.py": "0a25ad80edab54070e1705b238d462f0ef85f081c5d570e45c8abf2a4273df45",
     "wlre/services/world/display_position.py": "200b61ffb7f969d6ef4fd67069c2b0dbac52776ae0625bde4957f45654e1c97c",
-    "wlre/services/world/doors_1275.py": "478ce83ebb51acaa463b4faeb22d28645bb1fbb803093c1a629085c987dae37d",
+    "wlre/services/world/doors_1275.py": "76c0a03c12658bc183d46789e6007ee074ca47af3e890469e5362b72f9c25f13",
     "wlre/services/world/dynamic_bundle_runtime.py": "652334cbb3dca370ea27262e10783bea5989922ea7d8156e121e86777684912d",
     "wlre/services/world/eve_v115.py": "71617ac3b1d53a347d86245ce5231ad18a42ab7fd7bfd7a721b2665378189fb1",
     "wlre/services/world/feature_resource_index.py": "a83f8bd276d2779bfc59d8a096f083f8e0250971dbc3a3e2c8e0a10db7ecb444",
@@ -137,16 +137,16 @@
     "wlre/services/world/obstacle_scope.py": "d23f596b6eed196ec719cda2ffe1056a4a8f408a9ad57917eff11fba42623bce",
     "wlre/services/world/official_catalog_pipeline.py": "99052b3457273e59977fea97be85e5859c270ef56d516ba496b78f4e9ab4b94a",
     "wlre/services/world/official_catalog_store.py": "f141e0865b5ac99bcd8d795626757414f0a76ac6d97d586a892395c733ce9ab9",
-    "wlre/services/world/portal_coverage.py": "2d2b3c2a98257e287cd3754383ba6820e3f0f65e67d46a080c04232a3ee03c80",
+    "wlre/services/world/portal_coverage.py": "d9042fb84f2a3e8f9f1ce918913d56d8efee7800f433987b0e7f7b9f05a1a07a",
     "wlre/services/world/portal_dedup_1275.py": "ea75a3516ef67eb5d4ad2421d288327e189f9afb8f96401974dab839e105441f",
     "wlre/services/world/portal_evidence_1275.py": "8cd42819ac69c50677d34c7e72aa7066d60310a98b24033a976ee1892891f6e4",
-    "wlre/services/world/portal_inspection_1275.py": "386b4ca774935639cabd3c8eaea3e19d48593d221dda9a8e44eacb351f46ae4a",
+    "wlre/services/world/portal_inspection_1275.py": "e740c7d319611c4a340c3c3312907bafa0e3b2e766a14380e4824792197de7fa",
     "wlre/services/world/portal_links_1275.py": "32689ef97f7237a9ccda217c65982db3d05e9fd8162de3f8b8d75d35d811036e",
-    "wlre/services/world/portal_policy.py": "e87f5f36f15de25905e88d2b0be1e7d48d28b12e8114ea99b5c8122947093027",
+    "wlre/services/world/portal_policy.py": "cd825e4db250afe9caace90a73c46d1a220691813955aaf8d3f263c2f2fd9d25",
     "wlre/services/world/portal_schema.py": "cb6815fb51a76b246af6d909e8402a2bd314cf6ab51e7024d31de60162562aef",
-    "wlre/services/world/portal_travel.py": "7fe4c898832647419068a30c6ba312ed6256298dd00490f12750667c96502ff7",
-    "wlre/services/world/portals.py": "63fba2c7dcdfe2d7ad0fabddf4b527208be4901dee97e1d4a5b731f54f6186c3",
-    "wlre/services/world/preview_1275.py": "957d4d920f1882eceeda4d7a842734a7480a3e00c014c161f96694c1d3e3e853",
+    "wlre/services/world/portal_travel.py": "dba0d0004dafe8dbd6be16e5ea215cd47ad010af531969c48f2aaaa8cb49c736",
+    "wlre/services/world/portals.py": "bb75e91afeff1610f3f41432c169604b2b8151806190fed86840a8b27816df7a",
+    "wlre/services/world/preview_1275.py": "719a06e7c4faf19698fe5de7506954c235246ca8106597582fecbf7f74f15d94",
     "wlre/services/world/resource_classification.py": "62516268671ba9c7f6757fb2bd825d848a35ea78f0658d046951c0551ded7a6d",
     "wlre/services/world/resource_database.py": "6cbed2423b7d8fd1fcf5bd9de19530851f951e88bf163fe03b465e20da29774c",
     "wlre/services/world/resource_gap_diagnostics.py": "5241d64f776dca74559c5b83813fcfdfccea3f8305d261a7a2aade79efcad11b",
@@ -171,9 +171,10 @@
     "wlre/storage/paths.py": "94d488d6e66e4b301916f69ac5a5aac452d1151477aba1e6dfb659487c38921f",
     "wlre/storage/resource_migration.py": "9cfe3f193a8440b004e2c7bb8ab9445500669160601617de994ea86db77dcb68",
     "wlre/storage/resource_seed_manifest.py": "b977d66108ede519bc749167ab76628ecc94d62a2140ec8e62f275c83442fc72",
-    "wlre/storage/server_lines.py": "f166cb87ec14a7d74e36b0e0113c90cb878afe3853032db9bd244a243fea0d44"
+    "wlre/storage/server_lines.py": "f166cb87ec14a7d74e36b0e0113c90cb878afe3853032db9bd244a243fea0d44",
+    "wlre/services/world/event_portals.py": "0bed2a5f1d2eb7b2127358b5664e5f265bc80b55efd08044194332137ed2865f"
   },
-  "desktop_checked_head": "86fd5681df55e3975b7bd77c0071bc96fe33be76",
+  "desktop_checked_head": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",
   "android_adaptations": {
     "wlre/services/official_manifest_sync.py": {
@@ -196,5 +197,7 @@
       "reason": "同步暫停原因至手機狀態",
       "sha256": "ad02c556a41dcfc39e44a674d71d9ef56c7bdbc9f6b574e02adc36d0fb24780b"
     }
-  }
+  },
+  "desktop_core_sync_ref": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
+  "desktop_core_sync_note": "Event/Convey portal module and nine world runtime modules synchronized; desktop_source remains pinned for SQLite seed retrieval; five Android adaptations preserved."
 }

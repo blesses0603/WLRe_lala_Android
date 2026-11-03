@@ -39,30 +39,59 @@ def describe_entry(entry):
 class InstanceCatalog(Page):
     def __init__(self, dashboard):
         super().__init__(dashboard)
-        self.add_widget(label("副本／協力｜官方 1262 房間與獎勵"))
-        self.add_widget(label(
-            "下列操作只送出一次，結果以伺服器回覆為準；"
-            "協力創房、入房可能消耗門票或點數。付費寶箱禁止自動購買。"))
-        self.mode = select(self, "類型", ["一般／特殊副本", "協力副本"])
+        from android_app.pages.ui_components import feature_card, status_line
+
+        library = feature_card(
+            '官方副本／協力資料', '1262 官方資料僅作靜態查閱，不代表可立即進場')
+        library.add_widget(status_line(
+            '房間操作只發送一次並等待伺服器回覆；'
+            '協力可能消耗門票或點數。付費寶箱禁止自動購買。'))
+        self.mode = select(library, '類型', ['一般／特殊副本', '協力副本'])
+        self.info = status_line()
+        library.add_widget(self.info)
+        library.add_widget(button('搜尋／瀏覽副本清單', self.browse))
+        self.add_widget(library)
+
+        rooms = feature_card('伺服器房間', '即時房間與官方靜態資料分開顯示',
+                             variant='highlight')
+        self.live_info = status_line(
+            '房間尚未同步；離線資料不代表即時房間。')
+        rooms.add_widget(self.live_info)
+        rooms.add_widget(row(
+            button('查詢伺服器房間（僅讀取）', self.query_rooms),
+            button('查看／加入已同步房間', self.browse_rooms)))
+        rooms.add_widget(row(
+            button('建立房間', self.create_room),
+            button('查詢房間成員', self.query_members)))
+        rooms.add_widget(row(
+            button('離開房間', self.leave_room),
+            button('準備／取消準備', self.toggle_standby)))
+        self.add_widget(rooms)
+
+        controls = feature_card(
+            '副本操作', '開始與入場必須由玩家明確操作且通過核心驗證')
+        controls.add_widget(row(
+            button('開始一般副本', self.start_room),
+            button('一般副本手動入場', self.enter_room)))
+        self.add_widget(controls)
+
+        reward = feature_card('免費協力獎勵',
+                              '免費寶箱可手動領取；付費寶箱不得自動購買')
+        reward.add_widget(row(
+            button('領取免費協力獎勵', self.claim_reward),
+            button('明確取消寶箱', self.cancel_reward)))
+        reward.add_widget(button(
+            '切換免費協力獎勵自動領取（預設關閉）',
+            self.toggle_reward_auto))
+        self.add_widget(reward)
+
+        details = feature_card('選取副本／房間資訊',
+                               '只展示伺服器資料或已驗證的官方離線資料')
+        self.details = status_line(
+            '請選擇副本；此操作不會連線或消耗資源。')
+        details.add_widget(self.details)
+        self.add_widget(details)
         self.mode.bind(text=lambda *_: self.render())
-        self.info = label()
-        self.add_widget(self.info)
-        self.add_widget(button("搜尋／瀏覽副本清單", self.browse))
-        self.add_widget(button("查詢伺服器房間（僅讀取）", self.query_rooms))
-        self.add_widget(button("查看已同步房間清單／選擇加入", self.browse_rooms))
-        self.add_widget(row(button("建立房間", self.create_room),
-                            button("查詢房間成員", self.query_members)))
-        self.add_widget(row(button("離開房間", self.leave_room),
-                            button("準備／取消準備", self.toggle_standby)))
-        self.add_widget(row(button("開始一般副本", self.start_room),
-                            button("一般副本手動入場", self.enter_room)))
-        self.add_widget(row(button("領取免費協力獎勵", self.claim_reward),
-                            button("明確取消寶箱", self.cancel_reward)))
-        self.add_widget(button("切換免費協力獎勵自動領取（預設關閉）", self.toggle_reward_auto))
-        self.live_info = label("房間尚未同步；離線資料不代表即時房間。")
-        self.add_widget(self.live_info)
-        self.details = label("請選擇副本；此操作不會連線或消耗資源。")
-        self.add_widget(self.details)
         self.next_query = 0
         self.render()
 

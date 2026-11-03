@@ -3,6 +3,7 @@ import copy
 import json
 from kivy.core.clipboard import Clipboard
 from android_app.widgets import column, label, button, field, select, check, row, dialog, pick
+from android_app.pages.ui_components import feature_card, status_line, fixed_header
 from wlre.services.battle.auto_battle import defaults, validate, ACTION_IDS
 from wlre.services.battle.battle_commands import ACTIONS, owned_units
 from wlre.services.items.combat_resources import CAT, item_name, skill_rows, field_context, heal_effects
@@ -43,11 +44,23 @@ class SettingsEditor:
         self.app, self.sid = app, sid
         session = app.manager.sessions.get(sid)
         self.value = validate(copy.deepcopy(getattr(session, 'ai_settings', None) or defaults()))
-        self.collectors = []; self.body = column()
-        self.tabs = select(self.body, '設定頁面', self.TABS, initial)
-        self.form = column(); self.body.add_widget(self.form)
-        self.message = label('設定只在按下保存後生效；下次啟動自動戰鬥時套用。'); self.body.add_widget(self.message)
-        self.body.add_widget(row(button('保存設定', self.save), button('取消', lambda: self.popup.dismiss())))
+        self.collectors = []
+        self.body = column()
+        navigation = feature_card('設定分類', '選擇欲編輯的項目')
+        self.tabs = select(navigation, '設定頁面', self.TABS, initial)
+        self.body.add_widget(navigation)
+        self.form = feature_card(
+            '目前設定', '每個欄位均為本帳號草稿，保存前不得視為已套用')
+        self.body.add_widget(self.form)
+        footer = feature_card('確認變更',
+                              '設定只在按下保存後生效，後續由背景服務確認')
+        self.message = status_line(
+            '未保存的規則只在此編輯視窗保留。')
+        footer.add_widget(self.message)
+        footer.add_widget(row(
+            button('保存設定', self.save),
+            button('取消', lambda: self.popup.dismiss())))
+        self.body.add_widget(footer)
         self.tabs.bind(text=self.switch)
         self.current = initial; self.render(initial)
         self.popup = dialog('完整 AI／補給設定', self.body)
@@ -66,7 +79,9 @@ class SettingsEditor:
             return
         self.current = name; self.render(name)
     def render(self, name):
-        self.form.clear_widgets(); self.collectors = []
+        self.form.clear_widgets()
+        self.collectors = []
+        self.form.add_widget(fixed_header(name, '修改草稿；保存前不送出設定'))
         if name == '一般設定': self.general()
         elif name in ('角色規則','夥伴規則'): self.rules('player' if name == '角色規則' else 'partner')
         elif name == 'HP／SP補給': self.recovery()

@@ -26,16 +26,34 @@ def transfer_command(state, selection, count):
 class Storage(Page):
     def __init__(self, d):
         super().__init__(d)
+        from android_app.pages.ui_components import feature_card, status_line
+
         self.selected = None
-        self.target = select(self, '儲藏區域', ['儲藏室', '雜物櫃'])
-        self.action = select(self, '操作', ['存入', '取出'])
-        self.target.bind(text=lambda *_:self.clear())
-        self.action.bind(text=lambda *_:self.clear())
-        self.add_widget(button('選擇來源物品', self.browse))
-        self.selection = label('請選擇物品'); self.add_widget(self.selection)
-        self.count = field(self, '數量', '1', numeric=True)
-        self.submit_button = button('送出存取', self.submit); self.add_widget(self.submit_button)
-        self.status = label(); self.add_widget(self.status)
+
+        selector = feature_card(
+            '儲藏空間與操作', '存入／取出都要核對兩端庫存版次與物品身分')
+        self.target = select(selector, '儲藏區域', ['儲藏室', '雜物櫃'])
+        self.action = select(selector, '操作', ['存入', '取出'])
+        self.target.bind(text=lambda *_: self.clear())
+        self.action.bind(text=lambda *_: self.clear())
+        self.add_widget(selector)
+
+        item = feature_card('選取來源道具',
+                            '物品須來自已同步的背包或對應儲藏空間',
+                            variant='highlight')
+        item.add_widget(button('選擇來源物品', self.browse))
+        self.selection = status_line('請選擇物品')
+        item.add_widget(self.selection)
+        self.count = field(item, '本次數量（1～65535）', '1', numeric=True)
+        self.submit_button = button('確認送出存取', self.submit, 56)
+        item.add_widget(self.submit_button)
+        self.add_widget(item)
+
+        feedback = feature_card('存取狀態',
+                                '未確認的送出結果不得自動重送')
+        self.status = status_line('等待儲藏空間同步')
+        feedback.add_widget(self.status)
+        self.add_widget(feedback)
 
     def clear(self):
         self.selected = None

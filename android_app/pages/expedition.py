@@ -29,30 +29,56 @@ def available_quests(state, catalog, min_hours=0):
 class Expedition(Page):
     def __init__(self, d):
         super().__init__(d)
+        from android_app.pages.ui_components import feature_card, status_line
+
         self.catalog = load_catalog()
         self.settings_loaded = False
         default = expedition_defaults()
-        self.hours = field(self, "任務時間大於幾小時（0～24）", default["min_hours"])
-        self.success = field(self, "最低派遣成功率（0～100%）", default["min_success"])
-        self.faith = field(self, "最低好友度（1～100）", default["faith_min"], True)
+
+        summary = feature_card(
+            '星之方舟／遠征狀態',
+            '資料來自已同步的駐紮所與遠征伺服器回覆',
+            variant='highlight')
+        self.status = status_line('等待遠征與駐紮所資料同步')
+        self.team_status = status_line()
+        summary.add_widget(self.status)
+        summary.add_widget(self.team_status)
+        self.add_widget(summary)
+
+        settings = feature_card('自動派遣條件',
+                                '任務時間、成功率及好友度均先驗證再保存')
+        self.hours = field(settings, '任務時間大於幾小時（0～24）',
+                           default['min_hours'])
+        self.success = field(settings, '最低派遣成功率（0～100%）',
+                             default['min_success'])
+        self.faith = field(settings, '最低好友度（1～100）',
+                           default['faith_min'], True)
         self.recovery_id = 0
-        self.restore_label = label("好友度物品：自動從背包選擇")
-        self.add_widget(self.restore_label)
-        self.add_widget(button("選擇背包好友度恢復物品", self.choose_restore))
-        self.auto_claim = check(self, "到期自動領獎（確認入包後再派遣）", True)
-        self.add_widget(row(
-            button("保存遠征設定", self.save),
-            button("啟動自動派遣", self.start),
-            button("停止遠征", self.stop)))
-        self.status = label("等待遠征與駐紮所資料同步")
-        self.add_widget(self.status)
-        self.team_status = label()
-        self.add_widget(self.team_status)
+        self.restore_label = status_line('好友度物品：自動從背包選擇')
+        settings.add_widget(self.restore_label)
+        settings.add_widget(button(
+            '選擇背包好友度恢復物品', self.choose_restore))
+        self.auto_claim = check(
+            settings, '到期自動領獎（確認入包後再派遣）', True)
+        settings.add_widget(row(
+            button('保存遠征設定', self.save),
+            button('啟動自動派遣', self.start)))
+        settings.add_widget(button('停止遠征', self.stop))
+        self.add_widget(settings)
+
+        quests = feature_card('目前可用任務',
+                             '僅列出伺服器已確認且符合條件的官方任務')
+        self.quest_detail = status_line('點選任務查看時間、好友度與獎勵')
+        quests.add_widget(self.quest_detail)
         self.items = column()
-        self.add_widget(label("目前可用的任務（依伺服器同步與官方資料）"))
-        self.add_widget(self.items)
-        self.roles = label()
-        self.add_widget(self.roles)
+        quests.add_widget(self.items)
+        self.add_widget(quests)
+
+        outpost = feature_card('駐紮所夥伴',
+                              '好友度與目前隊伍狀態以同步資料為準')
+        self.roles = status_line()
+        outpost.add_widget(self.roles)
+        self.add_widget(outpost)
         self.signature = None
         self.current = None
 
@@ -118,8 +144,8 @@ class Expedition(Page):
 
     def detail(self, quest, seconds):
         self.current = quest["id"]
-        self.status.text = ("{}｜所需 {}｜消耗好友度 {}\n\n"
-                            "任務獎勵：{}").format(
+        self.quest_detail.text = ("{}｜所需 {}｜消耗好友度 {}\n\n"
+                                  "任務獎勵：{}").format(
             task_name(quest), time_text(seconds), quest["faith_cost"],
             rewards_text(quest))
 

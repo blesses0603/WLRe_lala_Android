@@ -7,7 +7,7 @@ widget refreshes are coalesced; actions and the newest snapshot remain live.
 # These pages have time-dependent UI even without new service data.
 # Keep chat's send-ack timeout responsive; other pages need only 1 Hz.
 PERIODS = {'聊天': 0.5, '遠征': 1.0, '製作': 1.0,
-           '副本資料': 1.0, '經驗效率': 1.0}
+           '副本資料': 1.0, '經驗效率': 1.0, '福利': 1.0}
 IDLE_REFRESH_SECONDS = 5.0
 MIN_RENDER_SECONDS = 0.9
 

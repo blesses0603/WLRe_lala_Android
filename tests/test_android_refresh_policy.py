@@ -36,6 +36,7 @@ class DashboardRefreshPolicyTests(unittest.TestCase):
     def test_periodic_pages_keep_countdown_and_chat_timeouts(self):
         for page, interval in (('遠征', 1), ('製作', 1),
                                ('副本資料', 1), ('經驗效率', 1),
+                               ('福利', 1),
                                ('聊天', 0.5)):
             with self.subTest(page=page):
                 gate = RefreshPolicy()

@@ -128,73 +128,8 @@ class OfficialManifestSyncTests(unittest.TestCase):
                                    (canonical_bytes, retried_bytes)):
             self.assertEqual(retried.split('?', 1)[0], canonical)
             self.assertTrue(retried.startswith(canonical + '?'))
-            self.assertRegex(retried.split('?', 1)[1], r'^[0-9]+(?:\\.[0-9]+)?        with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaisesRegex(ManifestSyncError, 'CRC32 mismatch'):
-                fetch_official_manifest(spec(), cache_root=tmp,
-                                        opener=responder(hash_bytes=b'deadbeef'),
-                                        parser=parse_synthetic)
-            self.assertFalse(spec().cache_path(tmp).exists())
-
-    def test_invalid_hash_length_rejected_before_download(self):
-        requests = []
-        with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaisesRegex(ManifestSyncError, '8 hex'):
-                fetch_official_manifest(spec(), cache_root=tmp,
-                                        opener=responder(hash_bytes=b'wrong', requests=requests),
-                                        parser=parse_synthetic)
-            self.assertEqual(requests, [spec().url('hash')])
-
-    def test_remote_redirect_rejected(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaisesRegex(ManifestSyncError, 'location/status'):
-                fetch_official_manifest(spec(), cache_root=tmp,
-                                        opener=responder(returned_url='https://evil.example/'),
-                                        parser=parse_synthetic)
-
-    def test_package_revision_mismatch_rejected_without_cache(self):
-        def wrong_revision(data):
-            value = parse_synthetic(data)
-            value['header']['package_version'] = '1262_2026_10_21_18_27_33_84'
-            return value
-        with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaisesRegex(ManifestSyncError, 'identity'):
-                fetch_official_manifest(spec(), cache_root=tmp,
-                                        opener=responder(), parser=wrong_revision)
-            self.assertFalse(spec().cache_path(tmp).exists())
-
-    def test_invalid_manifest_and_parser_failure_rejected(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaisesRegex(ManifestSyncError, 'parse failed'):
-                fetch_official_manifest(spec(), cache_root=tmp,
-                                        opener=responder(),
-                                        parser=lambda data: (_ for _ in ()).throw(ValueError('bad')))
-
-    def test_no_arbitrary_hosts_versions_or_extensions(self):
-        for data_ver in ('../1.3.21', 'https://example.net', '1.3.21?x=1'):
-            with self.subTest(data_ver=data_ver), self.assertRaises(ManifestSyncError):
-                ManifestSpec(data_ver, 'DataPackage', spec().package_version)
-        with self.assertRaises(ManifestSyncError):
-            ManifestSpec('1.3.21', '../MainPackage', spec().package_version)
-        with self.assertRaises(ManifestSyncError):
-            spec().url('report')
-
-    def test_snapshot_requires_validated_official_metadata(self):
-        snapshot = {
-            'schema_version': 1, 'origin': 'official_pc_version_endpoint',
-            'data_ver': '1.3.21', 'exe_version': '1.3.21',
-            'packages': {'DataPackage': spec().package_version,
-                         'MainPackage': '1275_2026_10_21_18_29_38_49'},
-            'checked_at_utc': '2026-10-24T09:00:00+00:00', 'assets_ready': False,
-        }
-        self.assertEqual(spec_from_snapshot(snapshot, 'DataPackage'), spec())
-        snapshot['assets_ready'] = True
-        with self.assertRaises(ValueError):
-            spec_from_snapshot(snapshot, 'DataPackage')
-
-
-if __name__ == '__main__':
-    unittest.main()
-)
+            self.assertRegex(retried.split('?', 1)[1],
+                             r'\A[0-9]+(?:\.[0-9]+)?\Z')
 
     def test_repeated_http_404_reports_fixed_manifest_stage(self):
         requested = []

@@ -13,9 +13,9 @@
 
 本文件集中說明 Android 客戶端的**操作流程、權限、背景機制、APK 建置及驗收限制**。首次安裝與下載入口請先閱讀 [專案首頁 README](../README.md)；功能逐項對照請參考 [FEATURE_PARITY.md](FEATURE_PARITY.md)。
 
-**目前開發版本：v7.1.3** ｜ **最低 Android 12（API 31）** ｜ **只建置 ARM64 手機 APK** ｜ **Debug 測試用途**
+**目前開發版本：v7.1.4** ｜ **最低 Android 12（API 31）** ｜ **只建置 ARM64 手機 APK** ｜ **Debug 測試用途**
 
-Android Major.Minor 跟隨已核對的桌面 main（此輪桌面 v7.1.1，Android v7.1.3），Android Patch 獨立維護。桌面 Major.Minor 再變動時應先核對最新桌面 main，更新 Android 前兩段並單獨評估 Patch；版本號相近不代表功能已驗收。v7.1.3 新增必要 Bundle 缺失／校驗／解析等安全診斷，並辨識資源準備超過 32 MiB／24 檔單次額度；v7.1.2 修補官方 TLS 診斷、PEM／DER CA 載入與明確 HTTPS 信任來源；下方 v0.0.8 小節屬於歷史建置紀錄。
+Android Major.Minor 跟隨已核對的桌面 main（此輪桌面 v7.1.1，Android v7.1.4），Android Patch 獨立維護。桌面 Major.Minor 再變動時應先核對最新桌面 main，更新 Android 前兩段並單獨評估 Patch；版本號相近不代表功能已驗收。v7.1.4 強化背景服務 IPC 容錯：單筆角色詳細資料讀取異常不影響全域在線判定、重複資源檢查請求會被抑制、無法序列化的 IPC 回覆改為安全錯誤；v7.1.3 新增必要 Bundle 缺失／校驗／解析等安全診斷，並辨識資源準備超過 32 MiB／24 檔單次額度；v7.1.2 修補官方 TLS 診斷、PEM／DER CA 載入與明確 HTTPS 信任來源；下方 v0.0.8 小節屬於歷史建置紀錄。
 
 新 APK 安裝後按「重新檢查官方資源」，核對完整 Runtime 錯誤分類與 ResourcePath_PC.dat 階段錯誤種類；Chrome 能載入不代表 Python/OpenSSL 能完成驗證。請勿關閉憑證檢查。
 
@@ -33,9 +33,10 @@ Android Major.Minor 跟隨已核對的桌面 main（此輪桌面 v7.1.1，Androi
 
 1. 從 [手動／Tag APK 建置流程](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-apk.yml) 的成功執行紀錄下載帶版本號的 ARM64 APK；舊版的 [ARM64 Artifact](https://github.com/blesses0603/WLRe_lala_Android/actions/runs/39141939393) 可在尚未過期時使用。日常 [快速測試流程](https://github.com/blesses0603/WLRe_lala_Android/actions/workflows/android-smoke.yml) **不再上傳 APK**。
 2. 解壓後確認 APK 與 `SHA256SUMS.txt`，在 ARM64 Android 12 以上手機安裝測試包。
-3. 啟動程式、選擇地球／水星及分流，輸入帳號與密碼後登入。帳號驗證、角色清單與角色入場須等待伺服器實際回覆。
-4. 可新增多個獨立連線；各帳號各自擁有停止旗標、指令佇列與狀態，不將一個帳號的操作轉送給另一個帳號。
-5. 入場後在帳號卡片啟動／停止自動戰鬥或徘徊，也可開啟角色功能，操作戰場、地圖、補給、社交與製作等頁面。
+3. 啟動程式後先進入「官方資料與資料庫檢查」頁；前景服務核對官方版本、Manifest、Bundle、Runtime 與 SQLite，Activity 另行確認相同 Catalog 識別。**兩端驗證均通過才顯示帳號登入頁**；失敗可在檢查頁查看原因、重新檢查或重新啟動背景服務，不能跳過驗證。
+4. 進入帳號登入頁後選擇地球／水星及分流，輸入帳號與密碼。帳號驗證、角色清單與角色入場須等待伺服器實際回覆。
+5. 可新增多個獨立連線；各帳號各自擁有停止旗標、指令佇列與狀態，不將一個帳號的操作轉送給另一個帳號。
+6. 入場後在帳號卡片啟動／停止自動戰鬥或徘徊，也可開啟角色功能，操作戰場、地圖、補給、社交與製作等頁面。
 
 停止某個帳號不等於停止其他帳號；「停止全部連線與服務」會關閉整個連線服務。若服務尚未就緒或已失去回應，UI 應顯示未知或失聯，不以先前快照冒充目前在線。
 

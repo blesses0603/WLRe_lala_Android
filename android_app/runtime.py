@@ -177,8 +177,15 @@ class Runtime:
                             request = receive(stream)
                             try: result = {'ok': True, 'value': self.dispatch(request)}
                             except Exception: result = {'ok': False, 'error': '操作失敗，請確認帳號及連線狀態'}
-                            send(stream, result)
-                    except (OSError, ValueError): pass
+                            try:
+                                send(stream, result)
+                            except (TypeError, ValueError, OverflowError):
+                                # A single oversized or non-JSON-serializable
+                                # account snapshot must not kill the service.
+                                # Never echo the rejected value to the client.
+                                send(stream, {'ok': False,
+                                    'error': '服務資料暫時無法編碼，請稍後重試'})
+                    except (OSError, ValueError, TypeError): pass
         finally:
             self.manager.stop_all()
             server.close()
@@ -222,6 +229,7 @@ class ServiceManager:
         self.paused = False
         self.watched = None
         self.details = {}
+        self._resource_request_pending = False
         threading.Thread(target=self._work, daemon=True, name='service-ui-bridge').start()
 
     def _delivery_failed(self, request, uncertain=False):
@@ -265,58 +273,96 @@ class ServiceManager:
                 # queue item after success, timeout or connection refusal.
                 request['args'].pop('password', None)
 
+    def _poll_once(self):
+        """Refresh service state even when the optional detail RPC fails.
+
+        A stale watched-account detail must not make an otherwise healthy IPC
+        socket appear disconnected; all account sessions come from poll.
+        """
+        data = self.call({'op': 'poll'})
+        rows = data['sessions']
+        if type(rows) is not list:
+            raise ValueError('Invalid service session snapshot')
+        self.metrics = data['metrics']
+        self.resource_status = data.get('resources', {})
+        self.overlay_enabled = bool(data.get('overlay_enabled', False))
+        if not self.available:
+            self._last.clear()
+        self.available = True
+        present = set()
+        for row in rows:
+            sid = row['id']
+            present.add(sid)
+            flag = threading.Event()
+            if row['stopped']:
+                flag.set()
+            previous = self.sessions.get(sid)
+            if previous and previous.selection_pending != row['pending']:
+                self._last.pop((sid, 'roles'), None)
+            self.sessions[sid] = SimpleNamespace(
+                session_id=sid, label=row['label'], account=row['account'],
+                active=row['active'], phase=row['phase'],
+                selection_pending=row['pending'], stop_event=flag,
+                ai_settings=row.get('ai_settings', {}),
+                automation=row.get('automation', {}),
+                automation_pending=set(row.get('automation_pending', [])))
+            for kind, value in row['events'].items():
+                key = (sid, kind)
+                if self._last.get(key) != value:
+                    self._last[key] = value
+                    self.events.put((sid, kind, value))
+        for sid in set(self.sessions) - present:
+            self.sessions.pop(sid, None)
+            self.events.put((sid, 'removed', None))
+            self._last = {k: v for k, v in self._last.items() if k[0] != sid}
+
+        # Detail is secondary to session and resource availability.
+        watched = self.watched
+        if watched in present:
+            try:
+                detail = self.call({'op': 'detail', 'id': watched})
+            except (OSError, ValueError, KeyError, TypeError):
+                self.details.pop(watched, None)
+            else:
+                if self.watched == watched:
+                    self.details[watched] = detail
+        else:
+            self.details.clear()
+        # Keep a queued resource retry guarded until the worker has reported
+        # a terminal state, preventing duplicate taps from racing the worker.
+        if self.resource_status.get('status') != 'checking':
+            self._resource_request_pending = False
+
     def _work(self):
         while True:
             if self.paused and self.requests.empty():
                 time.sleep(.5)
                 continue
             try:
-                try: request = self.requests.get(timeout=0.5)
-                except queue.Empty: request = None
+                try:
+                    request = self.requests.get(timeout=0.5)
+                except queue.Empty:
+                    request = None
                 if request:
+                    is_resource_request = request.get('op') == 'resources'
                     try:
                         accepted = self.call(request)
                     except ValueError:
+                        if is_resource_request:
+                            self._resource_request_pending = False
                         self._delivery_failed(request)
-                    except (OSError, KeyError):
+                    except (OSError, KeyError, TypeError):
+                        if is_resource_request:
+                            self._resource_request_pending = False
                         self._delivery_failed(request, uncertain=True)
                         raise
                     else:
                         if accepted is False:
+                            if is_resource_request:
+                                self._resource_request_pending = False
                             self._delivery_failed(request)
-                data = self.call({'op': 'poll'})
-                watched = self.watched
-                if watched and any(r['id'] == watched for r in data['sessions']):
-                    self.details[watched] = self.call({'op': 'detail', 'id': watched})
-                else: self.details.clear()
-                self.metrics = data['metrics']
-                self.resource_status = data.get('resources', {})
-                self.overlay_enabled = bool(data.get('overlay_enabled', False))
-                if not self.available: self._last.clear()
-                self.available = True
-                present = set()
-                for row in data['sessions']:
-                    sid = row['id']
-                    present.add(sid)
-                    flag = threading.Event()
-                    if row['stopped']: flag.set()
-                    previous = self.sessions.get(sid)
-                    if previous and previous.selection_pending != row['pending']:
-                        self._last.pop((sid, 'roles'), None)
-                    self.sessions[sid] = SimpleNamespace(session_id=sid, label=row['label'], account=row['account'],
-                        active=row['active'], phase=row['phase'], selection_pending=row['pending'], stop_event=flag,
-                        ai_settings=row.get('ai_settings', {}), automation=row.get('automation', {}),
-                        automation_pending=set(row.get('automation_pending', [])))
-                    for kind, value in row['events'].items():
-                        key = (sid, kind)
-                        if self._last.get(key) != value:
-                            self._last[key] = value
-                            self.events.put((sid, kind, value))
-                for sid in set(self.sessions) - present:
-                    self.sessions.pop(sid, None)
-                    self.events.put((sid, 'removed', None))
-                    self._last = {k: v for k, v in self._last.items() if k[0] != sid}
-            except (OSError, ValueError, KeyError):
+                self._poll_once()
+            except (OSError, ValueError, KeyError, TypeError, AttributeError):
                 self.available = False
                 self.overlay_enabled = False
                 self.metrics = {}
@@ -324,7 +370,10 @@ class ServiceManager:
                 time.sleep(0.5)
 
     def retry_resources(self):
-        if not self.available: return False
+        if (not self.available or self._resource_request_pending
+                or self.resource_status.get('status') == 'checking'):
+            return False
+        self._resource_request_pending = True
         self.requests.put({'op': 'resources'})
         return True
 

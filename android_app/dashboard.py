@@ -1,4 +1,7 @@
 """One account's mobile workspace, reattaches to foreground service state."""
+from importlib import import_module
+import time
+
 from kivy.clock import Clock
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
@@ -7,9 +10,35 @@ from kivy.uix.popup import Popup
 from kivy.uix.spinner import Spinner
 from android_app.widgets import button, label, select, column, GameIconTab, RoundedSpinnerOption
 from android_app.theme import TEXT, SURFACE, ACCENT, MUTED, SOFT, surface, style_button
+from android_app.refresh_policy import RefreshPolicy
 
 PAGES = ('角色概況', '包包與特技', '小地圖', '戰場陣形', '聊天', '組隊',
          '夥伴出戰', '遠征', '副本資料', '角色能力', '煉金', '製作', '經驗效率', '事件紀錄', 'AI與補給設定', 'NPC', '儲藏存取', '福利')
+
+# Lazy imports: importing every page on the first tab switch pulls in maps,
+# resource catalogs and image helpers on the Kivy UI thread.
+_PAGE_IMPL = {
+    '角色概況': ('general', 'Overview'),
+    '包包與特技': ('resources', 'Resources'),
+    '小地圖': ('map', 'MapPage'),
+    '戰場陣形': ('resources', 'Battle'),
+    '聊天': ('social', 'Chat'),
+    '組隊': ('social', 'Party'),
+    '夥伴出戰': ('companions', 'Companions'),
+    '遠征': ('expedition', 'Expedition'),
+    '副本資料': ('instances', 'InstanceCatalog'),
+    '角色能力': ('attributes', 'Attributes'),
+    '煉金': ('production', 'Alchemy'),
+    '製作': ('production', 'Crafting'),
+    '經驗效率': ('general', 'Efficiency'),
+    '事件紀錄': ('general', 'Events'),
+    'AI與補給設定': ('settings', 'SettingsPage'),
+    'NPC': ('npc', 'NPC'),
+    '儲藏存取': ('storage', 'Storage'),
+    '福利': ('benefits', 'Benefits'),
+}
+if set(_PAGE_IMPL) != set(PAGES):
+    raise RuntimeError('Android page mapping is incomplete')
 
 
 class Dashboard:
@@ -19,6 +48,8 @@ class Dashboard:
         self.closed = False
         self.last_npc_effect = None
         self.views = {}
+        self._refresh_policy = RefreshPolicy()
+        self._local_data_revision = 0
         session = app.manager.sessions[sid]
         base = surface(BoxLayout(orientation='vertical', spacing=dp(10), padding=dp(12)),
                        color=SURFACE, radius=24)
@@ -91,29 +122,20 @@ class Dashboard:
         except (ValueError, OSError) as exc: self.message.text = str(exc); return False
 
     def show(self, name):
-        self.page_name = name; self.content.clear_widgets()
-        from android_app.pages.general import Overview, Events, Efficiency
-        from android_app.pages.resources import Resources, Battle
-        from android_app.pages.social import Party, Chat
-        from android_app.pages.production import Alchemy, Crafting
-        from android_app.pages.map import MapPage
-        from android_app.pages.settings import SettingsPage
-        from android_app.pages.companions import Companions
-        from android_app.pages.expedition import Expedition
-        from android_app.pages.instances import InstanceCatalog
-        from android_app.pages.attributes import Attributes
-        from android_app.pages.npc import NPC
-        from android_app.pages.storage import Storage
-        from android_app.pages.benefits import Benefits
-        classes = dict(zip(PAGES, (Overview, Resources, MapPage, Battle, Chat,
-                                  Party, Companions, Expedition, InstanceCatalog, Attributes, Alchemy,
-                                  Crafting, Efficiency, Events, SettingsPage, NPC, Storage, Benefits)))
+        self.page_name = name
         if name not in self.views:
-            page = classes[name](self)
-            scroll = ScrollView(do_scroll_x=False); scroll.add_widget(page)
+            module, cls = _PAGE_IMPL[name]
+            # Construct only the requested page; preserve all visited pages,
+            # their drafts, scroll positions and any active popup state.
+            page_type = getattr(import_module('android_app.pages.' + module), cls)
+            page = page_type(self)
+            scroll = ScrollView(do_scroll_x=False)
+            scroll.add_widget(page)
             self.views[name] = (page, scroll)
         self.page, scroll = self.views[name]
+        self.content.clear_widgets()
         self.content.add_widget(scroll)
+        # Immediate feedback on navigation. Later ticks are coalesced.
         self.page.refresh()
 
     def tick(self, *_):
@@ -125,9 +147,19 @@ class Dashboard:
             if self.page_name == '聊天' and self.page:
                 self.page.refresh()  # Clear pending without discarding draft.
             return True
-        try: data = self.app.manager.session_detail(self.sid)
+        manager = self.app.manager
+        revisions = getattr(manager, 'detail_revisions', None)
+        # Read the revision before the snapshot: if an IPC update races us,
+        # the next tick still sees its newer revision.
+        revision = revisions.get(self.sid, 0) if isinstance(revisions, dict) else None
+        try: data = manager.session_detail(self.sid)
         except ValueError: return True
         if data:
+            if revision is None:
+                # Non-background preview mode does not have IPC revisions.
+                if data != self.data:
+                    self._local_data_revision += 1
+                revision = self._local_data_revision
             self.data = data
             npc = self.state.get('npc_dialogue', {})
             effect = (npc.get('scene'), npc.get('npc_index'), npc.get('effect_packet'))
@@ -136,8 +168,11 @@ class Dashboard:
                     and effect != self.last_npc_effect):
                 self.last_npc_effect = effect
                 self.navigation.text = 'NPC'
-            self.status.text = '已連線' if self.live else '連線已停止／等待角色登入；以下為最後同步資料'
-            if self.page: self.page.refresh()
+            connected = self.live
+            self.status.text = '已連線' if connected else '連線已停止／等待角色登入；以下為最後同步資料'
+            if (self.page and self._refresh_policy.should_refresh(
+                    self.page_name, revision, connected, time.monotonic())):
+                self.page.refresh()
         return True
 
     def chat_ack(self, value):

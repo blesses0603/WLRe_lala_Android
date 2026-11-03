@@ -13,14 +13,15 @@ from tools.android_release_gate import (
     PACKAGE, REQUIRED_REPORTS, APK_HASHES, EVIDENCE, EVIDENCE_HASHES,
     _apk_metadata, _digest, _locate_aapt, finalize_release, verify_release,
 )
+from tools.android_release_version import source_version
 
 ROOT = Path(__file__).resolve().parents[1]
 PIN = "a1" * 32
 SHA = "c3" * 20
-VERSION = "v0.1.0"
+VERSION = source_version(ROOT / "buildozer.spec", ROOT / "android_app/version.py")
 APK = f"WLRe_LaLa-Android-{VERSION}-debug.apk"
 AAPT_GOOD = (
-    "package: name='org.lala.client.wlrelala' versionCode='8' versionName='0.1.0'\n"
+    f"package: name='{PACKAGE}' versionCode='8' versionName='{VERSION[1:]}'\n"
     "sdkVersion:'31'\n"
     "targetSdkVersion:'35'\n"
     "native-code: 'arm64-v8a'\n"
@@ -142,7 +143,7 @@ class Phase09GateTests(unittest.TestCase):
 
     def test_wrong_version_name_or_package_rejected(self):
         for bad in (
-            AAPT_GOOD.replace("0.1.0", "0.1.1"),
+            AAPT_GOOD.replace(f"versionName='{VERSION[1:]}'", "versionName='999.999.999'"),
             AAPT_GOOD.replace(PACKAGE, "org.fake.app"),
         ):
             with self.subTest(bad=bad):
@@ -216,20 +217,22 @@ class Phase09GateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "main"):
             self.verify(git_ref="refs/heads/feature")
         with self.assertRaisesRegex(ValueError, "tag does not match"):
-            self.verify(event="push", git_ref="refs/tags/v0.1.1")
+            self.verify(event="push", git_ref="refs/tags/v999.999.999")
         self.assertEqual(
-            self.verify(event="push", git_ref="refs/tags/v0.1.0")["source"]["git_ref"],
-            "refs/tags/v0.1.0",
+            self.verify(event="push", git_ref=f"refs/tags/{VERSION}")["source"]["git_ref"],
+            f"refs/tags/{VERSION}",
         )
         with self.assertRaisesRegex(ValueError, "SHA invalid"):
             self.verify(source_sha="not-a-commit")
 
     def test_refuses_wrong_source_version_and_double_publish(self):
-        (self.source / "android_app/version.py").write_text("ANDROID_VERSION = '0.1.1'\n")
+        version_file = self.source / "android_app/version.py"
+        original = version_file.read_text(encoding="utf-8")
+        version_file.write_text("ANDROID_VERSION = '999.999.999'\n", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "Version mismatch"):
             self.verify()
-        (self.source / "android_app/version.py").write_text("ANDROID_VERSION = '0.1.0'\n")
-        self.assertEqual(self.verify()["apk"]["version_name"], "0.1.0")
+        version_file.write_text(original, encoding="utf-8")
+        self.assertEqual(self.verify()["apk"]["version_name"], VERSION[1:])
         with patch("tools.android_release_gate.subprocess.run",
                    return_value=Mock(stdout=AAPT_GOOD)):
             manifest = self.finalize()
@@ -239,7 +242,7 @@ class Phase09GateTests(unittest.TestCase):
 
     def test_workflow_order_and_version_futureproofing(self):
         workflow = (ROOT / ".github/workflows/android-apk.yml").read_text(encoding="utf-8")
-        self.assertNotIn('== "v0.1.0"', workflow)
+        self.assertNotRegex(workflow, r'==\s*["\']v[0-9]+\.[0-9]+\.[0-9]+["\']')
         self.assertIn("os.environ[\"RELEASE_VERSION\"]", workflow)
         checks = [
             "python tools/android_native_cores.py stage",

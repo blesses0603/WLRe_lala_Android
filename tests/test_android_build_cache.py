@@ -75,7 +75,9 @@ class AndroidBuildCacheTests(unittest.TestCase):
         self.assertTrue(build < audit < save < upload)
         self.assertIn("steps.android_dependency_cache.outputs.cache-hit != 'true'", content)
         self.assertNotIn("restore-keys:", content)
-        self.assertEqual(content.count("continue-on-error: true"), 2)
+        # Original SDK/NDK + new ccache + pinned third-party recipe
+        # restore/save actions all fail open without bypassing APK gates.
+        self.assertEqual(content.count("continue-on-error: true"), 6)
         for path in (
             "~/.buildozer/android/platform/android-sdk",
             "~/.buildozer/android/platform/android-ndk-r28c",

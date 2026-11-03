@@ -43,6 +43,16 @@ def resource_message(report):
                 'download_limit': '必要資源超過單次下載額度',
                 'official_version_changed': '檢查期間官方資源版本發生變更',
                 'runtime_identity_mismatch': 'Runtime 與官方登入版本不一致',
+                'manifest_download_failed': '官方 Manifest 下載失敗',
+                'manifest_parser_missing': '此版缺少官方 Manifest 解碼功能',
+                'manifest_parse_failed': '官方 Manifest 結構無法解析',
+                'manifest_validation_failed': '官方 Manifest 格式或完整性驗證失敗',
+                'bundle_download_failed': '必要 Bundle 下載或同步中斷',
+                'bundle_integrity_failed': 'Bundle 校驗或本機快取不一致',
+                'bundle_plan_failed': '官方 Bundle 依賴規劃未通過驗證',
+                'runtime_catalog_unavailable': '此版無法載入目前官方資源的完整 Runtime',
+                'runtime_check_superseded': '已有更新的官方 Runtime 檢查取代本次檢查',
+                'resource_io_failed': '官方資源或私人快取讀寫失敗',
                 'runtime_check_failed': 'Runtime 檢查發生未分類錯誤',
             }
             code = failure.get('code')

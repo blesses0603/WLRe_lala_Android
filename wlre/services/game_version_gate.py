@@ -81,6 +81,52 @@ def classify_runtime_failure(error):
             return {"code": "runtime_identity_mismatch", "table": None}
     if kind == "ValueError" and message == "Runtime identity mismatch":
         return {"code": "runtime_identity_mismatch", "table": None}
+
+    # Versions can be verified successfully while the independent YooAsset
+    # manifest, dependency plan or UnityFS decoder still fails. Never expose
+    # arbitrary exception strings from HTTPS, file paths or private storage.
+    # An exception type is trusted here only when emitted by our own known
+    # resource pipeline; every public error remains a fixed code.
+    if kind == "ManifestSyncError":
+        if message == "Official Manifest download failed":
+            code = "manifest_download_failed"
+        elif message == "YooAsset full index parser (#53) is required":
+            code = "manifest_parser_missing"
+        elif message == "YooAsset Manifest full index parse failed":
+            code = "manifest_parse_failed"
+        else:
+            code = "manifest_validation_failed"
+        return {"code": code, "table": None}
+    if kind == "CatalogIdentityError":
+        return {"code": "manifest_identity_mismatch", "table": None}
+    if kind == "BundleDownloadError":
+        code = ("bundle_download_failed" if message == "Official Bundle download failed"
+                else "bundle_integrity_failed")
+        return {"code": code, "table": None}
+    if kind == "IncrementalSyncError":
+        if message == "Incremental Bundle sync interrupted; not ready":
+            code = "bundle_download_failed"
+        elif message in (
+            "Required Bundle is invalid or exceeds safe size",
+            "Reused Bundle failed checksum verification",
+            "Bundle cache changed since planning",
+        ):
+            code = "bundle_integrity_failed"
+        else:
+            code = "bundle_plan_failed"
+        return {"code": code, "table": None}
+    if kind == "UnityTextAssetError":
+        return {"code": "runtime_parse_failed", "table": None}
+    if kind == "DynamicRuntimeUnavailable":
+        if message == "A newer official runtime check superseded this load":
+            code = "runtime_check_superseded"
+        elif message == "Invalid runtime download budget":
+            code = "download_limit"
+        else:
+            code = "runtime_catalog_unavailable"
+        return {"code": code, "table": None}
+    if kind == "OSError":
+        return {"code": "resource_io_failed", "table": None}
     return {"code": "runtime_check_failed", "table": None}
 
 

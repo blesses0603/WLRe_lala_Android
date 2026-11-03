@@ -9,6 +9,10 @@ from wlre.services.game_version_gate import classify_runtime_failure
 from wlre.services.world.bundle_runtime_1275 import BundleRuntimeUnavailable
 from wlre.services.world.dynamic_bundle_runtime import DynamicRuntimeUnavailable
 from wlre.services.official_incremental_sync import IncrementalSyncError
+from wlre.services.official_manifest_sync import ManifestSyncError
+from wlre.services.official_bundle_download import BundleDownloadError
+from wlre.services.world.catalog_identity import CatalogIdentityError
+from wlre.services.world.unity_textasset import UnityTextAssetError
 
 
 class AndroidRuntimeFailureDiagnostics(unittest.TestCase):
@@ -48,6 +52,51 @@ class AndroidRuntimeFailureDiagnostics(unittest.TestCase):
             DynamicRuntimeUnavailable("Official versions changed during runtime load"))
         self.assertEqual(quota["code"], "download_limit")
         self.assertEqual(changed["code"], "official_version_changed")
+
+    def test_current_manifest_and_bundle_stages_have_fixed_diagnostics(self):
+        cases = (
+            (ManifestSyncError("Official Manifest download failed"),
+             "manifest_download_failed", "Manifest 下載"),
+            (ManifestSyncError("YooAsset full index parser (#53) is required"),
+             "manifest_parser_missing", "Manifest 解碼"),
+            (ManifestSyncError("YooAsset Manifest full index parse failed"),
+             "manifest_parse_failed", "Manifest 結構"),
+            (ManifestSyncError("Manifest identity or format differs from official .version"),
+             "manifest_validation_failed", "Manifest 格式"),
+            (CatalogIdentityError("Verified private Manifest is unreadable"),
+             "manifest_identity_mismatch", "Manifest 與 Runtime"),
+            (BundleDownloadError("Official Bundle download failed"),
+             "bundle_download_failed", "Bundle 下載"),
+            (BundleDownloadError("Official Bundle size/hash/CRC verification failed"),
+             "bundle_integrity_failed", "Bundle 校驗"),
+            (IncrementalSyncError("Required Bundle is invalid or exceeds safe size"),
+             "bundle_integrity_failed", "Bundle 校驗"),
+            (IncrementalSyncError("Missing Bundle dependency"),
+             "bundle_plan_failed", "Bundle 依賴"),
+            (UnityTextAssetError("Unity SerializedFile TextAsset decoding failed"),
+             "runtime_parse_failed", "資料結構"),
+            (DynamicRuntimeUnavailable("A newer official runtime check superseded this load"),
+             "runtime_check_superseded", "更新的官方 Runtime"),
+            (DynamicRuntimeUnavailable("Verified current-version catalog unavailable"),
+             "runtime_catalog_unavailable", "完整 Runtime"),
+            (OSError("/private/path secret=should-not-leak"),
+             "resource_io_failed", "讀寫失敗"),
+        )
+        for exc, code, label in cases:
+            with self.subTest(code=code):
+                diagnostic = classify_runtime_failure(exc)
+                self.assertEqual(diagnostic, {"code": code, "table": None})
+                public = resource_message(self.blocked_report(diagnostic))
+                self.assertIn(label, public)
+                self.assertIn("禁止登入", public)
+                self.assertNotIn(str(exc), public)
+
+    def test_unknown_manifest_text_is_not_echoed_to_screen(self):
+        secret = "PRIVATE-DEVICE-PATH secret=PRIVATE-PASSWORD"
+        failure = classify_runtime_failure(ManifestSyncError(secret))
+        self.assertEqual(failure, {"code": "manifest_validation_failed", "table": None})
+        message = resource_message(self.blocked_report(failure))
+        self.assertNotIn(secret, message)
 
     def test_untrusted_exception_text_and_unknown_table_never_escape(self):
         secret = "PRIVATE-DEVICE-PATH secret=PRIVATE-PASSWORD"

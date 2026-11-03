@@ -94,6 +94,39 @@ class VisibleAndroidLoginGate(unittest.TestCase):
             self.assertTrue(any(isinstance(widget, TextInput) for widget in root.walk()))
             Clock.unschedule(app.drain_events)
 
+    def test_android_resume_rebuilds_gate_without_exposing_login_or_password(self):
+        import android_app.app as module
+        from kivy.core.window import Window
+        from kivy.uix.textinput import TextInput
+
+        with patch.object(module, "platform", "android"):
+            app = module.LaLaApp()
+            old = app.build()
+            app.root = old
+            Window.add_widget(old)
+            def cleanup():
+                app._drain_timer.cancel()
+                if app.root in Window.children:
+                    Window.remove_widget(app.root)
+            self.addCleanup(cleanup)
+
+            app._ui_started = True
+            app.manager = SimpleNamespace(background=True, available=True,
+                resource_status=status(ready=False), sessions={},
+                metrics={}, events=queue.Queue())
+            app.catalog_sync = SimpleNamespace(snapshot=lambda: status(ready=False))
+            app.account.text = 'remember-user-not-password'
+            app.password.text = 'PRIVATE-DO-NOT-RESTORE'
+            app._restore_foreground_ui()
+
+            self.assertIsNot(app.root, old)
+            self.assertIn(app.root, Window.children)
+            self.assertFalse(app._login_visible)
+            self.assertFalse(any(isinstance(widget, TextInput)
+                                 for widget in app.root.walk()))
+            self.assertEqual(app.account.text, 'remember-user-not-password')
+            self.assertEqual(app.password.text, '')
+
     def test_android_resource_failure_stays_on_gate_with_safe_retry(self):
         import android_app.app as module
         with patch.object(module, "platform", "android"):

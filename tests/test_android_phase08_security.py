@@ -117,6 +117,9 @@ class CredentialResidencyTests(unittest.TestCase):
             account=SimpleNamespace(text="alice"),
             password=SimpleNamespace(text="sent-once"),
             remember=SimpleNamespace(active=True),
+            # Exercise encrypted persistence AFTER the independent resources
+            # and SQLite pre-login gate has approved the account screen.
+            _login_visible=True, _login_ready=lambda: True,
             vault=vault, saved_accounts=[],
             saved=SimpleNamespace(values=[]),
             message=SimpleNamespace(text=""),

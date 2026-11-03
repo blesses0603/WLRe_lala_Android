@@ -1,5 +1,13 @@
 # 版本紀錄
 
+## 7.1.7 Android 官方 Manifest 網路診斷與同源重試（2026-11-04，修補候選）
+
+- 依 Android v7.1.6 真機畫面確認：官方版本可取得 DataPackage 1286／MainPackage 1284，但完整 Runtime 被 `ManifestSyncError: Official Manifest download failed` 阻擋。無法從畫面判定 .hash／.bytes 及 HTTP／TLS／DNS／逾時根因；未取得真機原始連線 Log。
+- 原本官方版本查詢有受限數字查詢與回退，Manifest 僅使用固定原始 URL。現在 Manifest 在 HTTP 400／403／404 時，最多增加**一次同主機、同路徑、HTTPS、數字查詢字尾**的重試；任何回應仍須通過原本的 .hash／.bytes CRC32、YooAsset 解析、版本身分與完整 Runtime／SQLite Gate。
+- 將 Manifest 下載失敗辨識到 DataPackage／MainPackage 的 .hash／.bytes，以及固定的 HTTP 狀態碼、TLS 憑證／握手、DNS、逾時／拒絕連線類型。Android 畫面不輸出例外原文、伺服器回應內容、真實路徑、帳號或 Token。
+- 增加模擬官方 CDN HTTP 404、TLS 拒絕、CRC32 與診斷隱私的離線回歸測試。實際官方 CDN 可用性、ARM64 APK 編譯、真機安裝與登入仍須單獨驗收，**不宣稱已修復真機下載根因**。
+- Android 版本預計從 7.1.6 升到 7.1.7；桌面版本不變。不改遊戲封包、帳號與正式伺服器安全政策，不合併 main、Tag 或 Release。
+
 ## 7.1.6 APK 編譯啟動修補候選（2026-11-04，尚未正式發布）
 
 - 根據主分支 APK CI #41683915841 的實際日誌，P3 的「Compute P3 SHA-256 keys」在 Step 17 出現 `ModuleNotFoundError: No module named 'tools'`，導致 Buildozer 原生編譯尚未執行就停止。

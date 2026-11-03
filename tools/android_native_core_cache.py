@@ -165,14 +165,14 @@ def prepare_recipe_hooks(stage: Path) -> None:
         if source.count(old_import) != 1 or source.count(old_base) != 1:
             raise ValueError("Unexpected original native recipe: " + name)
         new_import = (
-            "from pythonforandroid.recipe import IncludedFilesBehaviour\\n"
-            "from pathlib import Path\\n"
-            "import importlib.util\\n"
-            "_p3path = Path(__file__).resolve().with_name('_lala_core_cache.py')\\n"
+            "from pythonforandroid.recipe import IncludedFilesBehaviour\n"
+            "from pathlib import Path\n"
+            "import importlib.util\n"
+            "_p3path = Path(__file__).resolve().with_name('_lala_core_cache.py')\n"
             "_p3spec = importlib.util.spec_from_file_location('_lala_p3_' + "
-            + repr(name) + ", _p3path)\\n"
-            "_p3module = importlib.util.module_from_spec(_p3spec)\\n"
-            "_p3spec.loader.exec_module(_p3module)\\n"
+            + repr(name) + ", _p3path)\n"
+            "_p3module = importlib.util.module_from_spec(_p3spec)\n"
+            "_p3spec.loader.exec_module(_p3module)\n"
             "SHA256CoreRecipe = _p3module.SHA256CoreRecipe"
         )
         new_source = source.replace(old_import, new_import)

@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import zlib
 
+from android_app.tls import verified_https_opener
 from wlre.storage.paths import data_root
 
 
@@ -119,7 +120,7 @@ def fetch_bundle(spec, *, cache_root=None, opener=None, timeout=20):
     if _verified_file(destination, spec):
         return destination
     destination.parent.mkdir(parents=True, exist_ok=True)
-    opener = build_opener(_NoRedirect()).open if opener is None else opener
+    opener = verified_https_opener(_NoRedirect()) if opener is None else opener
     pending = None
     try:
         with opener(Request(url, headers={'User-Agent': 'WLRe-LaLa-OfficialSync/1'}),

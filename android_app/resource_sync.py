@@ -30,6 +30,29 @@ def configure_paths(context=None):
 def resource_message(report):
     """Show bounded network failure categories without exposing raw payloads."""
     message = str(report.get('message', '官方資料尚未通過驗證'))[:350]
+    if report.get('block_reason') == 'runtime_unavailable':
+        failure = report.get('runtime_failure')
+        if type(failure) is dict:
+            labels = {
+                'required_bundle_missing': '必要 Bundle 尚未下載或快取未通過驗證',
+                'required_bundle_invalid': '必要 Bundle 完整性驗證失敗',
+                'runtime_parse_failed': '官方資料結構或解析程序不相容',
+                'runtime_data_invalid': '完整 Runtime 的資料交叉驗證失敗',
+                'manifest_identity_mismatch': '官方 Manifest 與 Runtime 身分不一致',
+                'manifest_asset_missing': '目前 Manifest 缺少必要資源',
+                'download_limit': '必要資源超過單次下載額度',
+                'official_version_changed': '檢查期間官方資源版本發生變更',
+                'runtime_identity_mismatch': 'Runtime 與官方登入版本不一致',
+                'runtime_check_failed': 'Runtime 檢查發生未分類錯誤',
+            }
+            code = failure.get('code')
+            if type(code) is str and code in labels:
+                message += '\n檢查原因：' + labels[code]
+                from wlre.services.world.bundle_runtime_1275 import _REQUIRED_TABLES
+                table = failure.get('table')
+                if type(table) is str and table in _REQUIRED_TABLES:
+                    message += '（' + table + '）'
+        return message
     remote = report.get('remote')
     if report.get('login_allowed') is True or type(remote) is not dict:
         return message
@@ -68,6 +91,7 @@ class ResourceSync:
         self.lock = threading.Lock()
         self.worker = None
         self.value = dict(status='idle', ready=False, message='等待官方資料檢查', revision=0)
+        self._preparation_issue = None
 
     def snapshot(self):
         with self.lock:
@@ -83,6 +107,7 @@ class ResourceSync:
             if self.worker is not None and self.worker.is_alive():
                 return False
             self.value.update(status='checking', ready=False, message='核對官方版本、Manifest 與資料庫')
+            self._preparation_issue = None
             self.value['revision'] += 1
             self.worker = threading.Thread(target=self._run, name='official-resource-sync', daemon=True)
             self.worker.start()
@@ -104,9 +129,13 @@ class ResourceSync:
                      report.get('database_verified') is True and
                      report.get('blocked') is False)
             from wlre.services.world.dynamic_bundle_runtime import current_catalog_token
+            message = resource_message(report)
+            if (not ready and self._preparation_issue == 'download_limit'
+                    and report.get('block_reason') == 'runtime_unavailable'):
+                message += '\n準備階段：必要 Bundle 超過單次下載上限（32 MiB／24 檔）'
             self._update(status='ready' if ready else 'blocked', ready=ready,
                          catalog_token=list(current_catalog_token()),
-                         message=resource_message(report),
+                         message=message,
                          counts=report.get('record_counts', {}))
         except Exception as exc:
             # Exception messages can expose device paths and remote payloads.
@@ -122,6 +151,10 @@ class ResourceSync:
             'bundle_sync': '下載及校驗必要資源',
             'bundle_verify': '驗證官方資源內容',
         }
+        if phase == 'runtime_bundle_unavailable':
+            self._preparation_issue = (
+                'download_limit' if type(details) is dict
+                and details.get('code') == 'download_limit' else 'prepare_failed')
         if phase in labels:
             self._update(message=labels[phase])
 

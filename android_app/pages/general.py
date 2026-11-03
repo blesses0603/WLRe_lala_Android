@@ -24,29 +24,69 @@ class Page(BoxLayout):
 
 
 class Overview(Page):
+    """Compact touch dashboard backed only by the live game snapshot."""
+
     def __init__(self, d):
-        super().__init__(d); self.info = label(); self.add_widget(self.info)
+        super().__init__(d)
+        from android_app.pages.ui_components import feature_card, status_line
         from android_app.automation_ui import toggle
-        self.add_widget(row(button('切換戰鬥', lambda: toggle(d.app, d.sid, 'battle')),
-                            button('切換徘徊', lambda: toggle(d.app, d.sid, 'roaming')),
-                            button('切換遠征', lambda: toggle(d.app, d.sid, 'expedition'))))
-        self.add_widget(row(
+
+        profile = feature_card('角色與場景', '角色數據與目前座標依伺服器同步')
+        self.info = status_line()
+        profile.add_widget(self.info)
+        self.add_widget(profile)
+
+        automation = feature_card('自動化控制', '依遊戲核心狀態切換戰鬥、徘徊與遠征')
+        automation.add_widget(row(
+            button('切換戰鬥', lambda: toggle(d.app, d.sid, 'battle')),
+            button('切換徘徊', lambda: toggle(d.app, d.sid, 'roaming')),
+            button('切換遠征', lambda: toggle(d.app, d.sid, 'expedition'))))
+        self.auto_status = status_line()
+        automation.add_widget(self.auto_status)
+        automation.add_widget(button(
+            '切換自動接續啟停',
+            lambda: d.send(dict(
+                type='automatic_flows',
+                enabled=not self.state.get('automation', {}).get('enabled', True)))))
+        automation.add_widget(row(
             button('AI／補給／修理設定',
                    lambda: setattr(d.navigation, 'text', 'AI與補給設定')),
             button('遠征詳情／設定',
                    lambda: setattr(d.navigation, 'text', '遠征'))))
-        self.auto_status = label(); self.add_widget(self.auto_status)
-        self.add_widget(button('切換自動接續啟停', lambda:d.send(dict(type='automatic_flows', enabled=not self.state.get('automation', {}).get('enabled', True)))))
-        self.add_widget(label('副本、協力由房主手動開始。'))
-        from wlre.services.world.tent import activity_text
-        self.tent_info = label(); self.add_widget(self.tent_info)
-        for pair in ((('展開帳篷','open'),('收起帳篷','close')), (('進入帳篷','enter'),('離開帳篷','leave'))):
-            self.add_widget(row(*(button(title, lambda a=action:d.send(dict(type='tent',action=a))) for title,action in pair)))
+        automation.add_widget(status_line('副本與協力仍由房主手動開始。'))
+        self.add_widget(automation)
+
+        tent = feature_card('帳篷活動', '展開、收起與進出都須等待伺服器確認')
+        self.tent_info = status_line()
+        tent.add_widget(self.tent_info)
+        for pair in (
+            (('展開帳篷', 'open'), ('收起帳篷', 'close')),
+            (('進入帳篷', 'enter'), ('離開帳篷', 'leave')),
+        ):
+            tent.add_widget(row(*(button(
+                title, lambda a=action: d.send(dict(type='tent', action=a)))
+                for title, action in pair)))
+        self.add_widget(tent)
+
+        events = feature_card('近期事件', '來自此帳號的最近同步事件')
+        self.recent_events = status_line()
+        events.add_widget(self.recent_events)
+        events.add_widget(button(
+            '查看完整事件紀錄',
+            lambda: setattr(d.navigation, 'text', '事件紀錄')))
+        self.add_widget(events)
+
     def refresh(self):
         from wlre.services.world.tent import activity_text
         self.tent_info.text = activity_text(self.state.get('tent', {}))
-        self.auto_status.text = self.state.get('automation', {}).get('status', '等待同步')
-        self.info.text = '\n\n'.join(overview_lines(self.state))
+        self.auto_status.text = self.state.get('automation', {}).get(
+            'status', '等待同步')
+        self.info.text = '\\n'.join(overview_lines(self.state))
+        recent = self.d.data.get('log', [])
+        if type(recent) is list:
+            self.recent_events.text = '\\n'.join(str(x) for x in recent[-3:]) or '尚無事件紀錄'
+        else:
+            self.recent_events.text = '事件資料尚未同步'
 
 
 class Events(Page):

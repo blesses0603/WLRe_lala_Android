@@ -81,8 +81,9 @@ class NavigationDock(BoxLayout):
         self.buttons = {}
         for title, page in NAV_ROUTES:
             view = style_button(Button(text=title, size_hint_y=None,
-                                       height=dp(54),
-                                       font_size='13sp'), radius=16)
+                                       height=dp(54)), radius=16)
+            # Long Chinese labels must fit a 320dp phone with four columns.
+            view.font_size = '12sp'
             view.bind(on_release=lambda _button, target=page: navigate(target))
             self.buttons[page] = view
             self.add_widget(view)

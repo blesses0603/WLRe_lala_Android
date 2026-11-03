@@ -1,5 +1,6 @@
 """Minimal portrait, touch-operated Android login smoke-test UI."""
 import queue
+import time
 from pathlib import Path
 
 from kivy.app import App
@@ -54,6 +55,8 @@ class LaLaApp(App):
         self._ui_restoring = False
         self._resume_restore_event = None
         self._drain_timer = None
+        self._last_metrics_render = float('-inf')
+        self._last_automation_render = float('-inf')
         self._login_view = None
         self._login_host = None
         self._login_visible = False
@@ -555,6 +558,9 @@ class LaLaApp(App):
             if record: self.list_box.remove_widget(record[4])
 
     def drain_events(self, *_):
+        # Keep IPC event handling responsive (4 Hz), but avoid expensive
+        # Android Debug.getMemoryInfo calls and card redraws on every tick.
+        now = time.monotonic()
         if getattr(self.manager, 'background', False):
             resource = getattr(self.manager, 'resource_status', {})
             sync = self.catalog_sync
@@ -581,10 +587,13 @@ class LaLaApp(App):
                 if not self.android_ready_reported:
                     print('WLRE_ANDROID_SERVICE_CONNECTED', flush=True)
                     self.android_ready_reported = True
-                try:
-                    self.render_metrics(metrics)
-                except Exception:
-                    self.resources.text = '資源監控暫時無法讀取（A06）；連線由服務管理'
+                if now - self._last_metrics_render >= 2.0:
+                    try:
+                        self.render_metrics(metrics)
+                    except Exception:
+                        self.resources.text = '資源監控暫時無法讀取（A06）；連線由服務管理'
+                    finally:
+                        self._last_metrics_render = now
         for _ in range(80):
             try:
                 sid, kind, value = self.manager.events.get_nowait()
@@ -637,8 +646,11 @@ class LaLaApp(App):
                 stop.unbind(on_release=stop._lala_stop_callback)
                 stop.text = "移除"
                 stop.bind(on_release=lambda _button, session_id=sid: self.remove_card(session_id))
-        from android_app.automation_ui import refresh
-        for sid in self.cards: refresh(self, sid)
+        if now - self._last_automation_render >= 1.0:
+            from android_app.automation_ui import refresh
+            for sid in self.cards:
+                refresh(self, sid)
+            self._last_automation_render = now
         return True
 
     def render_metrics(self, metrics):

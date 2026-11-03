@@ -51,6 +51,14 @@ class AndroidTlsTests(unittest.TestCase):
         self.assert_verified_context()
         self.assertFalse(list(selected.parent.glob(".ca-*")))
 
+    def test_der_encoded_system_root_is_parsed_and_merged(self):
+        der = ssl.PEM_cert_to_DER_cert(self.ca.decode("ascii"))
+        (self.system / "0123abcd.0").write_bytes(der)
+        selected = configure_tls(self.root, system_dirs=[self.system])
+        self.assertEqual(selected, self.root / "tls/cacert.pem")
+        self.assertIn(ssl.DER_cert_to_PEM_cert(der).encode("ascii"), selected.read_bytes())
+        self.assert_verified_context()
+
     def test_non_system_filename_is_not_imported(self):
         (self.system / "user-added.pem").write_bytes(b"not a certificate")
         selected = configure_tls(self.root, system_dirs=[self.system])

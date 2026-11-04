@@ -11,7 +11,8 @@ from kivy.uix.boxlayout import BoxLayout
 
 from android_app.pages.general import Page
 from android_app.pages.ui_components import feature_card, status_line
-from android_app.widgets import button
+from android_app.widgets import button, row
+from android_app.theme import style_button
 
 
 # module, class, heading, explanation. These are existing feature pages.
@@ -173,6 +174,103 @@ class ExpeditionAndInstances(PairedFeatures):
         super().__init__(d, '遠征＋副本')
 
 
-class AlchemyAndCrafting(PairedFeatures):
+class AlchemyAndCrafting(Page):
+    """One actual workbench, not two complete pages inside nested cards.
+
+    Switching between the two functional areas does not recreate the Kivy
+    controls: local material selections, counts and recipe filters survive.
+    Only the selected area refreshes on dashboard polling.
+    """
+
+    WORK_AREAS = (
+        ('煉金', 'Alchemy'),
+        ('製作工坊', 'Crafting'),
+    )
+
     def __init__(self, d):
-        super().__init__(d, '煉金＋製作')
+        # Dashboard already shows the selected feature name in its chooser.
+        # Avoid repeating that heading inside another bordered feature page.
+        super().__init__(d, show_title=False)
+        self.pair_name = '煉金＋製作'
+        self.active = None
+        self.sections = {}
+
+        self.switcher = row(
+            button('煉金材料', lambda: self.select('煉金'), 48),
+            button('製作配方', lambda: self.select('製作工坊'), 48))
+        self.tab_buttons = dict(zip(
+            ('煉金', '製作工坊'), reversed(self.switcher.children)))
+        self.add_widget(self.switcher)
+        self.note = status_line(
+            '選取材料與配方不會自動送出；消耗及排程需明確確認')
+        self.note.font_size = '12sp'
+        self.add_widget(self.note)
+
+        self.workbench = BoxLayout(
+            orientation='vertical', spacing=dp(6), size_hint_y=None)
+        self.workbench.bind(
+            minimum_height=self.workbench.setter('height'))
+        self.add_widget(self.workbench)
+
+        for title, cls_name in self.WORK_AREAS:
+            slot = BoxLayout(
+                orientation='vertical', size_hint_y=None)
+            slot.bind(minimum_height=slot.setter('height'))
+            self.sections[title] = {
+                'class': cls_name, 'slot': slot,
+                'view': None, 'expanded': False,
+            }
+
+        self.select('煉金')
+
+    def select(self, title):
+        """Switch panels locally without triggering a gameplay command."""
+        if title == self.active:
+            return
+        previous = self.active
+        if previous is not None:
+            old = self.sections[previous]
+            pause = getattr(old['view'], 'pause_render', None)
+            if callable(pause):
+                pause()
+            self.workbench.remove_widget(old['slot'])
+            old['expanded'] = False
+
+        section = self.sections[title]
+        if section['view'] is None:
+            module = import_module('android_app.pages.production')
+            page_type = getattr(module, section['class'])
+            # These controllers have the original alchemy/crafting validation.
+            # Embedded mode only changes visual framing, not command behavior.
+            proxy = _SectionDashboard(self.d, '')
+            section['view'] = page_type(proxy, compact=True)
+            section['slot'].add_widget(section['view'])
+
+        self.workbench.add_widget(section['slot'])
+        section['expanded'] = True
+        self.active = title
+        for key, control in self.tab_buttons.items():
+            style_button(control, primary=key == title)
+        self.note.text = (
+            '五格材料及每次數量；送出前預覽消耗'
+            if title == '煉金' else
+            '已確認配方與材料需求；加入排程需再次確認')
+        section['view'].refresh()
+
+    def expand(self, title):
+        self.select(title)
+
+    def toggle(self, title):
+        self.select(title)
+
+    def refresh(self):
+        if self.active is not None:
+            self.sections[self.active]['view'].refresh()
+
+    def close(self):
+        for section in self.sections.values():
+            view = section['view']
+            if view is not None:
+                close = getattr(view, 'close', None)
+                if callable(close):
+                    close()

@@ -22,7 +22,8 @@ class ProductionDensityOffline(unittest.TestCase):
         production = (ROOT / "android_app/pages/production.py").read_text("utf-8")
         for source in (dashboard, visual, production):
             ast.parse(source)
-        self.assertIn("compact = name == '煉金＋製作'", dashboard)
+        self.assertIn("production = name == '煉金＋製作'", dashboard)
+        self.assertIn("social = name == '聊天＋組隊'", dashboard)
         self.assertIn("def _apply_page_density(self, name)", dashboard)
         self.assertIn("class CraftingSplit(BoxLayout):", visual)
         self.assertIn("self.crafting_panes = CraftingSplit(browse, preview)", production)
@@ -73,7 +74,8 @@ class ProductionDensityKivy(unittest.TestCase):
         from kivy.metrics import dp
         from android_app.dashboard import Dashboard
         view = object.__new__(Dashboard)
-        view.shell = SimpleNamespace(spacing=None)
+        view.shell = SimpleNamespace(spacing=None, padding=None)
+        view.dock = SimpleNamespace(height=None)
         view.brand = SimpleNamespace(
             height=None, padding=None, logo=SimpleNamespace(width=None))
         view.nav_frame = SimpleNamespace(height=None, padding=None)
@@ -83,9 +85,15 @@ class ProductionDensityKivy(unittest.TestCase):
         self.assertEqual(view.nav_frame.height, dp(50))
         self.assertEqual(view.back_button.height, dp(44))
         view._apply_page_density("聊天＋組隊")
+        self.assertEqual(view.brand.height, dp(86))
+        self.assertEqual(view.nav_frame.height, dp(43))
+        self.assertEqual(view.back_button.height, dp(39))
+        self.assertEqual(view.dock.height, dp(59))
+        view._apply_page_density("角色概況")
         self.assertEqual(view.brand.height, dp(112))
         self.assertEqual(view.nav_frame.height, dp(58))
         self.assertEqual(view.back_button.height, dp(48))
+        self.assertEqual(view.dock.height, dp(64))
 
     def test_preview_source_quantity_and_queue_are_safe(self):
         from kivy.uix.widget import Widget

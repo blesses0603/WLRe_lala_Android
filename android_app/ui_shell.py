@@ -161,42 +161,50 @@ PAGE_GROUPS = {
 
 
 class NavigationDock(BoxLayout):
-    """Four real, accessible routes to existing Android feature pages."""
+    """Four accessible bottom routes with non-overlapping labels and icons."""
 
     def __init__(self, navigate, **kwargs):
         super().__init__(orientation='horizontal',
-                         size_hint_y=None, height=dp(64),
+                         size_hint_y=None, height=dp(60),
                          spacing=dp(4), padding=[dp(5), dp(5)], **kwargs)
         neon_surface(self, color=SURFACE, radius=19, border=BORDER, bright=True)
         from android_app.pages.social_visual import SocialIcon
         self.buttons = {}
         self.icons = {}
+        self.labels = {}
         for index, (title, page) in enumerate(NAV_ROUTES):
-            view = style_button(Button(text=title, size_hint_y=None,
-                                       height=dp(54)), radius=16)
+            # Button is the only touch target; children are decoration only.
+            view = style_button(Button(text='', size_hint_y=1), radius=14)
             view.font_size = '11sp'
-            view.halign, view.valign = 'center', 'bottom'
             picture = SocialIcon(('home','layers','bars','grid')[index],
-                                 tint=MUTED,edge=25)
+                                 tint=MUTED, edge=20)
+            name = Label(text=title, font_size='10sp', color=MUTED,
+                         size_hint=(None, None), halign='center',
+                         valign='middle', shorten=True)
+            name.text_size = (dp(80), dp(17))
             view.add_widget(picture)
-            def position_icon(w, *_, asset=picture):
-                asset.pos=(w.center_x-asset.width/2,w.top-dp(30))
-                w.text_size=(max(0,w.width-dp(8)),max(0,w.height-dp(6)))
-            view.bind(pos=position_icon,size=position_icon)
-            position_icon(view)
+            view.add_widget(name)
+            def position_content(w, *_, icon=picture, caption=name):
+                icon.center_x = w.center_x
+                icon.y = w.top - icon.height - dp(5)
+                caption.pos = (w.x + dp(2), w.y + dp(3))
+                caption.size = (max(0, w.width-dp(4)), dp(17))
+                caption.text_size = caption.size
+            view.bind(pos=position_content, size=position_content)
+            position_content(view)
             view.bind(on_release=lambda _button, target=page: navigate(target))
-            self.icons[page] = picture
             self.buttons[page] = view
+            self.icons[page] = picture
+            self.labels[page] = name
             self.add_widget(view)
         self.set_active(NAV_ROUTES[0][1])
 
     def set_active(self, page):
         selected = PAGE_GROUPS.get(page, page)
         for route, button in self.buttons.items():
-            style_button(button, primary=route == selected, radius=16)
-            button.font_size = '11sp'
+            style_button(button, primary=route == selected, radius=14)
             self.icons[route].colorize(ACCENT if route == selected else MUTED)
-
+            self.labels[route].color = TEXT if route == selected else MUTED
 
 PAGE_SYMBOLS = {
     '角色概況':'◈','包包與特技':'▦','小地圖':'◇','戰場陣形':'✥',

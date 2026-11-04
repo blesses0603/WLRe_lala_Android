@@ -32,7 +32,7 @@ class ScreenshotStructureContract(unittest.TestCase):
         self.assertIn("embedded=False, show_title=True", general)
         self.assertEqual(
             production.count("super().__init__(d, embedded=compact)"), 2)
-        self.assertIn("row_default_height=dp(148)", production)
+        self.assertIn("row_default_height=dp(156)", production)
         self.assertIn("2 if width < dp(245) else", production)
         self.assertIn("3 if width < dp(342) else 5", production)
         self.assertIn("workbench.add_widget(setup)", production)
@@ -95,7 +95,7 @@ class ScreenshotKivyLayout(unittest.TestCase):
             self.assertEqual(alchemy.material_grid.cols, 3)
             alchemy.material_grid.width = dp(380)
             self.assertEqual(alchemy.material_grid.cols, 5)
-            self.assertEqual(alchemy.material_grid.row_default_height, dp(148))
+            self.assertEqual(alchemy.material_grid.row_default_height, dp(156))
             self.assertEqual(len(alchemy.material_grid.children), 5)
             self.assertEqual(len(alchemy.children), 1)  # one alchemy panel
             alchemy.slots[0][1].text = "7"

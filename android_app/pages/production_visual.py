@@ -116,7 +116,7 @@ class MaterialSlot(BoxLayout):
         super().__init__(
             orientation='vertical', spacing=dp(2),
             padding=[dp(4), dp(3), dp(4), dp(4)],
-            size_hint_y=None, height=dp(144))
+            size_hint_y=None, height=dp(156))
         self.slot_index = slot_index
         self.item_id = None
         self.icon_factory = icon_factory or (

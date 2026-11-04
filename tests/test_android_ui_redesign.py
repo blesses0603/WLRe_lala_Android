@@ -81,7 +81,7 @@ class AndroidVisualRedesignTests(unittest.TestCase):
         source = read('android_app/ui_shell.py')
         self.assertIn("verified = verified is True", source)
         self.assertIn('○ 官方資源尚未通過驗證', source)
-        self.assertIn('● 官方資源已驗證', source)
+        self.assertIn('✓ 官方資源已驗證', source)
         gate = read('android_app/app.py')
         self.assertIn('if self._login_ready():', gate)
         self.assertIn('self._login_brand_header.set_verified(True)', gate)

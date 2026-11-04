@@ -158,9 +158,15 @@ class Resources(Page):
                     bool(inventory.get('reliable')),
                     repr(inventory.get('items')),
                     repr(inventory.get('reserved')), *options)
-        return ('skills', repr(state.get('knowledge')),
+        # Skill rows depend on learned/equipped data, actor status and item
+        # costs, not on unrelated NPC dialogues or whole-world knowledge.
+        knowledge = state.get('knowledge') or {}
+        return ('skills', repr(knowledge.get('player')),
+                repr(knowledge.get('companions')),
+                knowledge.get('active_npc_id'),
                 repr(state.get('battle_units')),
                 repr(state.get('battle')), repr(state.get('player')),
+                repr(state.get('inventory')),
                 *options)
 
     def refresh(self):

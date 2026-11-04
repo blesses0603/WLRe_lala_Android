@@ -7,11 +7,13 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
+from kivy.uix.spinner import Spinner
 from android_app.theme import surface, style_input, SOFT, MUTED, ACCENT
 from kivy.core.clipboard import Clipboard
 from android_app.pages.general import Page
 from android_app.widgets import column, label, button, row, field, select, dialog, pick
 from android_app.assets import item_image
+from android_app.pages.production_visual import AlchemyLevelBar, tiny_label, ProductionPanel
 from wlre.services.items.combat_resources import item_name
 from wlre.services.items.alchemy import modes, prepare, material_problem
 from wlre.services.items.crafting import RECIPES, confirmed_unlocked, recipe_plan, effective_time, elapsed
@@ -28,9 +30,9 @@ class Alchemy(Page):
         from android_app.pages.ui_components import feature_card, status_line
         self.materials = [None]*5
 
-        workbench = (feature_card(
-            '煉金 (Alchemy)', '選取已確認的材料，預覽消耗後手動開始',
-            show_icon=False) if compact else None)
+        workbench = (ProductionPanel(
+            '煉金 (Alchemy)', '使用已核對的煉金術等級及背包材料',
+            icon_name='煉金') if compact else None)
         if compact:
             setup = BoxLayout(
                 orientation='vertical', spacing=dp(5), size_hint_y=None)
@@ -39,19 +41,29 @@ class Alchemy(Page):
             setup = feature_card('煉金設定',
                                  '模式與次數必須由原有煉金核心驗證')
         if compact:
-            # Adjacent controls consume one short row instead of two stacked
-            # full-width forms on an actual narrow phone.
-            controls = BoxLayout(
-                orientation='horizontal', spacing=dp(8),
-                size_hint_y=None, height=dp(94))
-            mode_box = BoxLayout(orientation='vertical')
-            count_box = BoxLayout(orientation='vertical')
-            self.mode = select(mode_box, '煉金術', ['無技能'])
-            self.runs = field(count_box, '執行次數', 1, True)
-            self.mode.font_size = self.runs.font_size = '13sp'
-            controls.add_widget(mode_box)
-            controls.add_widget(count_box)
-            setup.add_widget(controls)
+            # The design's grade selector is NOT an unverified alchemy mode.
+            # Keep the original protocol string in a nonvisual Spinner and
+            # expose four independently gated Kivy buttons.
+            self.mode = Spinner(text='無技能', values=['無技能'])
+            setup.add_widget(tiny_label(
+                '煉金術等級', height=23, font_size='12sp', color=MUTED))
+            self.level_bar = AlchemyLevelBar(self._choose_level)
+            setup.add_widget(self.level_bar)
+            self.mode.bind(text=lambda *_: self.level_bar.set_available(
+                modes(self.state), self.mode.text))
+            count_box = BoxLayout(orientation='horizontal',
+                                  size_hint_y=None, height=dp(48),
+                                  spacing=dp(6))
+            title = tiny_label('執行次數', height=42,
+                               font_size='12sp', color=MUTED)
+            title.size_hint_x = None
+            title.width = dp(58)
+            count_box.add_widget(title)
+            self.runs = style_input(TextInput(
+                text='1', multiline=False, input_filter='int',
+                input_type='number', size_hint_x=1, font_size='13sp'))
+            count_box.add_widget(self.runs)
+            setup.add_widget(count_box)
             setup.add_widget(row(
                 button('－', lambda: self.adjust_runs(-1)),
                 button('＋', lambda: self.adjust_runs(1)),
@@ -205,6 +217,14 @@ class Alchemy(Page):
             self._invalidate_preview()
         else:
             self.slots[index][0].text = f'材料 {index+1}：'+(f"#{value['index']} {item_name(value['item_id'])}" if value else '選擇')
+    def _choose_level(self, core_mode):
+        # Never enable a skill just because its design button is present.
+        if (self.mode.disabled or core_mode not in modes(self.state)):
+            return
+        self.mode.text = core_mode
+        self.level_bar.set_available(modes(self.state), core_mode)
+        self._invalidate_preview()
+
     def set_runs(self, value):
         # A UI shortcut, never a server command. The original core still
         # validates 1–999 as part of prepare().
@@ -255,6 +275,9 @@ class Alchemy(Page):
         if self.mode.text not in options and options: self.mode.text = options[-1]
         a = self.state.get('alchemy', {}); busy = a.get('enabled') or a.get('pending')
         self.mode.disabled = self.runs.disabled = bool(busy)
+        if self.compact:
+            self.level_bar.set_available(options if not busy else (),
+                                         self.mode.text)
         for b, count in self.slots: b.disabled = count.disabled = bool(busy)
         self.info.text = a.get('status', '等待同步')+f"\n完成 {a.get('completed', 0)}/{a.get('requested', 0)}"+'\n'+'\n'.join(
             f"{v.get('name', item_name(v['item_id']))} ×{v['count']}" for v in a.get('history', [])[-10:])

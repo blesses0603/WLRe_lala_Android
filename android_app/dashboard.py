@@ -133,24 +133,30 @@ class Dashboard:
         except (ValueError, OSError) as exc: self.message.text = str(exc); return False
 
     def _apply_page_density(self, name):
-        """Trim duplicate shell padding only on the production workspace.
+        """Keep the chat workspace readable without losing any navigation.
 
-        Keep the verified-resource status, connection state, account-exit
-        action and all navigation controls available at every screen width.
-        Other pages restore the original shell geometry when visited.
+        Resource state and account-exit controls remain present. Only the
+        paired chat and production pages use their dedicated compact chrome;
+        every other page restores the original touch dimensions.
         """
-        compact = name == '煉金＋製作'
-        self.shell.spacing = dp(8 if compact else 10)
-        self.brand.height = dp(102 if compact else 112)
+        production = name == '煉金＋製作'
+        social = name == '聊天＋組隊'
+        compact = production or social
+        self.shell.spacing = dp(6 if social else 8 if production else 10)
+        self.shell.padding = [dp(8)] * 4 if social else [dp(12)] * 4
+        self.brand.height = dp(86 if social else 102 if production else 112)
         self.brand.padding = (
-            [dp(10), dp(5), dp(10), dp(5)] if compact
-            else [dp(10), dp(9), dp(10), dp(9)])
-        self.brand.logo.width = dp(79 if compact else 87)
-        self.nav_frame.height = dp(50 if compact else 58)
+            [dp(7),dp(3),dp(7),dp(3)] if social
+            else [dp(10),dp(5),dp(10),dp(5)] if production
+            else [dp(10),dp(9),dp(10),dp(9)])
+        self.brand.logo.width = dp(68 if social else 79 if production else 87)
+        self.nav_frame.height = dp(43 if social else 50 if production else 58)
         self.nav_frame.padding = (
-            [dp(10), dp(3), dp(10), dp(3)] if compact
-            else [dp(10), dp(7), dp(10), dp(7)])
-        self.back_button.height = dp(44 if compact else 48)
+            [dp(8),dp(2),dp(8),dp(2)] if social
+            else [dp(10),dp(3),dp(10),dp(3)] if production
+            else [dp(10),dp(7),dp(10),dp(7)])
+        self.back_button.height = dp(39 if social else 44 if production else 48)
+        self.dock.height = dp(59 if social else 64)
 
     def show(self, name):
         self.page_name = name

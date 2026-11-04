@@ -66,6 +66,8 @@ class LaLaApp(App):
         self._verification_status = None
         self._verification_detail = None
         self._verification_retry = None
+        self._verification_screen = None
+        self._verification_enter_event = None
         self._pending_dashboard_restore = None
 
     def on_start(self):
@@ -199,63 +201,16 @@ class LaLaApp(App):
         return self._login_host
 
     def _build_verification_view(self):
-        """Android pre-login gate. No account controls before verified."""
-        from android_app.widgets import column, label, button
-        from android_app.theme import MUTED, SURFACE, surface, style_button
-        from android_app.ui_shell import BrandHeader, section_title
-
-        base = column()
-        base.padding = [dp(14), dp(14), dp(14), dp(24)]
-        base.spacing = dp(14)
-        self._verification_brand_header = BrandHeader(subtitle='資源驗證')
-        base.add_widget(self._verification_brand_header)
-
-        panel = surface(column(), radius=24)
-        panel.padding = dp(16)
-        panel.spacing = dp(12)
-        panel.add_widget(section_title(
-            '官方資料與資料庫檢查', '啟動前的官方版本與資料完整性驗證'))
-        panel.add_widget(label(
-            '必須確認官方版本、雙 Manifest、必要 Bundle、完整 Runtime '
-            '與 SQLite 資料庫，才能進入帳號登入。'))
-        # These are required checkpoints, NOT fabricated per-stage results.
-        for stage in ('① 官方版本／DataPackage／MainPackage',
-                      '② 雙 Manifest 與必要 Bundle',
-                      '③ Runtime／SQLite 與本機身分核對'):
-            item = surface(BoxLayout(size_hint_y=None, height=dp(48),
-                                     padding=[dp(12), dp(5)]),
-                           color=SURFACE, radius=13)
-            step_text = label(stage, 38)
-            step_text.color = MUTED
-            item.add_widget(step_text)
-            panel.add_widget(item)
-
-        panel.add_widget(section_title('目前驗證狀態'))
-        self._verification_status = label('等待 Android 背景服務啟動')
-        self._verification_status.color = MUTED
-        panel.add_widget(self._verification_status)
-        self._verification_detail = label(
-            '正在準備官方資料檢查；不會使用未驗證的舊版資源。')
-        self._verification_detail.color = MUTED
-        panel.add_widget(self._verification_detail)
-
-        self._verification_retry = button(
-            '重新檢查官方資料', self._retry_verification, 56)
-        style_button(self._verification_retry, primary=True)
-        panel.add_widget(self._verification_retry)
-        start_service = button(
-            '啟動／重新連接背景服務', self.initialize_android, 50)
-        panel.add_widget(start_service)
-        notice = label(
-            '驗證未完成時不提供帳號登入，也不會略過任何驗證。')
-        notice.font_size = '12sp'
-        notice.color = MUTED
-        panel.add_widget(notice)
-        base.add_widget(panel)
-
-        outer = ScrollView(do_scroll_x=False, bar_width=dp(3))
-        outer.add_widget(base)
-        return outer
+        """Reference-fidelity Android resource gate with actual service state."""
+        from android_app.verification_ui import VerificationScreen
+        view = VerificationScreen(self._retry_verification, self.initialize_android)
+        self._verification_screen = view
+        # Keep existing event callbacks and safe retry gating intact.
+        self._verification_brand_header = view.header
+        self._verification_status = view.status
+        self._verification_detail = view.detail
+        self._verification_retry = view.retry
+        return view
 
     def _retry_verification(self, *_):
         self.retry_resources()
@@ -270,55 +225,58 @@ class LaLaApp(App):
             connected=bool(getattr(self.manager, 'background', False)
                            and getattr(self.manager, 'available', False)))
 
+    def _enter_login_if_verified(self, *_):
+        """Never unlock login without rechecking both verified catalog tokens."""
+        self._verification_enter_event = None
+        if (platform != 'android' or self._login_host is None
+                or self._login_visible or not self._login_ready()):
+            return
+        self._login_host.clear_widgets()
+        self._login_host.add_widget(self._login_view)
+        self._login_visible = True
+        if self._login_brand_header is not None:
+            self._login_brand_header.set_verified(True)
+        pending = self._pending_dashboard_restore
+        self._pending_dashboard_restore = None
+        if pending is not None and pending[0] in self.manager.sessions:
+            self.drain_events()
+            self.open_dashboard(pending[0])
+            if (self.dashboard is not None and pending[1]
+                    and pending[1] != self.dashboard.page_name):
+                self.dashboard.navigation.text = pending[1]
+        print('WLRE_ANDROID_LOGIN_GATE_VERIFIED', flush=True)
+
     def _update_verification_gate(self):
         if platform != 'android' or self._login_host is None or self._login_visible:
             return
+        from android_app.verification_presenter import verification_view_state
         service = getattr(self.manager, 'resource_status', {})
         local = self.catalog_sync.snapshot() if self.catalog_sync is not None else {}
         connected = bool(getattr(self.manager, 'background', False)
                          and getattr(self.manager, 'available', False))
-        if self._login_ready():
-            self._login_host.clear_widgets()
-            self._login_host.add_widget(self._login_view)
-            self._login_visible = True
-            if self._login_brand_header is not None:
-                self._login_brand_header.set_verified(True)
-            pending = self._pending_dashboard_restore
-            self._pending_dashboard_restore = None
-            if pending is not None and pending[0] in self.manager.sessions:
-                # Reattach the existing role workspace; never log in again.
-                self.drain_events()
-                self.open_dashboard(pending[0])
-                if (self.dashboard is not None and pending[1]
-                        and pending[1] != self.dashboard.page_name):
-                    self.dashboard.navigation.text = pending[1]
-            print('WLRE_ANDROID_LOGIN_GATE_VERIFIED', flush=True)
-            return
+        model = verification_view_state(service, local, connected=connected)
         if not connected:
-            self._verification_status.text = '等待背景服務'
             message = getattr(self.message, 'text', '')
-            detail = (message if message.startswith(('Android 服務初始化失敗',
-                                                     '通知權限'))
-                      else '背景服務尚未就緒。可按「啟動／重新連接背景服務」。')
-        elif service.get('status') == 'checking':
-            self._verification_status.text = '檢查中：下載並核對官方資源'
-            detail = service.get('message', '正在檢查雙 Manifest 與 Runtime')
-        elif service.get('ready') is True:
-            self._verification_status.text = (
-                '手機端 Runtime／資料庫驗證未通過'
-                if local.get('status') in ('blocked', 'error')
-                else '官方資源已完成，核對手機端 Runtime／資料庫')
-            detail = local.get('message', '正在驗證 Runtime 與 SQLite 資料庫')
-        else:
-            self._verification_status.text = '官方資源尚未通過驗證'
-            detail = service.get('message', '等待官方資源檢查結果')
-        if type(detail) is not str:
-            detail = '檢查狀態暫時無法讀取'
-        self._verification_detail.text = detail[:550]
+            if type(message) is str and message.startswith(
+                    ('Android 服務初始化失敗', '通知權限')):
+                model['detail'] = message[:350]
+            else:
+                model['detail'] = '背景服務尚未就緒。可按「啟動／重新連接背景服務」。'
+        self._verification_screen.render(model)
         self._verification_retry.disabled = (
             not connected or service.get('status') == 'checking'
             or local.get('status') == 'checking'
             or getattr(self.manager, '_resource_request_pending', False))
+
+        if self._login_ready():
+            # The seven checks are briefly visible before the existing
+            # automatic login transition; no extra click or bypass is needed.
+            if self._verification_enter_event is None:
+                self._verification_enter_event = Clock.schedule_once(
+                    self._enter_login_if_verified, 1.2)
+        elif self._verification_enter_event is not None:
+            self._verification_enter_event.cancel()
+            self._verification_enter_event = None
 
     def _build_login_view(self):
         from android_app.widgets import column, label, button, row, RoundedSpinnerOption

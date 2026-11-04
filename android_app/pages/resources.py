@@ -207,7 +207,7 @@ class Resources(Page):
         else:
             source = '已確認特技'
         self._summary_text = source + (
-            '\\n{}/{} 頁 · {} 項{}'.format(
+            '\n{}/{} 頁 · {} 項{}'.format(
                 self.offset + 1, pages, len(entries),
                 ' · 每頁 24 格' if use_grid else ''))
         self.info.text = self._summary_text
@@ -236,7 +236,7 @@ class Resources(Page):
                     if not self._read_only:
                         effects = '／'.join('{}+{}'.format(k.upper(), v)
                                            for k, v in heal_effects(sid).items())
-                        text += '\\n可用 {} · {}'.format(
+                        text += '\n可用 {} · {}'.format(
                             available(self._render_inventory, str(index)), effects)
                     line = row(item_image(sid), button(
                         text, lambda n=index, v=record: self.show_item(n, v), 68))
@@ -245,7 +245,7 @@ class Resources(Page):
             else:
                 actor, skill = value
                 text = (actor_label(actor) + '｜' + skill['name'] +
-                    ' Lv.{} · SP {}\\n'.format(skill['level'], skill['sp']) +
+                    ' Lv.{} · SP {}\n'.format(skill['level'], skill['sp']) +
                     ('；'.join(skill['reasons']) or '基礎條件可用') +
                     ' · ' + skill['source'])
                 self.rows.add_widget(button(
@@ -254,7 +254,7 @@ class Resources(Page):
         total = len(self._pending_items)
         if stop < total:
             self.info.text = self._summary_text + (
-                '\\n正在顯示本頁 {} / {} 項…'.format(stop, total))
+                '\n正在顯示本頁 {} / {} 項…'.format(stop, total))
             self._render_event = Clock.schedule_once(
                 lambda _dt, g=generation: self._render_chunk(g), 0)
         else:

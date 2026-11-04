@@ -143,7 +143,9 @@ class ModelTests(unittest.TestCase):
 
     def test_app_still_uses_original_fail_closed_login_gate(self):
         source = (ROOT / "android_app/app.py").read_text("utf-8")
-        self.assertIn("if self._login_ready():", source)
+        self.assertIn("if not self._login_ready():", source)
+        self.assertIn("def _enter_verified_login(", source)
+        self.assertIn("login_ready=verified", source)
         self.assertIn("verified_for_login(", source)
         self.assertIn("self._verification_panel.apply_state(", source)
         self.assertIn("not connected or service.get('status') == 'checking'", source)
@@ -175,6 +177,7 @@ class RealKivyTests(unittest.TestCase):
         self.assertIn("1286", view.version_labels["DataPackage"].text)
         self.assertIn("未通過", view.status.text)
         self.assertIn("尚未通過", view.hero.badge.text)
+        self.assertTrue(view.enter_login.disabled)
         view.retry.dispatch("on_release")
         view.service_button.dispatch("on_release")
         self.assertEqual(called, ["retry", "service"])
@@ -189,11 +192,13 @@ class RealKivyTests(unittest.TestCase):
         self.assertTrue(all(v._current == "passed"
                             for v in view.rows.values()))
         self.assertIn("驗證已完成", view.hero.badge.text)
+        self.assertFalse(view.enter_login.disabled)
         view.apply_state(service,local,connected=False,login_ready=True,
                          detail="服務失聯")
         self.assertIn("尚未通過", view.hero.badge.text)
         self.assertTrue(all(v._current != "passed"
                             for v in view.rows.values()))
+        self.assertTrue(view.enter_login.disabled)
 
 
 if __name__ == "__main__":

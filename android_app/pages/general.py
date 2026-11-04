@@ -101,17 +101,36 @@ class Overview(Page):
 
 class Events(Page):
     def __init__(self, d):
-        super().__init__(d); self.info = label(); self.add_widget(self.info)
-    def refresh(self): self.info.text = '\n'.join(self.d.data.get('log', [])) or '尚無事件紀錄'
+        super().__init__(d)
+        from android_app.pages.ui_components import feature_card, status_line
+        records = feature_card('事件紀錄', '僅顯示此帳號已取得的實際遊戲事件')
+        self.info = status_line('等待事件同步')
+        records.add_widget(self.info)
+        self.add_widget(records)
+
+    def refresh(self):
+        self.info.text = '\n'.join(self.d.data.get('log', [])) or '尚無事件紀錄'
 
 
 class Efficiency(Page):
     def __init__(self, d):
         super().__init__(d)
-        self.subject = select(self, '統計對象', ['等待資料']); self.subject.bind(text=lambda *_: self.render())
-        self.unit = select(self, '效率單位', ['分', '時', '天', '秒']); self.unit.bind(text=lambda *_: self.render())
-        self.info = label(); self.add_widget(self.info)
-        self.add_widget(button('重新統計', lambda: d.send({'type': 'reset_efficiency'}, '重設本帳號的經驗效率統計？')))
+        from android_app.pages.ui_components import feature_card, status_line
+        filters = feature_card('效率分析條件',
+                               '統計結果依已完成戰鬥樣本計算，不填入推測數值')
+        self.subject = select(filters, '統計對象', ['等待資料'])
+        self.subject.bind(text=lambda *_: self.render())
+        self.unit = select(filters, '效率單位', ['分', '時', '天', '秒'])
+        self.unit.bind(text=lambda *_: self.render())
+        self.add_widget(filters)
+        results = feature_card('經驗統計結果', variant='highlight')
+        self.info = status_line('等待角色經驗資料')
+        results.add_widget(self.info)
+        results.add_widget(button(
+            '重新統計',
+            lambda: d.send({'type': 'reset_efficiency'},
+                           '重設本帳號的經驗效率統計？')))
+        self.add_widget(results)
         self.lookup = {}
     def refresh(self):
         self.lookup = {r['name']+'｜'+key: r for key, r in self.state.get('efficiency', {}).get('rows', {}).items()}

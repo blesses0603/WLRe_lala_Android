@@ -134,7 +134,13 @@ class Dashboard:
             scroll = ScrollView(do_scroll_x=False)
             scroll.add_widget(page)
             self.views[name] = (page, scroll)
+        previous = self.page
         self.page, scroll = self.views[name]
+        # Avoid decoding the old bag page while a different page is visible.
+        if previous is not None and previous is not self.page:
+            pause = getattr(previous, 'pause_render', None)
+            if callable(pause):
+                pause()
         self.content.clear_widgets()
         self.content.add_widget(scroll)
         self.dock.set_active(name)

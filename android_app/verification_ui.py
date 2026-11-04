@@ -45,16 +45,16 @@ def _label(value, size='14sp', *, color=TEXT, bold=False,
 
 def _card(title=None, subtitle='', *, highlighted=False):
     panel = BoxLayout(orientation='vertical', size_hint_y=None,
-                      spacing=dp(9),
-                      padding=[dp(12), dp(13), dp(12), dp(14)])
+                      spacing=dp(7),
+                      padding=[dp(11), dp(10), dp(11), dp(11)])
     panel.bind(minimum_height=panel.setter('height'))
     _glow(panel, strong=highlighted)
     if title:
-        heading = _label(title, '19sp', bold=True, height=34)
+        heading = _label(title, '18sp', bold=True, height=30)
         panel.add_widget(heading)
         if subtitle:
             panel.add_widget(_label(subtitle, '12sp',
-                                   color=MUTED, height=26, grow=True))
+                                   color=MUTED, height=24, grow=True))
     return panel
 
 
@@ -99,7 +99,7 @@ class VerificationHero(FloatLayout):
     """Header uses the app mascot plus the user's *decorative* castle crop."""
 
     def __init__(self, **kwargs):
-        super().__init__(size_hint_y=None, height=dp(120), **kwargs)
+        super().__init__(size_hint_y=None, height=dp(110), **kwargs)
         _glow(self)
         art = Image(source=str(ASSETS / 'verification_castle.jpg'),
                     size_hint=(.57, 1), pos_hint={'right': 1, 'top': 1},
@@ -107,7 +107,7 @@ class VerificationHero(FloatLayout):
         self.add_widget(art)
         mascot = Image(source=str(ASSETS / 'app.png'),
                        size_hint=(None, None),
-                       size=(dp(91), dp(102)),
+                       size=(dp(84), dp(93)),
                        pos_hint={'x': .012, 'center_y': .51},
                        fit_mode='contain')
         self.add_widget(mascot)
@@ -132,8 +132,8 @@ class VerificationHero(FloatLayout):
         self.add_widget(self.info_box)
 
         def arrange(*_):
-            self.info_box.pos = (self.x + dp(98), self.y + dp(16))
-            self.info_box.width = max(dp(115), self.width - dp(110))
+            self.info_box.pos = (self.x + dp(91), self.y + dp(12))
+            self.info_box.width = max(dp(115), self.width - dp(101))
         self.bind(pos=arrange, size=arrange)
         arrange()
 
@@ -175,8 +175,8 @@ class VerificationStep(BoxLayout):
 
     def __init__(self, index, title, description, **kwargs):
         super().__init__(orientation='horizontal', size_hint_y=None,
-                         height=dp(65), spacing=dp(8),
-                         padding=[dp(8), dp(4), dp(8), dp(4)], **kwargs)
+                         height=dp(56), spacing=dp(7),
+                         padding=[dp(7), dp(2), dp(7), dp(2)], **kwargs)
         surface(self, color=DARK_INNER, radius=14)
         self.index = _label(str(index), '14sp', color=ACCENT, bold=True,
                             height=44, horizontal='center')
@@ -188,9 +188,9 @@ class VerificationStep(BoxLayout):
         details = BoxLayout(orientation='vertical', spacing=dp(1))
         self.add_widget(details)
         details.add_widget(_label(title, '14sp', bold=True,
-                                  height=dp(25)))
+                                  height=dp(23)))
         details.add_widget(_label(description, '11sp', color=MUTED,
-                                  height=29))
+                                  height=26))
         self.result = _label('待檢查', '12sp', color=MUTED,
                              height=44, horizontal='center')
         self.result.size_hint_x = None
@@ -221,8 +221,8 @@ class VerificationScreen(ScrollView):
     def __init__(self, retry, restart, **kwargs):
         super().__init__(do_scroll_x=False, bar_width=dp(3), **kwargs)
         self.content = BoxLayout(orientation='vertical', size_hint_y=None,
-                                 spacing=dp(12),
-                                 padding=[dp(10), dp(12), dp(10), dp(24)])
+                                 spacing=dp(9),
+                                 padding=[dp(10), dp(10), dp(10), dp(20)])
         self.content.bind(minimum_height=self.content.setter('height'))
         self.add_widget(self.content)
 
@@ -234,7 +234,7 @@ class VerificationScreen(ScrollView):
         checkpoints.add_widget(_label(
             '首次啟動必須核對官方版本、雙 Manifest、必要 Bundle、'
             '完整 Runtime 與 SQLite 資料庫；全部通過才會進入登入。',
-            '13sp', height=66, grow=True))
+            '13sp', height=58, grow=True))
         self.steps = []
         for index, (_, name, detail) in enumerate(CHECKS, 1):
             row = VerificationStep(index, name, detail)
@@ -244,15 +244,15 @@ class VerificationScreen(ScrollView):
 
         versions = _card('ⓘ  版本資訊')
         version_row = BoxLayout(orientation='horizontal', size_hint_y=None,
-                                height=dp(64), spacing=dp(8))
+                                height=dp(58), spacing=dp(8))
         self.version_values = {}
         for name in ('DataPackage', 'MainPackage'):
             item = BoxLayout(orientation='vertical', size_hint_y=None,
-                             height=dp(61), padding=[dp(8), dp(5)],
+                             height=dp(55), padding=[dp(8), dp(4)],
                              spacing=dp(1))
             surface(item, color=DARK_INNER, radius=13)
-            item.add_widget(_label(name, '11sp', color=MUTED, height=24))
-            value = _label('—', '17sp', color=TEXT, bold=True, height=30)
+            item.add_widget(_label(name, '11sp', color=MUTED, height=22))
+            value = _label('—', '17sp', color=TEXT, bold=True, height=28)
             item.add_widget(value)
             self.version_values[name] = value
             version_row.add_widget(item)
@@ -264,27 +264,27 @@ class VerificationScreen(ScrollView):
 
         results = _card('⌁  最近檢查結果', highlighted=True)
         self.status = _label('等待背景服務與資源驗證',
-                             '17sp', color=AMBER, bold=True, height=38,
+                             '16sp', color=AMBER, bold=True, height=33,
                              grow=True)
         results.add_widget(self.status)
         self.detail = _label('等待官方檢查結果',
-                             '13sp', color=TEXT, height=52, grow=True)
+                             '13sp', color=TEXT, height=44, grow=True)
         results.add_widget(self.detail)
         self.checked_at = _label('檢查時間：尚無紀錄',
-                                 '11sp', color=MUTED, height=25)
+                                 '11sp', color=MUTED, height=23)
         results.add_widget(self.checked_at)
         self.content.add_widget(results)
 
         self.retry = _neon_primary(
-            button('⟳  重新檢查官方資料  »', retry, 58))
+            button('⟳  重新檢查官方資料  »', retry, 56))
         self.content.add_widget(self.retry)
         self.restart = button(
-            '▷  啟動／重新連接背景服務', restart, 54)
+            '▷  啟動／重新連接背景服務', restart, 52)
         self.content.add_widget(self.restart)
         footer = _label(
             'ⓘ  若官方資源校驗失敗，請查看原因後重新檢查；'
             '不會跳過任何驗證。',
-            '11sp', color=MUTED, height=50, grow=True)
+            '11sp', color=MUTED, height=44, grow=True)
         self.content.add_widget(footer)
         self._last_signature = None
 

@@ -5,6 +5,8 @@ validates and activates the shared, private cache before exposing game pages.
 """
 import copy
 import os
+import re
+import time
 from pathlib import Path
 import threading
 
@@ -123,7 +125,9 @@ class ResourceSync:
         self.checker = checker
         self.lock = threading.Lock()
         self.worker = None
-        self.value = dict(status='idle', ready=False, message='等待官方資料檢查', revision=0)
+        self.value = dict(status='idle', ready=False, message='等待官方資料檢查',
+                          progress_phase=None, package_versions={}, checked_at=None,
+                          revision=0)
         self._preparation_issue = None
 
     def snapshot(self):
@@ -139,7 +143,9 @@ class ResourceSync:
         with self.lock:
             if self.worker is not None and self.worker.is_alive():
                 return False
-            self.value.update(status='checking', ready=False, message='核對官方版本、Manifest 與資料庫')
+            self.value.update(status='checking', ready=False,
+                              message='核對官方版本、Manifest 與資料庫',
+                              progress_phase=None, package_versions={}, checked_at=None)
             self._preparation_issue = None
             self.value['revision'] += 1
             self.worker = threading.Thread(target=self._run, name='official-resource-sync', daemon=True)
@@ -163,16 +169,28 @@ class ResourceSync:
                      report.get('blocked') is False)
             from wlre.services.world.dynamic_bundle_runtime import current_catalog_token
             message = resource_message(report)
+            # Official package IDs are display-only and never unlock login.
+            # A version identifier is not proof of a verified Bundle/Runtime.
+            reported = report.get('baseline')
+            versions = {}
+            if type(reported) is dict:
+                for name in ('DataPackage', 'MainPackage'):
+                    value = reported.get(name)
+                    if type(value) is str:
+                        number = value.split('_', 1)[0]
+                        if re.fullmatch(r'[0-9]{1,6}', number):
+                            versions[name] = number
             if (not ready and self._preparation_issue == 'download_limit'
                     and report.get('block_reason') == 'runtime_unavailable'):
                 message += '\n準備階段：必要 Bundle 超過單次下載上限（32 MiB／24 檔）'
             self._update(status='ready' if ready else 'blocked', ready=ready,
                          catalog_token=list(current_catalog_token()),
-                         message=message,
+                         message=message, checked_at=int(time.time()),
+                         package_versions=versions,
                          counts=report.get('record_counts', {}))
         except Exception as exc:
             # Exception messages can expose device paths and remote payloads.
-            self._update(status='error', ready=False,
+            self._update(status='error', ready=False, checked_at=int(time.time()),
                          message='官方資料準備失敗（'+type(exc).__name__+'）；請重新檢查')
 
     def _progress(self, phase, details):
@@ -189,12 +207,14 @@ class ResourceSync:
                 'download_limit' if type(details) is dict
                 and details.get('code') == 'download_limit' else 'prepare_failed')
         if phase in labels:
-            self._update(message=labels[phase])
+            self._update(message=labels[phase], progress_phase=phase)
 
     def reset(self):
         with self.lock:
             if self.worker is not None and self.worker.is_alive(): return False
-            self.value.update(status='idle', ready=False, message='等待背景服務重新驗證')
+            self.value.update(status='idle', ready=False,
+                              message='等待背景服務重新驗證',
+                              progress_phase=None, package_versions={}, checked_at=None)
             self.value['revision'] += 1
             return True
 

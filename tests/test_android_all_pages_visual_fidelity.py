@@ -121,6 +121,7 @@ class OfflineContract(unittest.TestCase):
             self.assertTrue(file.is_file(), name)
             self.assertLess(file.stat().st_size, 16*1024)
             self.assertTrue(file.read_bytes().startswith(b'\xff\xd8\xff'))
+            self.assertTrue(file.read_bytes().endswith(b'\xff\xd9'), name)
         self.assertNotIn('1286', source('android_app/ui_shell.py'))
         self.assertNotIn('官方版本驗證成功', source('android_app/ui_shell.py'))
 
@@ -160,6 +161,9 @@ class LiveKivyStyles(unittest.TestCase):
         from android_app.ui_shell import BrandHeader, NavigationDock, NAV_ROUTES
         header=BrandHeader(subtitle='角色功能', verified=False)
         self.assertTrue(header.logo.source.endswith('verification_mascot.jpg'))
+        from kivy.core.image import Image as CoreImage
+        self.assertIsNotNone(header._castle_texture)
+        self.assertIsNotNone(CoreImage(header.logo.source).texture)
         self.assertIn('尚未通過',header.status.text)
         header.set_verified(True)
         self.assertIn('已驗證',header.status.text)

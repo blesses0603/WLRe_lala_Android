@@ -16,7 +16,8 @@ from android_app.widgets import column, label, button, row, field, select, dialo
 from android_app.assets import item_image
 from android_app.pages.production_visual import (
     AlchemyLevelBar, tiny_label, ProductionPanel, MaterialSlot,
-    RecipeRow, IngredientRow, QueueEntry, action_button,
+    RecipeRow, IngredientRow, QueueEntry, CraftingSplit,
+    action_button, adaptive_text,
 )
 from wlre.services.items.combat_resources import item_name
 from wlre.services.items.alchemy import modes, prepare, material_problem
@@ -51,15 +52,15 @@ class Alchemy(Page):
             # expose four independently gated Kivy buttons.
             self.mode = Spinner(text='無技能', values=['無技能'])
             setup.add_widget(tiny_label(
-                '煉金術等級', height=23, font_size='12sp', color=MUTED))
+                '煉金術等級', height=20, font_size='12sp', color=MUTED))
             self.level_bar = AlchemyLevelBar(self._choose_level)
             setup.add_widget(self.level_bar)
             self.mode.bind(text=lambda *_: self.level_bar.set_available(
                 modes(self.state), self.mode.text))
             count_box = BoxLayout(orientation='horizontal',
-                                  size_hint_y=None, height=dp(48),
+                                  size_hint_y=None, height=dp(42),
                                   spacing=dp(6))
-            title = tiny_label('執行次數', height=42,
+            title = tiny_label('執行次數', height=40,
                                font_size='12sp', color=MUTED)
             title.size_hint_x = None
             title.width = dp(58)
@@ -84,7 +85,8 @@ class Alchemy(Page):
             materials = BoxLayout(
                 orientation='vertical', spacing=dp(5), size_hint_y=None)
             materials.bind(minimum_height=materials.setter('height'))
-            self.material_status = status_line('煉金材料：0／5 格')
+            self.material_status = tiny_label(
+                '煉金材料：0／5 格', height=24, color=MUTED)
             materials.add_widget(self.material_status)
         else:
             materials = feature_card(
@@ -96,7 +98,7 @@ class Alchemy(Page):
             # columns fit a 320dp viewport without five full nested forms.
             self.material_grid = GridLayout(
                 cols=3, spacing=dp(5), size_hint_y=None,
-                row_default_height=dp(156), row_force_default=True)
+                row_default_height=dp(132), row_force_default=True)
             self.material_grid.bind(
                 minimum_height=self.material_grid.setter('height'))
             self.material_grid.bind(
@@ -109,7 +111,7 @@ class Alchemy(Page):
                     index,
                     on_choose=lambda i=index: self.choose(i),
                     on_remove=lambda i=index: self.set_slot(i, None),
-                    icon_factory=lambda sid: item_image(sid, size=36))
+                    icon_factory=lambda sid: item_image(sid, size=30))
                 self.material_tiles[index] = tile
                 self.material_icons[index] = tile.icon_holder
                 self.slots.append((tile.pick_button, tile.quantity))
@@ -142,20 +144,38 @@ class Alchemy(Page):
         else:
             actions = feature_card('煉金佇列與執行',
                                    '預覽本次總消耗，確認後才送出')
-        self.info = status_line('等待煉金狀態同步')
+        self.info = (adaptive_text(
+            '等待煉金狀態同步', min_height=24)
+            if compact else status_line('等待煉金狀態同步'))
         actions.add_widget(self.info)
         if compact:
-            self.cost_preview = status_line('尚未預覽材料消耗')
+            self.cost_preview = adaptive_text(
+                '尚未預覽材料消耗', min_height=24)
             actions.add_widget(self.cost_preview)
-            actions.add_widget(row(
-                button('預覽消耗', self.preview_cost),
-                button('開始連續煉金', self.begin)))
+            primary_actions = BoxLayout(
+                orientation='horizontal', size_hint_y=None,
+                height=dp(40), spacing=dp(7))
+            primary_actions.add_widget(action_button(
+                '預覽消耗', self.preview_cost, height=40))
+            primary_actions.add_widget(action_button(
+                '開始連續煉金', self.begin, height=40, primary=True))
+            actions.add_widget(primary_actions)
+            secondary_actions = BoxLayout(
+                orientation='horizontal', size_hint_y=None,
+                height=dp(38), spacing=dp(7))
+            secondary_actions.add_widget(action_button(
+                '停止後續煉金',
+                lambda: d.send({'type':'stop_alchemy'}), height=38))
+            secondary_actions.add_widget(action_button(
+                '清空材料', self.clear, height=38))
+            actions.add_widget(secondary_actions)
         else:
             actions.add_widget(button(
                 '預覽消耗／開始連續煉金', self.begin, 56))
-        actions.add_widget(row(
-            button('停止後續煉金', lambda: d.send({'type':'stop_alchemy'})),
-            button('清空材料', self.clear)))
+            actions.add_widget(row(
+                button('停止後續煉金',
+                       lambda: d.send({'type':'stop_alchemy'})),
+                button('清空材料', self.clear)))
         if compact:
             workbench.add_widget(actions)
             self.mode.bind(text=lambda *_: self._invalidate_preview())
@@ -288,20 +308,20 @@ class Crafting(Page):
             self.query = style_input(TextInput(
                 text='', hint_text='搜尋配方名稱／ID',
                 multiline=False, size_hint_y=None,
-                height=dp(42), font_size='13sp'))
+                height=dp(38), font_size='13sp'))
             browse.add_widget(self.query)
             filters = BoxLayout(
                 orientation='horizontal', spacing=dp(6),
-                size_hint_y=None, height=dp(42))
+                size_hint_y=None, height=dp(38))
             self.tool = Spinner(
                 text='全部', values=['全部', '我的最愛'],
                 option_cls=RoundedSpinnerOption, size_hint_y=None,
-                height=dp(42))
+                height=dp(38))
             self.only_owned = Spinner(
                 text='全部已確認開放配方',
                 values=['全部已確認開放配方', '只列小屋已擺設備'],
                 option_cls=RoundedSpinnerOption,
-                size_hint_y=None, height=dp(42))
+                size_hint_y=None, height=dp(38))
             from android_app.theme import style_button
             filters.add_widget(style_button(self.tool))
             filters.add_widget(style_button(self.only_owned))
@@ -326,21 +346,36 @@ class Crafting(Page):
             # left and in-page details on the right (not a six-card grid).
             self.catalog = GridLayout(
                 cols=1, spacing=dp(5), size_hint_y=None,
-                row_default_height=dp(68), row_force_default=True)
+                row_default_height=dp(60), row_force_default=True)
             self.catalog.bind(
                 minimum_height=self.catalog.setter('height'))
         else:
             self.catalog = column()
             self.catalog.spacing = dp(9)
         browse.add_widget(self.catalog)
-        browse.add_widget(row(
-            button('‹ 上一頁', lambda: self.move(-1)),
-            button('下一頁 ›', lambda: self.move(1))))
         if compact:
+            pager = BoxLayout(
+                orientation='horizontal', size_hint_y=None,
+                height=dp(37), spacing=dp(6))
+            pager.add_widget(action_button(
+                '‹ 上一頁', lambda: self.move(-1), height=37))
+            pager.add_widget(action_button(
+                '下一頁 ›', lambda: self.move(1), height=37))
+            browse.add_widget(pager)
+            tools_row = BoxLayout(
+                orientation='horizontal', size_hint_y=None,
+                height=dp(37), spacing=dp(6))
+            tools_row.add_widget(action_button(
+                '自訂清單', self.plan, height=37))
+            tools_row.add_widget(action_button(
+                '進入帳篷',
+                lambda: d.send(dict(type='craft', action='enter')),
+                height=37))
+            browse.add_widget(tools_row)
+        else:
             browse.add_widget(row(
-                button('自訂清單', self.plan),
-                button('進入自家帳篷',
-                       lambda: d.send(dict(type='craft', action='enter')))))
+                button('‹ 上一頁', lambda: self.move(-1)),
+                button('下一頁 ›', lambda: self.move(1))))
         if not compact:
             self.add_widget(browse)
 
@@ -351,15 +386,17 @@ class Crafting(Page):
                 '配方詳情', '設備、材料與時間以實際同步資料為準')
             header = BoxLayout(
                 orientation='horizontal', size_hint_y=None,
-                spacing=dp(8), height=dp(95))
+                spacing=dp(6), height=dp(78))
             self.preview_image = AnchorLayout(
                 anchor_x='center', size_hint_x=None,
-                width=dp(65))
+                width=dp(52))
             header.add_widget(self.preview_image)
-            self.preview_info = status_line('選取左側配方查看詳情')
+            self.preview_info = adaptive_text(
+                '請從左側選擇配方，查看實際材料與設備需求',
+                min_height=65, font_size='11sp')
             header.add_widget(self.preview_info)
             self.preview_info.bind(height=lambda _, h: setattr(
-                header, 'height', max(dp(95), h)))
+                header, 'height', max(dp(78), h)))
             preview.add_widget(header)
             preview.add_widget(tiny_label(
                 '所需材料', height=24, color=ACCENT))
@@ -369,20 +406,29 @@ class Crafting(Page):
             self.preview_ingredients.bind(
                 minimum_height=self.preview_ingredients.setter('height'))
             preview.add_widget(self.preview_ingredients)
+            self.preview_empty = tiny_label(
+                '尚未選取配方', height=28, color=MUTED)
+            self.preview_ingredients.add_widget(self.preview_empty)
+            quantity_bar = BoxLayout(
+                orientation='horizontal', size_hint_y=None,
+                height=dp(38), spacing=dp(5))
+            count_label = tiny_label(
+                '製作批數', height=36, font_size='11sp', color=MUTED)
+            count_label.size_hint_x = None
+            count_label.width = dp(65)
+            quantity_bar.add_widget(count_label)
+            self.preview_quantity = style_input(TextInput(
+                text='1', multiline=False, input_filter='int',
+                input_type='number', font_size='12sp'))
+            quantity_bar.add_widget(self.preview_quantity)
+            preview.add_widget(quantity_bar)
+            self.preview_quantity.bind(text=lambda *_: self._render_preview())
             self.preview_action = action_button(
                 '加入製作佇列（確認）', self.open_preview,
                 height=48, primary=True)
             self.preview_action.disabled = True
             preview.add_widget(self.preview_action)
-            self.crafting_panes = GridLayout(
-                cols=2, spacing=dp(8), size_hint_y=None)
-            self.crafting_panes.bind(
-                minimum_height=self.crafting_panes.setter('height'))
-            self.crafting_panes.bind(
-                width=lambda panel, width: setattr(
-                    panel, 'cols', 1 if width < dp(390) else 2))
-            self.crafting_panes.add_widget(browse)
-            self.crafting_panes.add_widget(preview)
+            self.crafting_panes = CraftingSplit(browse, preview)
             self.add_widget(self.crafting_panes)
 
         execution = (ProductionPanel(
@@ -391,7 +437,9 @@ class Crafting(Page):
                 '伺服器製作佇列',
                 '順序、用料與剩餘時間由已同步狀態確認',
                 variant='highlight'))
-        self.queue_info = status_line('等待排程同步')
+        self.queue_info = (adaptive_text(
+            '等待排程同步', min_height=27)
+            if compact else status_line('等待排程同步'))
         execution.add_widget(self.queue_info)
         if compact:
             self.queue = BoxLayout(
@@ -402,14 +450,32 @@ class Crafting(Page):
         else:
             self.queue = column()
         execution.add_widget(self.queue)
-        execution.add_widget(row(
-            button('開始／接續製作',
-                   lambda: d.send(dict(type='craft', action='start'))),
-            button('暫停製作',
-                   lambda: d.send(dict(type='craft', action='pause')))))
-        execution.add_widget(button(
-            '停止後續自動接續',
-            lambda: d.send(dict(type='craft', action='stop_auto'))))
+        if compact:
+            execution_actions = BoxLayout(
+                orientation='horizontal', size_hint_y=None,
+                height=dp(39), spacing=dp(6))
+            execution_actions.add_widget(action_button(
+                '開始／接續製作',
+                lambda: d.send(dict(type='craft', action='start')),
+                height=39, primary=True))
+            execution_actions.add_widget(action_button(
+                '暫停製作',
+                lambda: d.send(dict(type='craft', action='pause')),
+                height=39))
+            execution.add_widget(execution_actions)
+            execution.add_widget(action_button(
+                '停止後續自動接續',
+                lambda: d.send(dict(type='craft', action='stop_auto')),
+                height=36))
+        else:
+            execution.add_widget(row(
+                button('開始／接續製作',
+                       lambda: d.send(dict(type='craft', action='start'))),
+                button('暫停製作',
+                       lambda: d.send(dict(type='craft', action='pause')))))
+            execution.add_widget(button(
+                '停止後續自動接續',
+                lambda: d.send(dict(type='craft', action='stop_auto'))))
         self.add_widget(execution)
         self.tool.bind(text=lambda *_: self.find())
         self.only_owned.bind(text=lambda *_: self.find())
@@ -442,6 +508,14 @@ class Crafting(Page):
             self.catalog.add_widget(label(
                 '沒有符合條件的配方，請調整搜尋或設備篩選。',
                 60 if self.compact else None))
+        if self.compact:
+            # The target's first recipe is visually selected by default.
+            # This is a read-only preview, NEVER a craft enqueue action.
+            visible = recipes[self.offset*6:self.offset*6+6]
+            if not visible:
+                self.selected = None
+            elif self.selected not in {row['item_id'] for row in visible}:
+                self.selected = visible[0]['item_id']
         for recipe in recipes[self.offset*6:self.offset*6+6]:
             sid = recipe['item_id']; status, _ = availability(s, recipe)
             if self.compact:
@@ -450,7 +524,7 @@ class Crafting(Page):
                     status + ' · ' + item_name(recipe['tool_id']),
                     self.preview_recipe, favorite=sid in favorites,
                     icon_factory=lambda item_id:
-                        item_image(item_id, size=45))
+                        item_image(item_id, size=39))
                 card.set_selected(sid == self.selected)
             else:
                 # Standalone production list retains its original full rows.
@@ -478,6 +552,11 @@ class Crafting(Page):
                 card.add_widget(action)
             self.catalog.add_widget(card)
         self.queue_info.text = craft.get('status', '等待排程同步')+f"\n完成 {craft.get('completed',0)} 項｜伺服器排程 {len(craft.get('queue',{}))} 項"
+        if self.compact and not craft.get('queue'):
+            self.queue.add_widget(tiny_label(
+                '目前沒有製作排程' if craft.get('ready')
+                else '等待伺服器排程同步',
+                height=30, font_size='12sp', color=MUTED))
         for value in sorted(craft.get('queue', {}).values(), key=lambda r: r['index']):
             sid = value['item_id']; index = value['index']
             seconds = effective_time(s, value)
@@ -498,13 +577,14 @@ class Crafting(Page):
                 self.queue.add_widget(label(f"#{index} {item_name(sid)} ×{value['count']} · 剩餘 {duration(remaining)}"))
                 self.queue.add_widget(row(*(button(text, lambda action=action, i=index: self.queue_action(action, i))
                     for text, action in (('上移','up'),('下移','down'),('刪除','delete')))))
-        if self.compact and self.selected is not None:
+        if self.compact:
             self._render_preview()
 
     def preview_recipe(self, recipe):
         """Preview only. Never sends a craft/add/plan command."""
         self.selected = recipe['item_id']
         if self.compact:
+            self.preview_quantity.text = '1'
             for widget in self.catalog.children:
                 if isinstance(widget, RecipeRow):
                     widget.set_selected(widget.item_id == self.selected)
@@ -518,16 +598,27 @@ class Crafting(Page):
             self.selected = None
             self.preview_icon_id = None
             self.preview_image.clear_widgets()
-            self.preview_info.text = '未選取已確認開放的配方'
+            self.preview_info.text = '請從左側選擇配方，查看設備與材料需求'
             self.preview_action.disabled = True
             self.preview_ingredients.clear_widgets()
+            self.preview_ingredients.add_widget(tiny_label(
+                '尚未選取已確認配方', height=28, color=MUTED))
+            return
+        try:
+            batch_count = int(self.preview_quantity.text)
+            if batch_count < 1:
+                raise ValueError('批數應至少為 1')
+        except (ValueError, TypeError):
+            self.preview_action.disabled = True
+            self.preview_ingredients.clear_widgets()
+            self.preview_info.text = '請輸入有效製作批數，再查看實際材料需求'
             return
         sid = recipe['item_id']
-        status, reason = availability(self.state, recipe)
-        requirements = material_rows(self.state, recipe, 1)
+        status, reason = availability(self.state, recipe, batch_count)
+        requirements = material_rows(self.state, recipe, batch_count)
         lines = [
             '{}（ID {}）'.format(item_name(sid), sid),
-            '產量 {}｜製作時間 {}'.format(
+            '每批產量 {}｜單批時間 {}'.format(
                 recipe['output'], duration(recipe['seconds'])),
             '設備：{} · {}'.format(
                 item_name(recipe['tool_id']),
@@ -554,12 +645,22 @@ class Crafting(Page):
             self._render_preview()
             self.d.message.text = '此配方已更新或尚未確認開放，請重新選取'
             return
-        self.recipe(recipe)
+        try:
+            amount = int(self.preview_quantity.text)
+            if amount < 1:
+                raise ValueError()
+        except (ValueError, TypeError):
+            self.preview_action.disabled = True
+            self.d.message.text = '請輸入有效製作批數'
+            return
+        # Pass the visible draft to the ORIGINAL confirmation dialog.
+        # The final recipe_plan is still executed at the point of enqueue.
+        self.recipe(recipe, initial_count=amount)
 
     def queue_action(self, action, index):
         self.d.send(dict(type='craft', action=action, index=index, revision=self.state.get('crafting', {}).get('revision')),
                     '確認移除排程？材料是否退還依伺服器規則。' if action == 'delete' else None)
-    def recipe(self, recipe):
+    def recipe(self, recipe, initial_count=1):
         sid = recipe['item_id']; body = column(); body.add_widget(item_image(sid, 64))
         status, reason = availability(self.state, recipe)
         counts = owned_counts(self.state, sid)
@@ -567,7 +668,7 @@ class Crafting(Page):
             f"設備：{item_name(recipe['tool_id'])} · {tool_status(self.state, recipe['tool_id'])}\n"+
             '背包 {}｜已擺 {}｜保管 {}｜排程產出 {}'.format(*(counts[k] if counts[k] is not None else '待同步' for k in ('bag','placed','stored','queued')))+
             '\n'+status+'：'+reason))
-        count = field(body, '批數', 1, True); materials = label(); body.add_widget(materials)
+        count = field(body, '批數', initial_count, True); materials = label(); body.add_widget(materials)
         def refresh(*_):
             try:
                 number = int(count.text)

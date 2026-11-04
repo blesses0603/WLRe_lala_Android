@@ -65,6 +65,7 @@ class Dashboard:
             verified=bool(getattr(app.manager, 'available', True)
                           and getattr(app.manager, 'resource_status', {}).get('ready')
                           and self.catalog_ready))
+        self.shell = base
         base.add_widget(self.brand)
         self.status = neon_surface(label('等待服務同步'), color=SOFT, radius=12)
         self.status.color = MUTED
@@ -79,12 +80,14 @@ class Dashboard:
         self.navigation = style_button(Spinner(text=PAGES[0], values=PAGES,
             option_cls=RoundedSpinnerOption, size_hint_y=None, height=dp(44)))
         nav.add_widget(self.navigation); base.add_widget(nav)
+        self.nav_frame = nav
         # The full 18-page Spinner remains available. Persistent routes in
         # the dock replace eager horizontal icon strips and save viewport
         # space for actual game content on small Android screens.
         self.content = BoxLayout(orientation='vertical'); base.add_widget(self.content)
         self.message = label(); self.message.color = MUTED; base.add_widget(self.message)
         back = button('返回帳號列表', self.close, 48)
+        self.back_button = back
         base.add_widget(back)
         self.dock = NavigationDock(
             lambda target: setattr(self.navigation, 'text', target))
@@ -129,8 +132,29 @@ class Dashboard:
             self.message.text = '偏好已送出保存，等待服務確認'; return True
         except (ValueError, OSError) as exc: self.message.text = str(exc); return False
 
+    def _apply_page_density(self, name):
+        """Trim duplicate shell padding only on the production workspace.
+
+        Keep the verified-resource status, connection state, account-exit
+        action and all navigation controls available at every screen width.
+        Other pages restore the original shell geometry when visited.
+        """
+        compact = name == '煉金＋製作'
+        self.shell.spacing = dp(8 if compact else 10)
+        self.brand.height = dp(102 if compact else 112)
+        self.brand.padding = (
+            [dp(10), dp(5), dp(10), dp(5)] if compact
+            else [dp(10), dp(9), dp(10), dp(9)])
+        self.brand.logo.width = dp(79 if compact else 87)
+        self.nav_frame.height = dp(50 if compact else 58)
+        self.nav_frame.padding = (
+            [dp(10), dp(3), dp(10), dp(3)] if compact
+            else [dp(10), dp(7), dp(10), dp(7)])
+        self.back_button.height = dp(44 if compact else 48)
+
     def show(self, name):
         self.page_name = name
+        self._apply_page_density(name)
         if name not in self.views:
             module, cls = _PAGE_IMPL[name]
             # Construct only the requested page; preserve all visited pages,

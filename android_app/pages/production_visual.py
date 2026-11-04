@@ -31,6 +31,19 @@ def tiny_label(value='', *, height=26, font_size='12sp', color=TEXT):
     return view
 
 
+def adaptive_text(value='', *, min_height=24, font_size='12sp', color=MUTED):
+    """Wrap verified long status lines without reserving a blank 38dp row."""
+    label = Label(
+        text=str(value), color=color, font_size=font_size,
+        size_hint_y=None, height=dp(min_height),
+        halign='left', valign='middle')
+    label.bind(width=lambda w, width: setattr(
+        w, 'text_size', (max(0, width - dp(4)), None)))
+    label.bind(texture_size=lambda w, size: setattr(
+        w, 'height', max(dp(min_height), size[1] + dp(5))))
+    return label
+
+
 def action_button(title, callback, *, height=42, primary=False):
     view = Button(
         text=title, size_hint_y=None, height=dp(height), font_size='13sp',
@@ -45,24 +58,24 @@ class ProductionPanel(BoxLayout):
 
     def __init__(self, heading, description='', icon_name=None, **kwargs):
         super().__init__(
-            orientation='vertical', spacing=dp(7),
-            padding=[dp(10), dp(8), dp(10), dp(10)],
+            orientation='vertical', spacing=dp(5),
+            padding=[dp(8), dp(6), dp(8), dp(7)],
             size_hint_y=None, **kwargs)
         self.bind(minimum_height=self.setter('height'))
         neon_surface(self, color=SURFACE, border=BORDER, radius=17)
         head = BoxLayout(
             orientation='horizontal', spacing=dp(7),
-            size_hint_y=None, height=dp(35))
+            size_hint_y=None, height=dp(31))
         icon = function_icon(icon_name, 26) if icon_name else None
         if icon is not None:
             head.add_widget(icon)
-        title = tiny_label(heading, height=35, font_size='17sp')
+        title = tiny_label(heading, height=31, font_size='16sp')
         head.add_widget(title)
         self.heading = title
         self.add_widget(head)
         if description:
             note = tiny_label(
-                description, height=23, font_size='11sp', color=MUTED)
+                description, height=19, font_size='10sp', color=MUTED)
             self.add_widget(note)
 
 
@@ -114,34 +127,34 @@ class MaterialSlot(BoxLayout):
     def __init__(self, slot_index, on_choose, on_remove,
                  icon_factory=None):
         super().__init__(
-            orientation='vertical', spacing=dp(2),
-            padding=[dp(4), dp(3), dp(4), dp(4)],
-            size_hint_y=None, height=dp(156))
+            orientation='vertical', spacing=dp(1),
+            padding=[dp(3), dp(2), dp(3), dp(3)],
+            size_hint_y=None, height=dp(132))
         self.slot_index = slot_index
         self.item_id = None
         self.icon_factory = icon_factory or (
             lambda sid: item_image(sid, size=36))
         neon_surface(self, color=SOFT, border=BORDER, radius=12)
         header = BoxLayout(
-            orientation='horizontal', size_hint_y=None, height=dp(22))
+            orientation='horizontal', size_hint_y=None, height=dp(18))
         self.slot_label = tiny_label(
-            '材料 {}'.format(slot_index + 1), height=22,
+            '材料 {}'.format(slot_index + 1), height=18,
             font_size='10sp', color=MUTED)
         header.add_widget(self.slot_label)
         self.remove_button = action_button(
-            '×', on_remove, height=22)
+            '×', on_remove, height=18)
         self.remove_button.size_hint_x = None
-        self.remove_button.width = dp(24)
+        self.remove_button.width = dp(21)
         self.remove_button.disabled = True
         header.add_widget(self.remove_button)
         self.add_widget(header)
 
         self.icon_holder = AnchorLayout(
             anchor_x='center', anchor_y='center',
-            size_hint_y=None, height=dp(38))
+            size_hint_y=None, height=dp(30))
         self.add_widget(self.icon_holder)
         self.title = tiny_label(
-            '未選取', height=19, font_size='10sp', color=MUTED)
+            '未選取', height=17, font_size='10sp', color=MUTED)
         self.title.halign = 'center'
         self.add_widget(self.title)
         self.pick_button = action_button(
@@ -151,8 +164,8 @@ class MaterialSlot(BoxLayout):
         self.quantity = style_input(TextInput(
             text='1', multiline=False, input_filter='int',
             input_type='number', font_size='12sp',
-            size_hint_y=None, height=dp(28)))
-        self.quantity.padding = [dp(5), dp(4), dp(5), dp(4)]
+            size_hint_y=None, height=dp(25)))
+        self.quantity.padding = [dp(4), dp(2), dp(4), dp(2)]
         self.add_widget(self.quantity)
         self.set_item(None)
 
@@ -164,7 +177,7 @@ class MaterialSlot(BoxLayout):
             self.slot_label.text = '材料 {}'.format(self.slot_index + 1)
             self.remove_button.disabled = True
             self.icon_holder.add_widget(Label(
-                text='+', color=ACCENT, font_size='24sp'))
+                text='+', color=ACCENT, font_size='21sp'))
         else:
             sid = record['item_id']
             self.item_id = sid
@@ -186,16 +199,16 @@ class RecipeRow(ButtonBehavior, BoxLayout):
                  icon_factory=None):
         super().__init__(
             orientation='horizontal', size_hint_y=None,
-            height=dp(64), spacing=dp(6),
-            padding=[dp(5), dp(5), dp(5), dp(5)])
+            height=dp(57), spacing=dp(5),
+            padding=[dp(5), dp(4), dp(5), dp(4)])
         self.item_id = recipe['item_id']
         surface(self, color=SOFT, border=BORDER, radius=12)
         sprite = (icon_factory(self.item_id) if icon_factory
-                  else item_image(self.item_id, size=45))
+                  else item_image(self.item_id, size=40))
         self.add_widget(sprite)
         texts = BoxLayout(orientation='vertical', spacing=dp(1))
-        top = tiny_label(title, height=27, font_size='12sp')
-        bottom = tiny_label(subtitle, height=20, font_size='10sp',
+        top = tiny_label(title, height=25, font_size='12sp')
+        bottom = tiny_label(subtitle, height=18, font_size='10sp',
                             color=MUTED)
         texts.add_widget(top)
         texts.add_widget(bottom)
@@ -211,6 +224,39 @@ class RecipeRow(ButtonBehavior, BoxLayout):
     def set_selected(self, active):
         surface(self, color=(.02, .25, .32, .98) if active else SOFT,
                 border=ACCENT if active else BORDER, radius=12)
+
+
+class CraftingSplit(BoxLayout):
+    """Top-aligned recipe browser / detail panes with a stable width ratio.
+
+    GridLayout previously expanded the detail card to its sibling's height
+    and vertically displaced its title. The two panels now keep their own
+    measured heights. On narrow screens they stack without losing data.
+    """
+
+    def __init__(self, browse, preview):
+        super().__init__(
+            orientation='horizontal', spacing=dp(7),
+            size_hint_y=None, height=dp(1))
+        self.browse = browse
+        self.preview = preview
+        for pane in (browse, preview):
+            pane.pos_hint = {'top': 1}
+            self.add_widget(pane)
+            pane.bind(height=self._layout_panes)
+        self.bind(width=self._layout_panes)
+        self._layout_panes()
+
+    def _layout_panes(self, *_):
+        wide = self.width >= dp(388)
+        self.orientation = 'horizontal' if wide else 'vertical'
+        self.browse.size_hint_x = .43 if wide else 1
+        self.preview.size_hint_x = .57 if wide else 1
+        if wide:
+            target = max(self.browse.height, self.preview.height)
+        else:
+            target = self.browse.height + self.preview.height + self.spacing
+        self.height = max(dp(1), target)
 
 
 class IngredientRow(BoxLayout):

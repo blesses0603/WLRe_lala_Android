@@ -33,7 +33,7 @@ class ProductionScreenOffline(unittest.TestCase):
         self.assertIn('self.workbench.add_widget(view)', combined)
         self.assertIn('super().__init__(d, embedded=compact)', production)
         self.assertIn('getattr(module, cls_name)(proxy, compact=True)', combined)
-        self.assertIn('self.crafting_panes = GridLayout(', production)
+        self.assertIn('self.crafting_panes = CraftingSplit(', production)
 
     def test_all_protected_operations_remain_in_original_controller(self):
         production = (ROOT / "android_app/pages/production.py").read_text("utf-8")
@@ -131,12 +131,12 @@ class ProductionScreenKivy(unittest.TestCase):
             c = Crafting(d, compact=True)
             self.assertIsInstance(c.catalog, GridLayout)
             self.assertEqual(c.catalog.cols, 1)
-            self.assertIsInstance(c.crafting_panes, GridLayout)
+            self.assertEqual(c.crafting_panes.orientation, 'vertical')
             self.assertEqual(len(c.crafting_panes.children), 2)
             self.assertTrue(c.preview_action.disabled)
             c.refresh()
             self.assertEqual(len(c.catalog.children), 1)
-            self.assertTrue(c.preview_action.disabled)
+            self.assertFalse(c.preview_action.disabled)  # verified first recipe previewed
             c.preview_recipe(recipe)
             self.assertFalse(c.preview_action.disabled)
             self.assertEqual(len(c.preview_ingredients.children), 1)
@@ -149,7 +149,7 @@ class ProductionScreenKivy(unittest.TestCase):
             self.assertEqual(sent, [])
             with patch.object(c, 'recipe') as open_detail:
                 c.open_preview()
-                open_detail.assert_called_once_with(recipe)
+                open_detail.assert_called_once_with(recipe, initial_count=1)
                 self.assertEqual(sent, [])
             c.selected = 99999
             c._render_preview()

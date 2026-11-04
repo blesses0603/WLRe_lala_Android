@@ -135,7 +135,8 @@ class BagLoadLive(unittest.TestCase):
         with patch("android_app.pages.resources.visible_items", return_value=entries), \
              patch("android_app.pages.resources.prefetch_item_icons"), \
              patch("android_app.pages.resources.item_image",
-                   return_value=__import__("kivy.uix.widget", fromlist=["Widget"]).Widget()):
+                   side_effect=lambda *_a, **_k: __import__(
+                       "kivy.uix.widget", fromlist=["Widget"]).Widget()):
             page = Resources(fake)
             page.refresh()
             pending = page._render_generation

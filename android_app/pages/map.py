@@ -17,24 +17,69 @@ def map_label(scene):
 from wlre.services.world.display_position import current_position
 
 
+ZOOM_LEVELS = (1.0, 1.5, 2.0, 3.0)
+
+
 class MapCanvas(Widget):
     def __init__(self, on_pick, **kwargs):
         super().__init__(size_hint_y=None,height=dp(320),**kwargs)
         self.texture=None;self.projection=None;self.player=None;self.selected=None;self.portals=[];self.on_pick=on_pick
+        self.zoom = 1.0
+        self.focus = (512.0, 512.0)  # Scene source-pixel coordinates, never packet coordinates.
         self._draw_signature=None
         self.bind(pos=lambda *_:self.draw(),size=lambda *_:self.draw())
     def box(self):
         side=min(self.width,self.height)
         return self.x+(self.width-side)/2,self.y+(self.height-side)/2,side
-    def screen(self,u,v):
-        x,y,size=self.box();return x+u/1024*size,y+(1024-v)/1024*size
+    def viewport(self):
+        """Visible source-pixel square, always clamped to the 1024px map."""
+        size = 1024.0 / self.zoom
+        half = size / 2.0
+        cx = max(half, min(1024.0 - half, float(self.focus[0])))
+        cy = max(half, min(1024.0 - half, float(self.focus[1])))
+        return cx - half, cy - half, size
+
+    def screen(self, u, v):
+        x, y, side = self.box()
+        left, top, span = self.viewport()
+        return (x + (u - left) / span * side,
+                y + (top + span - v) / span * side)
+
+    def source_point(self, x, y):
+        left, top, span = self.viewport()
+        origin_x, origin_y, side = self.box()
+        return (left + (x - origin_x) / side * span,
+                top + (1.0 - (y - origin_y) / side) * span)
+
+    def set_zoom(self, zoom):
+        if zoom not in ZOOM_LEVELS:
+            raise ValueError('Unsupported map zoom')
+        if zoom != self.zoom:
+            self.zoom = zoom
+            self.draw()
+
+    def center_on_player(self):
+        if not self.projection or not self.player:
+            return False
+        try:
+            px, py = self.projection.packet_to_pixel(
+                self.player['x'], self.player['y'])
+        except (KeyError, TypeError, ValueError):
+            return False
+        if not (0 <= px <= 1024 and 0 <= py <= 1024):
+            return False
+        self.focus = (float(px), float(py))
+        self.draw()
+        return True
+
     def draw(self):
         # Bitmap texture, scene and markers can be stable while Kivy polls.
         # Skip expensive canvas clear/rebuild until something actually moves.
         marks=lambda point: tuple((point or {}).get(key) for key in ('x','y'))
         signature=(
             tuple(self.pos),tuple(self.size),id(self.texture),
-            id(self.projection),marks(self.player),marks(self.selected),
+            id(self.projection),self.zoom,tuple(self.focus),
+            marks(self.player),marks(self.selected),
             tuple((p.get('x'),p.get('y'),p.get('coordinate_valid'))
                   for p in self.portals),
         )
@@ -46,20 +91,29 @@ class MapCanvas(Widget):
         with self.canvas:
             Color(.08,.15,.2,1);Rectangle(pos=self.pos,size=self.size)
             if not self.texture:return
-            Color(1,1,1,1);Rectangle(texture=self.texture,pos=(x,y),size=(size,size))
+            left, top, span = self.viewport()
+            # Crop the existing texture instead of allocating a zoomed image.
+            u0, u1 = left / 1024.0, (left + span) / 1024.0
+            v0 = 1.0 - (top + span) / 1024.0
+            v1 = 1.0 - top / 1024.0
+            Color(1,1,1,1)
+            Rectangle(texture=self.texture, pos=(x,y), size=(size,size),
+                      tex_coords=(u0,v0,u1,v0,u1,v1,u0,v1))
             if self.projection:
                 for portal in self.portals:
                     if portal.get('coordinate_valid'):
                         u,v=self.screen(*self.projection.packet_to_pixel(portal['x'],portal['y']))
-                        Color(.2,1,1,1);Line(circle=(u,v,dp(4)),width=1.2)
+                        if x <= u <= x+size and y <= v <= y+size:
+                            Color(.2,1,1,1);Line(circle=(u,v,dp(4)),width=1.2)
                 for point,color in ((self.player,(1,.2,.2,1)),(self.selected,(1,.85,.2,1))):
                     if point:
                         u,v=self.screen(*self.projection.packet_to_pixel(point['x'],point['y']))
-                        Color(*color);Ellipse(pos=(u-dp(4),v-dp(4)),size=(dp(8),dp(8)))
+                        if x <= u <= x+size and y <= v <= y+size:
+                            Color(*color);Ellipse(pos=(u-dp(4),v-dp(4)),size=(dp(8),dp(8)))
     def on_touch_down(self,touch):
         x,y,size=self.box()
         if self.texture and self.projection and x<=touch.x<=x+size and y<=touch.y<=y+size:
-            u=(touch.x-x)/size*1024;v=1024-(touch.y-y)/size*1024
+            u,v=self.source_point(touch.x,touch.y)
             px,py=self.projection.pixel_to_packet(u,v)
             self.on_pick(round(px),round(py));return True
         return super().on_touch_down(touch)
@@ -83,6 +137,16 @@ class MapPage(Page):
         map_card.add_widget(self.position_label)
         self.image=MapCanvas(self.picked)
         map_card.add_widget(self.image)
+        self.zoom_status=status_line('地圖縮放 100%')
+        self.zoom_status.size_hint_x=None
+        self.zoom_status.width=dp(112)
+        zoom_controls=row(
+            button('－', lambda: self.adjust_zoom(-1)),
+            self.zoom_status,
+            button('＋', lambda: self.adjust_zoom(1)),
+            button('定位角色', self.locate_player))
+        zoom_controls.height=dp(48)
+        map_card.add_widget(zoom_controls)
         self.note=status_line('輕觸地圖可選取目標座標')
         map_card.add_widget(self.note)
         self.add_widget(map_card)
@@ -106,7 +170,19 @@ class MapPage(Page):
         portals.add_widget(button('前往所選出口',self.portal_walk))
         portals.add_widget(button('直接嘗試所選出口換圖',self.direct))
         portals.add_widget(button('逐圖核對',self.audit))
+        self.scene_entities=status_line('目前場景的出口與 NPC：等待位置同步')
+        portals.add_widget(self.scene_entities)
         self.add_widget(portals)
+    def adjust_zoom(self, direction):
+        levels=ZOOM_LEVELS
+        current=levels.index(self.image.zoom)
+        self.image.set_zoom(levels[max(0, min(len(levels)-1, current+direction))])
+        self.zoom_status.text='地圖縮放 {}%'.format(round(self.image.zoom*100))
+    def locate_player(self):
+        if not self.image.center_on_player():
+            self.note.text='目前沒有已同步的角色座標，無法定位'
+        else:
+            self.note.text='已定位到伺服器同步的角色座標'
     def picked(self,x,y):
         self.x_input.text=str(x);self.y_input.text=str(y);self.image.selected={'x':x,'y':y};self.image.draw()
     def walk(self):
@@ -147,6 +223,8 @@ class MapPage(Page):
         if scene!=self.scene or token!=self.token:
             self.token=token;self.maps=SmallMaps();self.portals=Portals()
             self.scene=scene;self.portal=None;self.image.selected=None;self.x_input.text=self.y_input.text=''
+            self.image.zoom=1.0;self.image.focus=(512.0,512.0)
+            self.zoom_status.text='地圖縮放 100%'
             self.image.texture=None;self.image.projection=None
             if scene is not None:
                 try:
@@ -155,6 +233,19 @@ class MapPage(Page):
                     if entry:self.image.texture=texture('smallmaps.zip',entry);self.image.projection=projection
                 except (ValueError,KeyError,OSError):pass
             self.image.portals=allowed_rows(self.portals,scene,self.maps,recovery=self.image.texture is None)
+            # Show a bounded, factual summary; never invent distance or movement.
+            exits=[p.get('name','未命名出口') for p in self.image.portals]
+            entities=[p.get('name','未命名 NPC') for p in
+                      self.portals.data.get('entities',{}).get(str(scene),[])
+                      if not p.get('kind')]
+            if scene is None:
+                self.scene_entities.text='目前場景的出口與 NPC：等待位置同步'
+            else:
+                summaries=['出口：'+name for name in exits[:3]]
+                summaries+=['NPC：'+name for name in entities[:3]]
+                self.scene_entities.text=('目前場景 '+str(len(exits))+
+                    ' 處出口／'+str(len(entities))+' 名 NPC'+
+                    ('\n'+'；'.join(summaries) if summaries else '\n尚無已確認的資料'))
             if not self.image.texture:self.note.text='此圖沒有可顯示的原始小地圖；可從 NPC／出口選擇已確認的返回出口。'
         point=current_position(self.state)
         self.image.player=point if point and point.get('scene')==scene else None

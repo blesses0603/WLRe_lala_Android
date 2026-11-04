@@ -61,9 +61,15 @@ class ManualEntryContracts(unittest.TestCase):
         self.assertIn("self._enter_verified_login)", code)
 
     def test_versions_stay_synced(self):
-        self.assertIn('ANDROID_VERSION = "7.1.19"',
-                      source("android_app/version.py"))
-        self.assertIn("version = 7.1.19", source("buildozer.spec"))
+        import re
+        app = re.search(r'ANDROID_VERSION = "([0-9.]+)"',
+                        source('android_app/version.py'))
+        spec = re.search(r'^version = ([0-9.]+)',
+                         source('buildozer.spec'), flags=re.M)
+        self.assertIsNotNone(app)
+        self.assertIsNotNone(spec)
+        self.assertEqual(app.group(1), spec.group(1))
+        self.assertRegex(app.group(1), r'^[0-9]+[.][0-9]+[.][0-9]+')
 
 
 HAS_KIVY = importlib.util.find_spec("kivy") is not None

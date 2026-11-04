@@ -47,7 +47,7 @@ class OfflineContract(unittest.TestCase):
                 'class BrandHeader(BoxLayout)', 'verification_castle.jpg',
                 'verification_mascot.jpg', 'PAGE_SYMBOLS',
                 'neon_surface(self, color=SURFACE',
-                'symbol+', 'NavigationDock('),
+                'self.icons[page] = picture', 'SocialIcon(', 'NavigationDock('),
             'android_app/pages/general.py': (
                 'neon_surface(self, color=SURFACE', "feature_card('事件紀錄'",
                 "feature_card('效率分析條件'"),

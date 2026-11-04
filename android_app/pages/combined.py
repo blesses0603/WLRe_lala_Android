@@ -165,8 +165,102 @@ class PairedFeatures(Page):
 
 
 class ChatAndParty(PairedFeatures):
+    """The screenshot-matched chat plus party workspace, without nested pages.
+
+    Each child is still the original Chat/Party controller and uses the
+    established server-safe send, quote, invitation and acknowledgement paths.
+    Both sections remain on the same scrollable page, not mutually exclusive.
+    """
+
     def __init__(self, d):
-        super().__init__(d, '聊天＋組隊')
+        # Avoid the old three nested 'feature_card' shells. The two native
+        # sections have dedicated, compact, editable live-state views.
+        Page.__init__(self, d, embedded=True, show_title=False)
+        from android_app.pages.social_visual import (
+            SocialButton, heading, glass_card)
+        self.pair_name = '聊天＋組隊'
+        self.sections = {}
+        self._initial_party_loaded = False
+        self._focus_name = '聊天訊息'
+
+        tabs=glass_card(bright=True,padding=4,gap=3,radius=14)
+        tab_row=BoxLayout(size_hint_y=None,height=dp(41),spacing=dp(5))
+        self.chat_tab=SocialButton('聊天',lambda:self._focus('聊天訊息'),
+                                    icon='chat',primary=True,
+                                    font='14sp',height=41)
+        self.party_tab=SocialButton('組隊',lambda:self._focus('組隊管理'),
+                                     icon='users',font='14sp',height=41)
+        tab_row.add_widget(self.chat_tab)
+        tab_row.add_widget(self.party_tab)
+        tabs.add_widget(tab_row)
+        self.add_widget(tabs)
+
+        chat_slot=BoxLayout(orientation='vertical',size_hint_y=None,
+                            spacing=dp(4))
+        chat_slot.bind(minimum_height=chat_slot.setter('height'))
+        self.add_widget(chat_slot)
+        chat_toggle=SocialButton(
+            '收合聊天',lambda:self.toggle('聊天訊息'),icon='chat',
+            font='10sp',height=35)
+        self.sections['聊天訊息']={
+            'module':'social','class':'Chat','slot':chat_slot,
+            'toggle':chat_toggle,'view':None,'expanded':False,
+        }
+
+        group=BoxLayout(orientation='vertical',size_hint_y=None,
+                         spacing=dp(5))
+        group.bind(minimum_height=group.setter('height'))
+        group_title=BoxLayout(size_hint_y=None,height=dp(34),
+                              spacing=dp(8))
+        group_title.add_widget(heading('組隊管理',icon='users'))
+        group_toggle=SocialButton(
+            '展開組隊管理',lambda:self.toggle('組隊管理'),
+            icon='chevron',font='11sp',height=34)
+        group_toggle.size_hint_x=None
+        group_toggle.width=dp(130)
+        group_title.add_widget(group_toggle)
+        group.add_widget(group_title)
+        group_slot=BoxLayout(orientation='vertical',size_hint_y=None,
+                             spacing=dp(5))
+        group_slot.bind(minimum_height=group_slot.setter('height'))
+        group.add_widget(group_slot)
+        self.add_widget(group)
+        self.party_group=group
+        self.sections['組隊管理']={
+            'module':'social','class':'Party','slot':group_slot,
+            'toggle':group_toggle,'view':None,'expanded':False,
+        }
+
+        # Chat composer is immediately editable; the group is instantiated
+        # during the first Dashboard refresh, avoiding expensive eager setup.
+        self.expand('聊天訊息')
+
+    def _focus(self, section):
+        from android_app.theme import style_button
+        if section not in self.sections:
+            return
+        self._focus_name=section
+        if not self.sections[section]['expanded']:
+            self.expand(section)
+        style_button(self.chat_tab,primary=section=='聊天訊息',radius=12)
+        style_button(self.party_tab,primary=section=='組隊管理',radius=12)
+        views=getattr(self.d,'views',{})
+        attached=views.get('聊天＋組隊') if isinstance(views,dict) else None
+        if attached is not None:
+            _page,scroll=attached
+            target=(self.party_group if section=='組隊管理'
+                    else self.sections['聊天訊息']['slot'])
+            scroll.scroll_to(target,padding=dp(6),animate=False)
+
+    def refresh(self):
+        # In the actual Dashboard, both panels should be visible initially,
+        # as in the reference. The original lazy test/controller API remains
+        # stable for embedded or otherwise detached widget construction.
+        if not self._initial_party_loaded:
+            self._initial_party_loaded=True
+            if hasattr(self.d,'views'):
+                self.expand('組隊管理')
+        super().refresh()
 
 
 class ExpeditionAndInstances(PairedFeatures):

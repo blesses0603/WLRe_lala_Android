@@ -1,5 +1,7 @@
 # LaLa Android：十張參考圖與實際 Kivy 功能頁對照
 
+後續整合與最新驗證範圍見 [2026-11-05 整合說明](UI_REFERENCE_INTEGRATION_20261105.md)。以下保留各版本的歷史盤點。
+
 > 基準：使用者在本專案對話提供的十張「飄流 RE:LaLa」Android UI 參考圖。
 > 稽核對象：Android `main` v7.1.16（commit `5926bb3a6f830c95567af6be2634eb4362a7b4fe`）。
 > 這是**功能與資訊架構差異盤點**，不是宣稱圖片與已編譯 APK 一致；UI 顯示仍須真機截圖核對。

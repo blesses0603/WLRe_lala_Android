@@ -30,8 +30,12 @@ def attribute_lines(state):
 
 
 class Attributes(Page):
-    def __init__(self, dashboard):
-        super().__init__(dashboard)
+    def __init__(self, dashboard, *, compact=False):
+        self.compact = compact
+        super().__init__(dashboard, embedded=compact, show_title=not compact)
+        if compact:
+            self._build_compact()
+            return
         summary=feature_card('角色能力', '能力值僅取自伺服器確認的角色狀態')
         self.info=status_line()
         summary.add_widget(self.info)
@@ -72,6 +76,52 @@ class Attributes(Page):
         self.status=status_line()
         editor.add_widget(self.status)
         editor.add_widget(button('檢查並確認分配',self.allocate,56))
+        self.add_widget(editor)
+
+    def _build_compact(self):
+        """One touch row per real attribute, retaining the shared draft API."""
+        from kivy.uix.boxlayout import BoxLayout
+        from kivy.uix.label import Label
+        from android_app.theme import MUTED, TEXT
+
+        editor = feature_card('角色能力', '先調整本次增加點數，再確認分配')
+        # Kept for the shared refresh API, without repeating every value above
+        # the editor. Each live value is already visible beside its controls.
+        self.info = status_line()
+        self.inputs = {}
+        self.stat_values = {}
+        self.available = status_line('可分配點數：等待伺服器同步', prominent=True)
+        editor.add_widget(self.available)
+        for key, name in ATTRIBUTES:
+            identity = BoxLayout(orientation='vertical', size_hint_x=None,
+                                 width=dp(96), spacing=0)
+            identity.add_widget(Label(text=name, color=TEXT, font_size='13sp',
+                                      halign='left', valign='middle',
+                                      size_hint_y=None, height=dp(24)))
+            current = Label(text='目前值：待同步', color=MUTED, font_size='12sp',
+                            halign='left', valign='middle')
+            for caption in (identity.children[0], current):
+                caption.bind(size=lambda widget, size: setattr(widget, 'text_size', size))
+            identity.add_widget(current)
+            self.stat_values[key] = current
+            control = TextInput(text='0', multiline=False, input_filter='int',
+                                input_type='number', font_size='15sp',
+                                size_hint_y=None, height=dp(48))
+            style_input(control)
+            self.inputs[key] = control
+            decrement = button('－', lambda k=key: self._step(k, -1), 48)
+            increment = button('＋', lambda k=key: self._step(k, 1), 48)
+            for part in (decrement, increment):
+                part.size_hint_x = None
+                part.width = dp(44)
+            draft = row(identity, decrement, control, increment)
+            draft.spacing = dp(6)
+            draft.height = dp(60)
+            editor.add_widget(draft)
+        self.status = status_line()
+        editor.add_widget(self.status)
+        editor.add_widget(button('檢查並確認分配', self.allocate, 56))
+        editor.add_widget(status_line('送出後等候伺服器同步；結果未知不可重送'))
         self.add_widget(editor)
 
     def _step(self,key,delta):

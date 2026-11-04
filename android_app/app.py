@@ -300,46 +300,64 @@ class LaLaApp(App):
         Window.clearcolor = BACKGROUND
 
         base = column()
-        base.padding = [dp(16), dp(20), dp(16), dp(24)]
-        base.spacing = dp(16)
+        base.padding = [dp(12), dp(16), dp(12), dp(24)]
+        base.spacing = dp(12)
         self._login_brand_header = BrandHeader(
             subtitle='帳號與連線', verified=False)
         base.add_widget(self._login_brand_header)
 
-        login = neon_surface(column(), radius=24, bright=True); login.padding = dp(16); login.spacing = dp(12)
+        login = neon_surface(column(), radius=24, bright=True)
+        login.padding = dp(12); login.spacing = dp(10)
         login.add_widget(section_title(
             '帳號登入／連線管理', '選擇分流並安全建立多帳號連線'))
-        self.saved = style_button(Spinner(text='已保存帳號', values=self.saved_names(),
-                                          option_cls=RoundedSpinnerOption))
-        self.saved.bind(text=self.switch_saved)
-        delete = button('刪除', self.delete_saved)
-        delete.size_hint_x = None; delete.width = dp(64)
-        login.add_widget(row(self.saved, delete))
+
+        def field_row(title, control):
+            # Fixed, short labels leave the input flexible even at 320dp.
+            caption = label(title, 48)
+            caption.size_hint_x = None
+            caption.width = dp(40)
+            caption.font_size = '13sp'
+            return row(caption, control)
+
         from wlre.storage.server_lines import load
         self.lines = load()
         self.lookup = {entry["name"]: entry for entry in self.lines}
         choices = list(self.lookup)
-        login.add_widget(label('伺服器與分流', 26))
         self.server = style_button(Spinner(text=choices[0] if choices else '沒有伺服器',
             values=choices, option_cls=RoundedSpinnerOption,
-            size_hint_y=None, height=dp(48)))
-        login.add_widget(self.server)
-        login.add_widget(label('帳號', 26))
+            size_hint_y=None, height=dp(48), font_size='14sp',
+            shorten=True, shorten_from='right'))
+        login.add_widget(field_row('分流', self.server))
         self.account = style_input(TextInput(hint_text='輸入遊戲帳號', multiline=False,
-            size_hint_y=None, height=dp(48), font_size='15sp'))
-        login.add_widget(self.account)
-        login.add_widget(label('密碼', 26))
+            input_type='text', size_hint_y=None, height=dp(48), font_size='15sp'))
+        login.add_widget(field_row('帳號', self.account))
         self.password = style_input(TextInput(hint_text='輸入密碼', multiline=False, password=True,
             size_hint_y=None, height=dp(48), font_size='15sp'))
-        login.add_widget(self.password)
+        self.password_toggle = button('顯示', self.toggle_password_visibility)
+        self.password_toggle.size_hint_x = None
+        self.password_toggle.width = dp(48)
+        login.add_widget(field_row('密碼', row(self.password, self.password_toggle)))
         self.remember = style_checkbox(CheckBox(active=False, size_hint_x=None,
-            width=dp(44), disabled=self.vault is None))
+            width=dp(48), disabled=self.vault is None))
         remember_text = label('加密保存帳密', 48)
+        remember_text.font_size = '13sp'
         login.add_widget(row(self.remember, remember_text))
+        # Saved credentials follow the editable fields, matching the reference.
+        # Use a separate touch-sized row rather than squeezing five controls
+        # into the same line on a narrow Android screen.
+        self.saved = style_button(Spinner(text='已保存帳號', values=self.saved_names(),
+            option_cls=RoundedSpinnerOption, font_size='13sp',
+            shorten=True, shorten_from='right'))
+        self.saved.bind(text=self.switch_saved)
+        delete = button('刪除', self.delete_saved)
+        delete.size_hint_x = None; delete.width = dp(48)
+        login.add_widget(row(self.saved, delete))
         # Official resource/SQLite verification belongs to the pre-login gate.
         # Existing sessions can still inspect service status in the monitor card.
         connect = button('建立新連線', self.connect_account, 56)
         style_button(connect, primary=True); login.add_widget(connect)
+        if platform == 'android':
+            login.add_widget(button('啟動／重新連接背景服務', self.initialize_android))
         self.message = label('選擇分流登入後，即可開啟角色功能。')
         self.message.color = MUTED
         if self.vault_error: self.message.text = '帳密解密失敗；原資料已保留，請重新輸入登入'
@@ -365,7 +383,6 @@ class LaLaApp(App):
         monitor.add_widget(self.resources)
         if platform == 'android':
             monitor.add_widget(label('背景連線需允許通知；可在此管理服務。'))
-            monitor.add_widget(button('啟動背景服務', self.initialize_android))
             self.overlay_button = button('開啟懸浮小球（需額外授權）', self.toggle_overlay)
             self.overlay_button.disabled = True
             monitor.add_widget(self.overlay_button)
@@ -409,7 +426,19 @@ class LaLaApp(App):
             self.catalog_sync.reset()
         self.message.text = '已要求背景服務重新檢查官方資源'
 
+    def _mask_password(self):
+        """Visibility is temporary UI state, never persisted with credentials."""
+        if hasattr(self, 'password'):
+            self.password.password = True
+        if hasattr(self, 'password_toggle'):
+            self.password_toggle.text = '顯示'
+
+    def toggle_password_visibility(self, *_):
+        self.password.password = not self.password.password
+        self.password_toggle.text = '顯示' if self.password.password else '隱藏'
+
     def connect_account(self, *_):
+        LaLaApp._mask_password(self)
         if platform == 'android' and (not self._login_visible or not self._login_ready()):
             self.message.text = (self.catalog_sync.snapshot()['message']
                                  if self.catalog_sync is not None
@@ -451,8 +480,8 @@ class LaLaApp(App):
     def add_card(self, session):
         account = session.account
         from android_app.widgets import column, label
-        from android_app.theme import MUTED, surface, style_button
-        card = surface(column(), radius=22)
+        from android_app.theme import MUTED, neon_surface, style_button
+        card = neon_surface(column(), radius=22, bright=True)
         card.padding = dp(16); card.spacing = dp(10)
         title = label(account + "｜" + session.label)
         title.font_size = '17sp'
@@ -494,6 +523,7 @@ class LaLaApp(App):
         return [r['account'] + ' | ' + r['server'] for r in self.saved_accounts]
 
     def switch_saved(self, _spinner, name):
+        LaLaApp._mask_password(self)
         # Previously the Activity cached ALL decrypted passwords indefinitely.
         # Keep only the selected password inside the UI input until used/paused.
         self.password.text = ''
@@ -513,6 +543,7 @@ class LaLaApp(App):
                 return
 
     def delete_saved(self, *_):
+        LaLaApp._mask_password(self)
         if not self.vault: return
         chosen = next((r for r, label in zip(self.saved_accounts, self.saved_names())
                        if label == self.saved.text), None)
@@ -649,6 +680,7 @@ class LaLaApp(App):
             + '%｜裝置溫度 ' + str(metrics.get('device_temperature_c') if metrics.get('device_temperature_c') is not None else '未知') + '°C｜App 耗電未知｜' + time.strftime('%H:%M:%S', time.localtime(metrics['sample_time'])))
 
     def on_pause(self):
+        LaLaApp._mask_password(self)
         if hasattr(self, 'password'):
             self.password.text = ""
         if hasattr(self.manager, 'set_paused'): self.manager.set_paused(True)
@@ -746,7 +778,7 @@ class LaLaApp(App):
             Clock.schedule_once(self.finish_overlay_permission, 0.7)
 
     def on_stop(self):
+        LaLaApp._mask_password(self)
         if hasattr(self, 'password'):
             self.password.text = ""
         if not getattr(self.manager, 'background', False): self.manager.stop_all()
-

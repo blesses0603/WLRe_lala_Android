@@ -71,6 +71,7 @@ class BrandHeader(BoxLayout):
         name = Label(text='飄流 RE:LaLa', color=ACCENT,
                      font_size='22sp', bold=True,
                      halign='left', valign='middle',
+                     shorten=True,
                      size_hint_y=None, height=dp(36))
         detail = Label(text='ANDROID  ·  v' + ANDROID_VERSION + ' / ' + subtitle,
                        color=MUTED, font_size='11sp',
@@ -79,6 +80,8 @@ class BrandHeader(BoxLayout):
         self.status = Label(color=MUTED, font_size='11sp',
                             halign='left', valign='middle',
                             size_hint_y=None, height=dp(26))
+        self.name_label, self.detail_label = name, detail
+        self.actions = None
         neon_surface(self.status, color=(.03, .20, .27, .96),
                      radius=12, border=(.18,.73,.86,.50))
         for item in (name, detail, self.status):
@@ -98,7 +101,26 @@ class BrandHeader(BoxLayout):
             actions.add_widget(bell)
             actions.add_widget(gear)
             self.add_widget(actions)
+            self.actions = actions
+        self.bind(width=self.adapt_layout)
+        self.adapt_layout()
         self.set_verified(verified)
+
+    def adapt_layout(self, *_):
+        """Preserve readable labels and both actions on a 320dp phone.
+
+        The reference's wide artwork must not squeeze the title between an
+        87dp portrait and a fixed horizontal 78dp action strip.
+        """
+        narrow = self.width < dp(420)
+        self.logo.width = dp(48 if narrow else 87)
+        self.spacing = dp(6 if narrow else 9)
+        self.name_label.font_size = '18sp' if narrow else '22sp'
+        self.detail_label.font_size = '9sp' if narrow else '11sp'
+        self.status.font_size = '10sp' if narrow else '11sp'
+        if self.actions is not None:
+            self.actions.orientation = 'vertical' if narrow else 'horizontal'
+            self.actions.width = dp(36 if narrow else 78)
 
     def _paint_sky(self, *_):
         x, y, width, height = self.x, self.y, self.width, self.height
@@ -129,11 +151,11 @@ NAV_ROUTES = (
     ('首頁', '角色概況'),
     ('資料／資源', '包包與特技'),
     ('運行紀錄', '事件紀錄'),
-    ('工具箱', 'AI與補給設定'),
+    ('工具箱', '設定與工具'),
 )
 
 
-# The original 18 functions remain available beside three paired pages.
+# The original 18 functions remain available beside five paired pages.
 # These groups only determine the highlighted bottom route.
 PAGE_GROUPS = {
     '角色概況': '角色概況',
@@ -142,6 +164,8 @@ PAGE_GROUPS = {
     '聊天＋組隊': '角色概況',
     '遠征＋副本': '角色概況',
     '煉金＋製作': '包包與特技',
+    '夥伴＋能力': '角色概況',
+    '設定與工具': '設定與工具',
     '聊天': '角色概況',
     '組隊': '角色概況',
     '夥伴出戰': '角色概況',
@@ -151,12 +175,12 @@ PAGE_GROUPS = {
     '角色能力': '包包與特技',
     '煉金': '包包與特技',
     '製作': '包包與特技',
-    'NPC': '包包與特技',
-    '儲藏存取': '包包與特技',
+    'NPC': '設定與工具',
+    '儲藏存取': '設定與工具',
     '事件紀錄': '事件紀錄',
     '經驗效率': '事件紀錄',
-    'AI與補給設定': 'AI與補給設定',
-    '福利': 'AI與補給設定',
+    'AI與補給設定': '設定與工具',
+    '福利': '設定與工具',
 }
 
 
@@ -209,6 +233,7 @@ class NavigationDock(BoxLayout):
 PAGE_SYMBOLS = {
     '角色概況':'◈','包包與特技':'▦','小地圖':'◇','戰場陣形':'✥',
     '聊天＋組隊':'✉','遠征＋副本':'✧','煉金＋製作':'⚒',
+    '夥伴＋能力':'♢','設定與工具':'⚙',
     '聊天':'✉','組隊':'♧','夥伴出戰':'♢','遠征':'✧',
     '副本資料':'◇','角色能力':'✦','煉金':'⬡','製作':'⚒',
     '經驗效率':'◴','事件紀錄':'▤','AI與補給設定':'⚙',
@@ -242,6 +267,7 @@ def section_title(title, subtitle='', icon=None, *, show_icon=True):
                 '附近玩家':'pin', '我的隊伍':'users',
                 '待確認邀請／申請':'message',
                 '角色概況':'home', '包包與特技':'layers',
+                '夥伴＋能力':'users', '設定與工具':'settings',
                 '事件紀錄':'list', '小地圖':'pin',
                 'AI與補給設定':'settings','角色能力':'chart',
                 '煉金':'sparkle','製作':'settings',

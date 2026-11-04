@@ -15,6 +15,7 @@ from android_app.refresh_policy import RefreshPolicy
 
 PAGES = ('角色概況', '包包與特技', '小地圖', '戰場陣形',
          '聊天＋組隊', '遠征＋副本', '煉金＋製作',
+         '夥伴＋能力', '設定與工具',
          '聊天', '組隊', '夥伴出戰', '遠征', '副本資料',
          '角色能力', '煉金', '製作', '經驗效率', '事件紀錄',
          'AI與補給設定', 'NPC', '儲藏存取', '福利')
@@ -29,6 +30,8 @@ _PAGE_IMPL = {
     '聊天＋組隊': ('combined', 'ChatAndParty'),
     '遠征＋副本': ('combined', 'ExpeditionAndInstances'),
     '煉金＋製作': ('combined', 'AlchemyAndCrafting'),
+    '夥伴＋能力': ('combined', 'CompanionsAndAttributes'),
+    '設定與工具': ('combined', 'SettingsAndTools'),
     '聊天': ('social', 'Chat'),
     '組隊': ('social', 'Party'),
     '夥伴出戰': ('companions', 'Companions'),
@@ -66,7 +69,7 @@ class Dashboard:
                           and getattr(app.manager, 'resource_status', {}).get('ready')
                           and self.catalog_ready),
             alerts=lambda: setattr(self.navigation, 'text', '事件紀錄'),
-            settings=lambda: setattr(self.navigation, 'text', 'AI與補給設定'))
+            settings=lambda: setattr(self.navigation, 'text', '設定與工具'))
         self.shell = base
         base.add_widget(self.brand)
         self.status = neon_surface(label('等待服務同步'), color=SOFT, radius=12)
@@ -76,21 +79,22 @@ class Dashboard:
         nav = neon_surface(BoxLayout(orientation='horizontal', size_hint_y=None,
                       height=dp(58), spacing=dp(8), padding=[dp(10), dp(7)]),
                       color=SOFT, radius=16)
-        heading = label('功能', 44)
-        heading.size_hint_x = None; heading.width = dp(48)
-        nav.add_widget(heading)
+        back = button('帳號', self.close, 48)
+        back.size_hint_x = None
+        back.width = dp(54)
+        self.back_button = back
+        nav.add_widget(back)
         self.navigation = style_button(Spinner(text=PAGES[0], values=PAGES,
             option_cls=RoundedSpinnerOption, size_hint_y=None, height=dp(44)))
         nav.add_widget(self.navigation); base.add_widget(nav)
         self.nav_frame = nav
-        # The full 18-page Spinner remains available. Persistent routes in
+        # All original and integrated routes remain available in the Spinner. Persistent routes in
         # the dock replace eager horizontal icon strips and save viewport
         # space for actual game content on small Android screens.
         self.content = BoxLayout(orientation='vertical'); base.add_widget(self.content)
         self.message = label(); self.message.color = MUTED; base.add_widget(self.message)
-        back = button('返回帳號列表', self.close, 48)
-        self.back_button = back
-        base.add_widget(back)
+        # Keep the account return action in the selector row, leaving more
+        # vertical space for real controls instead of a second bottom bar.
         self.dock = NavigationDock(
             lambda target: setattr(self.navigation, 'text', target))
         base.add_widget(self.dock)
@@ -159,6 +163,9 @@ class Dashboard:
             else [dp(10),dp(7),dp(10),dp(7)])
         self.back_button.height = dp(39 if social else 44 if production else 48)
         self.dock.height = dp(59 if social else 64)
+        adapt = getattr(self.brand, 'adapt_layout', None)
+        if callable(adapt):
+            adapt()
 
     def show(self, name):
         self.page_name = name
@@ -244,4 +251,3 @@ class Dashboard:
             if hasattr(page, 'close'): page.close()
         if hasattr(self.app.manager, 'watch'): self.app.manager.watch(None)
         self.app.dashboard = None
-

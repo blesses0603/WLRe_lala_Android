@@ -504,6 +504,10 @@ class Crafting(Page):
     def preview_recipe(self, recipe):
         """Preview only. Never sends a craft/add/plan command."""
         self.selected = recipe['item_id']
+        if self.compact:
+            for widget in self.catalog.children:
+                if isinstance(widget, RecipeRow):
+                    widget.set_selected(widget.item_id == self.selected)
         self._render_preview()
 
     def _render_preview(self):

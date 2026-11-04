@@ -29,7 +29,8 @@ class Alchemy(Page):
         self.materials = [None]*5
 
         setup = feature_card('煉金設定',
-                             '模式與次數必須由原有煉金核心驗證')
+                             '模式與次數必須由原有煉金核心驗證',
+                             show_icon=not compact)
         if compact:
             # Adjacent controls consume one short row instead of two stacked
             # full-width forms on an actual narrow phone.
@@ -51,7 +52,8 @@ class Alchemy(Page):
 
         materials = feature_card(
             '材料槽位',
-            '五格顯示背包已選材料；每次數量為本地草稿，確認後才送出')
+            '五格顯示背包已選材料；每次數量為本地草稿，確認後才送出',
+            show_icon=not compact)
         self.slots = []
         if compact:
             # Show the actual material slots before setup inputs. Three
@@ -107,7 +109,8 @@ class Alchemy(Page):
             self.add_widget(setup)
 
         actions = feature_card('煉金佇列與執行',
-                               '預覽本次總消耗，確認後才送出')
+                               '預覽本次總消耗，確認後才送出',
+                               show_icon=not compact)
         self.info = status_line('等待煉金狀態同步')
         actions.add_widget(self.info)
         actions.add_widget(button('預覽消耗／開始連續煉金', self.begin, 56))
@@ -177,7 +180,8 @@ class Crafting(Page):
         self.offset = 0
 
         browse = feature_card('製作工坊 · 配方目錄',
-                              '只列已確認開放配方，可依設備與收藏篩選')
+                              '只列已確認開放配方，可依設備與收藏篩選',
+                              show_icon=not compact)
         browse.add_widget(row(
             button('自訂清單', self.plan),
             button('進入自家帳篷',
@@ -207,7 +211,8 @@ class Crafting(Page):
             # One in-page recipe detail panel; the existing verified recipe
             # dialog remains the only way to add to the server queue.
             preview = feature_card(
-                '目前選取配方', '點選配方先檢視已核對的設備與材料，送出需再次確認')
+                '目前選取配方', '點選配方先檢視已核對的設備與材料，送出需再次確認',
+                show_icon=False)
             self.preview_image = AnchorLayout(
                 anchor_x='left', size_hint_y=None, height=dp(70))
             preview.add_widget(self.preview_image)
@@ -221,7 +226,8 @@ class Crafting(Page):
 
         execution = feature_card('伺服器製作佇列',
                                  '順序、用料與剩餘時間由已同步狀態確認',
-                                 variant='highlight')
+                                 variant='highlight',
+                                 show_icon=not compact)
         self.queue_info = status_line('等待排程同步')
         execution.add_widget(self.queue_info)
         self.queue = column()

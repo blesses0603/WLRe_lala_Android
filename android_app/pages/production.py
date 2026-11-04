@@ -167,8 +167,17 @@ class Crafting(Page):
         self.tool = select(browse, '工作設備／收藏', ['全部', '我的最愛'])
         self.only_owned = select(
             browse, '顯示配方', ['全部已確認開放配方', '只列小屋已擺設備'])
-        self.catalog = column()
-        self.catalog.spacing = dp(9)
+        if compact:
+            self.catalog_status = status_line('等待已確認配方')
+            browse.add_widget(self.catalog_status)
+            self.catalog = GridLayout(
+                cols=2, spacing=dp(7), size_hint_y=None,
+                row_default_height=dp(156), row_force_default=True)
+            self.catalog.bind(
+                minimum_height=self.catalog.setter('height'))
+        else:
+            self.catalog = column()
+            self.catalog.spacing = dp(9)
         browse.add_widget(self.catalog)
         browse.add_widget(row(
             button('‹ 上一頁', lambda: self.move(-1)),
@@ -229,29 +238,66 @@ class Crafting(Page):
             and (self.only_owned.text != '只列小屋已擺設備' or tool_status(s, r['tool_id']) == '已擺放')]
         pages = max(1, (len(recipes)+5)//6); self.offset = min(self.offset, pages-1)
         counter = label(f'{self.offset+1}/{pages} 頁 · {len(recipes)} 項配方 · 收藏 {len(favorites)}/100', 35)
-        counter.color = MUTED; self.catalog.add_widget(counter)
+        if self.compact:
+            self.catalog_status.text = counter.text
+        else:
+            counter.color = MUTED
+            self.catalog.add_widget(counter)
         if not recipes:
-            self.catalog.add_widget(label('沒有符合條件的配方，請調整搜尋或設備篩選。'))
+            self.catalog.add_widget(label(
+                '沒有符合條件的配方，請調整搜尋或設備篩選。',
+                60 if self.compact else None))
         for recipe in recipes[self.offset*6:self.offset*6+6]:
             sid = recipe['item_id']; status, _ = availability(s, recipe)
-            # Each component owns its height; names never overlap adjacent rows.
-            card = surface(BoxLayout(orientation='horizontal', spacing=dp(10),
-                padding=[dp(10), dp(8), dp(10), dp(8)],
-                size_hint_y=None, height=dp(88)), color=SOFT, radius=16)
-            card.add_widget(item_image(sid, 52))
-            info = BoxLayout(orientation='vertical', size_hint_x=1)
-            name = label(('♥ ' if sid in favorites else '') + item_name(sid), 32)
-            name.font_size = '14sp'
-            state_line = label(status + ' · ' + item_name(recipe['tool_id']), 32)
-            state_line.font_size = '11sp'; state_line.color = MUTED
-            info.add_widget(name); info.add_widget(state_line)
-            card.add_widget(info)
-            action = button(
-                '選取' if self.compact else '詳情 ›',
-                (lambda r=recipe: self.preview_recipe(r)) if self.compact
-                else (lambda r=recipe: self.recipe(r)), 48)
-            action.size_hint_x = None; action.width = dp(74)
-            card.add_widget(action)
+            if self.compact:
+                # Two-column icon catalog for the paired screen. The full
+                # standalone list and original recipe confirmation stay intact.
+                card = surface(BoxLayout(
+                    orientation='vertical', spacing=dp(3),
+                    padding=[dp(7), dp(6), dp(7), dp(6)],
+                    size_hint_y=None, height=dp(156)),
+                    color=SOFT, radius=13)
+                header = BoxLayout(
+                    orientation='horizontal', spacing=dp(5),
+                    size_hint_y=None, height=dp(58))
+                header.add_widget(item_image(sid, 48))
+                name = label(
+                    ('♥ ' if sid in favorites else '') + item_name(sid), 50)
+                name.font_size = '12sp'
+                header.add_widget(name)
+                card.add_widget(header)
+                state_line = label(
+                    status + ' · ' + item_name(recipe['tool_id']), 31)
+                state_line.font_size = '10sp'
+                state_line.color = MUTED
+                card.add_widget(state_line)
+                card.add_widget(button(
+                    '預覽配方', lambda r=recipe: self.preview_recipe(r),
+                    44))
+            else:
+                # Standalone production list retains its original full rows.
+                card = surface(BoxLayout(
+                    orientation='horizontal', spacing=dp(10),
+                    padding=[dp(10), dp(8), dp(10), dp(8)],
+                    size_hint_y=None, height=dp(88)), color=SOFT,
+                    radius=16)
+                card.add_widget(item_image(sid, 52))
+                info = BoxLayout(orientation='vertical', size_hint_x=1)
+                name = label(
+                    ('♥ ' if sid in favorites else '') + item_name(sid), 32)
+                name.font_size = '14sp'
+                state_line = label(
+                    status + ' · ' + item_name(recipe['tool_id']), 32)
+                state_line.font_size = '11sp'
+                state_line.color = MUTED
+                info.add_widget(name)
+                info.add_widget(state_line)
+                card.add_widget(info)
+                action = button(
+                    '詳情 ›', lambda r=recipe: self.recipe(r), 48)
+                action.size_hint_x = None
+                action.width = dp(74)
+                card.add_widget(action)
             self.catalog.add_widget(card)
         self.queue_info.text = craft.get('status', '等待排程同步')+f"\n完成 {craft.get('completed',0)} 項｜伺服器排程 {len(craft.get('queue',{}))} 項"
         for value in sorted(craft.get('queue', {}).values(), key=lambda r: r['index']):

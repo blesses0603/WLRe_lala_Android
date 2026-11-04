@@ -162,7 +162,7 @@ class VerificationRail(Widget):
 
     def _paint(self, *_):
         self.canvas.before.clear()
-        row_height, gap = dp(37), dp(4)
+        row_height, gap = dp(34), dp(3)
         ys = [self.top - row_height / 2 - i * (row_height + gap)
               for i in range(7)]
         x = self.center_x

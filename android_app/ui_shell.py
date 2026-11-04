@@ -155,14 +155,24 @@ class NavigationDock(BoxLayout):
                          size_hint_y=None, height=dp(64),
                          spacing=dp(4), padding=[dp(5), dp(5)], **kwargs)
         neon_surface(self, color=SURFACE, radius=19, border=BORDER, bright=True)
+        from android_app.pages.social_visual import SocialIcon
         self.buttons = {}
-        for title, page in NAV_ROUTES:
-            symbol = ('⌂', '▦', '◷', '⚙')[len(self.buttons)]
-            view = style_button(Button(text=symbol+'\n'+title, size_hint_y=None,
+        self.icons = {}
+        for index, (title, page) in enumerate(NAV_ROUTES):
+            view = style_button(Button(text=title, size_hint_y=None,
                                        height=dp(54)), radius=16)
-            # Two-line icon labels fit narrow 320dp screens.
             view.font_size = '11sp'
+            view.halign, view.valign = 'center', 'bottom'
+            picture = SocialIcon(('home','layers','bars','grid')[index],
+                                 tint=MUTED,edge=25)
+            view.add_widget(picture)
+            def position_icon(w, *_, asset=picture):
+                asset.pos=(w.center_x-asset.width/2,w.top-dp(30))
+                w.text_size=(max(0,w.width-dp(8)),max(0,w.height-dp(6)))
+            view.bind(pos=position_icon,size=position_icon)
+            position_icon(view)
             view.bind(on_release=lambda _button, target=page: navigate(target))
+            self.icons[page] = picture
             self.buttons[page] = view
             self.add_widget(view)
         self.set_active(NAV_ROUTES[0][1])
@@ -172,6 +182,7 @@ class NavigationDock(BoxLayout):
         for route, button in self.buttons.items():
             style_button(button, primary=route == selected, radius=16)
             button.font_size = '11sp'
+            self.icons[route].colorize(ACCENT if route == selected else MUTED)
 
 
 PAGE_SYMBOLS = {
@@ -202,9 +213,19 @@ def section_title(title, subtitle='', icon=None, *, show_icon=True):
             sprite.width = dp(30)
             line.add_widget(sprite)
         else:
-            symbol = Label(text=icon_text, color=ACCENT, font_size='22sp',
-                           size_hint_x=None, width=dp(30))
-            line.add_widget(symbol)
+            from android_app.pages.social_visual import SocialIcon
+            vector = {
+                '聊天＋組隊':'users', '聊天':'chat',
+                '聊天訊息':'chat', '發送訊息':'send',
+                '組隊':'users', '組隊管理':'users',
+                '附近玩家':'pin', '我的隊伍':'users',
+                '待確認邀請／申請':'message',
+                '角色概況':'home', '包包與特技':'layers',
+                '事件紀錄':'list', '小地圖':'pin',
+                'AI與補給設定':'settings','角色能力':'chart',
+                '煉金':'sparkle','製作':'settings',
+            }.get(title,'sparkle')
+            line.add_widget(SocialIcon(vector,edge=28))
     name = Label(text=title, color=TEXT, font_size='18sp',
                  bold=True, halign='left', valign='middle')
     name.bind(size=lambda w, size: setattr(

@@ -6,6 +6,8 @@ and never exposes raw remote error payloads in the UI.
 """
 import re
 
+from android_app.login_gate import verified_for_login
+
 STEPS = (
     ("official", "官方版本", "核對應用程式版本與官方資源"),
     ("data", "DataPackage", "資料包版本與來源一致性"),
@@ -68,7 +70,8 @@ def view_state(service, local, *, connected=False, login_ready=False):
     service = service if type(service) is dict else {}
     local = local if type(local) is dict else {}
     connected = connected is True
-    approved = connected and login_ready is True
+    approved = (login_ready is True and
+                verified_for_login(service, local, connected=connected))
     network_ready = connected and service.get("status") == "ready" and service.get("ready") is True
     versions = package_versions(service)
     states = {key: "pending" for key, _, _ in STEPS}
@@ -81,8 +84,8 @@ def view_state(service, local, *, connected=False, login_ready=False):
                 states[key] = "passed"
             if local.get("status") == "checking":
                 states["runtime"] = "checking"
-            elif local.get("status") in ("blocked", "error"):
-                states["runtime"] = "blocked"
+            # A blocked Activity check could be Runtime *or* SQLite.
+            # The worker has no per-substage evidence; do not guess a row.
         else:
             if len(versions) == 2:
                 for key in ("official", "data", "main"):

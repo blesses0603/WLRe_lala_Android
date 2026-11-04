@@ -184,25 +184,27 @@ PAGE_SYMBOLS = {
 }
 
 
-def section_title(title, subtitle='', icon=None):
+def section_title(title, subtitle='', icon=None, *, show_icon=True):
     """Icon-and-text header shared by login, dialogs and feature cards."""
     block = BoxLayout(orientation='vertical', size_hint_y=None,
                       height=dp(52 if subtitle else 38), spacing=dp(2))
     line = BoxLayout(orientation='horizontal', size_hint_y=None,
                      height=dp(32), spacing=dp(7))
     icon_text = icon if icon is not None else PAGE_SYMBOLS.get(title, '✧')
-    # Prefer existing 1262 game pictograms over synthetic placeholder icons.
-    # The lightweight local asset lookup never downloads or invokes a service.
-    from android_app.assets import function_icon
-    sprite = function_icon(title, 28)
-    if sprite is not None:
-        sprite.size_hint_x = None
-        sprite.width = dp(30)
-        line.add_widget(sprite)
-    else:
-        symbol = Label(text=icon_text, color=ACCENT, font_size='22sp',
-                       size_hint_x=None, width=dp(30))
-        line.add_widget(symbol)
+    # On compact embedded screens omit unsupported Unicode fallback glyphs
+    # rather than rendering missing-font square boxes.
+    if show_icon:
+        # Prefer bundled 1262 game artwork for all existing pages.
+        from android_app.assets import function_icon
+        sprite = function_icon(title, 28)
+        if sprite is not None:
+            sprite.size_hint_x = None
+            sprite.width = dp(30)
+            line.add_widget(sprite)
+        else:
+            symbol = Label(text=icon_text, color=ACCENT, font_size='22sp',
+                           size_hint_x=None, width=dp(30))
+            line.add_widget(symbol)
     name = Label(text=title, color=TEXT, font_size='18sp',
                  bold=True, halign='left', valign='middle')
     name.bind(size=lambda w, size: setattr(

@@ -267,7 +267,17 @@ class Party(Page):
 
 class Chat(Page):
     def __init__(self, d):
+        if getattr(d, 'page_name', '') == '聊天訊息':
+            Page.__init__(self, d, embedded=True, show_title=False)
+            self.compact=True
+            self.offset=0
+            self.quote=None
+            self.pending=False
+            self.sent_text=None
+            self._build_compact()
+            return
         super().__init__(d)
+        self.compact=False
         from android_app.pages.ui_components import feature_card, status_line
         self.offset=0
         self.quote=None
@@ -299,6 +309,203 @@ class Chat(Page):
         self.channel.bind(
             text=lambda *_:self.cancel_quote()
             if self.quote and self.quote['channel']!=self.channel.text else None)
+
+    def _build_compact(self):
+        """Actual messages, selector, reply bar and verified game emoji."""
+        from kivy.metrics import dp
+        from kivy.uix.boxlayout import BoxLayout
+        from kivy.uix.spinner import Spinner
+        from kivy.uix.scrollview import ScrollView
+        from kivy.uix.textinput import TextInput
+        from android_app.theme import (
+            ACCENT, MUTED, TEXT, SOFT, style_button, style_input, neon_surface)
+        from android_app.widgets import RoundedSpinnerOption
+        from android_app.pages.social_visual import (
+            SocialIcon, SocialButton, caption, heading, glass_card)
+
+        panel=glass_card(bright=True,padding=7,gap=5)
+        self.add_widget(panel)
+        controls=BoxLayout(size_hint_y=None,height=dp(41),
+                           spacing=dp(5))
+        controls.add_widget(heading('頻道',icon='layers'))
+        self.filter=Spinner(text='全部',values=['全部',*CHANNELS,'跨服','系統'],
+                            option_cls=RoundedSpinnerOption,
+                            size_hint_x=.54,font_size='12sp')
+        style_button(self.filter,radius=11)
+        controls.add_widget(self.filter)
+        self.online=caption('連線狀態待同步',color=MUTED,
+                            height=40,size='10sp')
+        self.online.size_hint_x=.44
+        controls.add_widget(self.online)
+        panel.add_widget(controls)
+
+        announcement=BoxLayout(size_hint_y=None,height=dp(29),
+                               padding=[dp(5),dp(1)],
+                               spacing=dp(5))
+        neon_surface(announcement,color=SOFT,radius=11)
+        announcement.add_widget(SocialIcon('megaphone',edge=19))
+        self.announcement=caption(
+            '聊天紀錄取自目前角色，無最新系統公告',
+            size='10sp',height=26)
+        announcement.add_widget(self.announcement)
+        panel.add_widget(announcement)
+        self.message_scroll=ScrollView(do_scroll_x=False,
+                            bar_width=dp(3),size_hint_y=None,
+                            height=dp(257))
+        self.messages=BoxLayout(orientation='vertical',
+                               size_hint_y=None,spacing=dp(5),
+                               padding=[dp(4),dp(3),dp(4),dp(4)])
+        self.messages.bind(minimum_height=self.messages.setter('height'))
+        self.message_scroll.add_widget(self.messages)
+        panel.add_widget(self.message_scroll)
+
+        reactions=BoxLayout(size_hint_y=None,height=dp(38),spacing=dp(5))
+        neon_surface(reactions,color=SOFT,radius=13)
+        # Use actual, included game emote assets. Missing ZIP / JPEG support
+        # falls back to an operable picker, never a Unicode tofu symbol.
+        try:
+            from android_app.assets import emoji_entries, emoji_texture
+            from kivy.uix.image import Image
+            keys=[
+                int(key) for key,row in emoji_entries().items()
+                if str(key).isdigit() and isinstance(row,dict)
+                and row.get('available',True)
+            ][:7]
+            for key in keys:
+                action=SocialButton('',lambda idx=key:self._insert_emoji(idx),
+                                    icon='smile',height=34,font='10sp')
+                try:
+                    sprite=emoji_texture(key)
+                    if sprite is not None:
+                        img=Image(texture=sprite,size_hint=(None,None),
+                                  size=(dp(26),dp(26)))
+                        action.add_widget(img)
+                        action.bind(pos=lambda w,*_,icon=img:
+                                    setattr(icon,'center',w.center))
+                        img.center=action.center
+                        action.glyph.opacity=0
+                except (OSError,KeyError,ValueError):
+                    pass
+                reactions.add_widget(action)
+        except (OSError,KeyError,ValueError,ImportError,TypeError):
+            pass
+        reactions.add_widget(SocialButton(
+            '更多',self.emojis,icon='smile',height=34,font='10sp'))
+        panel.add_widget(reactions)
+
+        send_header=BoxLayout(size_hint_y=None,height=dp(37),
+                              spacing=dp(5))
+        send_header.add_widget(caption('頻道',height=37,size='11sp'))
+        self.channel=Spinner(text='區域',values=list(CHANNELS),
+                             size_hint_x=.48,option_cls=RoundedSpinnerOption,
+                             font_size='12sp')
+        style_button(self.channel,radius=11)
+        send_header.add_widget(self.channel)
+        self.target=TextInput(hint_text='密語角色 ID',
+                              multiline=False,input_filter='int',
+                              input_type='number',size_hint_x=.38,
+                              font_size='12sp')
+        style_input(self.target)
+        send_header.add_widget(self.target)
+        panel.add_widget(send_header)
+
+        compose=BoxLayout(size_hint_y=None,height=dp(46),spacing=dp(6))
+        self.text=TextInput(hint_text='輸入訊息…',
+                            multiline=False,input_type='text',
+                            font_size='13sp')
+        style_input(self.text)
+        compose.add_widget(self.text)
+        self.send_button=SocialButton('送出',self.send,icon='send',
+                                     primary=True,height=46,
+                                     font='13sp')
+        self.send_button.size_hint_x=None
+        self.send_button.width=dp(85)
+        compose.add_widget(self.send_button)
+        panel.add_widget(compose)
+
+        actions=BoxLayout(size_hint_y=None,height=dp(26),
+                          spacing=dp(6))
+        self.quote_label=caption('未引用訊息',size='10sp',
+                                 height=26)
+        actions.add_widget(self.quote_label)
+        actions.add_widget(SocialButton('取消引用',
+                                        self.cancel_quote,icon='close',
+                                        height=26,font='10sp'))
+        panel.add_widget(actions)
+        self.delivery_status=caption('等待輸入訊息',
+                                    height=21,size='10sp')
+        panel.add_widget(self.delivery_status)
+
+        pager=BoxLayout(size_hint_y=None,height=dp(30),spacing=dp(4))
+        pager.add_widget(SocialButton('較早',
+                                      lambda:self.move(-1),
+                                      icon='list',height=30))
+        pager.add_widget(SocialButton('最新',
+                                      lambda:self.move(999),
+                                      icon='refresh',height=30))
+        panel.add_widget(pager)
+        self.filter.bind(text=lambda *_:self.render())
+        self.channel.bind(text=lambda *_:self._change_compact_channel())
+        self._change_compact_channel()
+        self.render()
+
+    def _change_compact_channel(self):
+        # Whisper recipient is a genuine role ID; no fake @ mention target.
+        whisper=self.channel.text=='密語'
+        self.target.disabled=not whisper
+        self.target.opacity=1 if whisper else .38
+        if self.quote and self.quote['channel']!=self.channel.text:
+            self.cancel_quote()
+
+    def _insert_emoji(self, index):
+        # Catalog ID was obtained from bundled verified game emoji entries.
+        self.text.text+=f'[Emoji{index}]'
+
+    def _render_compact(self):
+        from kivy.metrics import dp
+        from android_app.pages.social_visual import MessageTile, caption
+        rows=self.d.data.get('chat',[])
+        if not isinstance(rows,list):
+            rows=[]
+        filtered=[
+            item for item in rows if isinstance(item,dict)
+            and (self.filter.text=='全部'
+                 or item.get('channel')==self.filter.text)
+        ]
+        pages=max(1,(len(filtered)+19)//20)
+        self.offset=min(max(0,self.offset),pages-1)
+        self.messages.clear_widgets()
+        if not filtered:
+            self.messages.add_widget(caption(
+                '尚無從目前角色同步的聊天訊息',
+                height=dp(56),size='12sp'))
+        pid=self.state.get('player',{}).get('role_id')
+        for record in filtered[self.offset*20:self.offset*20+20]:
+            sender=record.get('name') or str(record.get('role_id','未知角色'))
+            own=pid is not None and record.get('role_id')==pid
+            reply=record.get('reply_text')
+            # The official chat parser does not verify a clock field.
+            self.messages.add_widget(MessageTile(
+                str(sender)[:45],str(record.get('channel','未知頻道'))[:12],
+                plain_text(record.get('text',''))[:500],
+                own=own,
+                reply=plain_text(reply)[:120] if type(reply) is str else None,
+                callback=lambda m=record:self.actions(m)))
+        self.messages.add_widget(caption(
+            f'{self.offset+1}/{pages} 頁 · 保留最近 200 則',
+            height=dp(25),size='10sp'))
+        announcements=[
+            item for item in rows[-200:]
+            if isinstance(item,dict) and item.get('channel')=='系統'
+        ]
+        if announcements:
+            self.announcement.text=(
+                '【系統】'+plain_text(announcements[-1].get('text',''))[:160])
+        else:
+            self.announcement.text='聊天紀錄來自目前角色；尚無已同步系統公告'
+        self.online.text='角色已連線' if self.d.live else '等待角色連線'
+        self.message_scroll.scroll_y=0
+
     def cancel_quote(self): self.quote = None; self.quote_label.text = '未引用訊息'
     def emojis(self):
         from android_app.assets import emoji_entries, emoji_texture
@@ -376,6 +583,8 @@ class Chat(Page):
         from android_app.widgets import dialog
         popup = dialog('訊息操作', body, .6)
     def render(self):
+        if getattr(self, 'compact', False):
+            return self._render_compact()
         rows = [r for r in self.d.data.get('chat', []) if self.filter.text == '全部' or r.get('channel') == self.filter.text]
         pages = max(1, (len(rows)+19)//20); self.offset = min(self.offset, pages-1)
         self.messages.clear_widgets()

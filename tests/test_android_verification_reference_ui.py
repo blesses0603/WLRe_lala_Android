@@ -149,7 +149,7 @@ class VerificationWidgetTests(unittest.TestCase):
         panel.render(model)
         self.assertEqual(panel.version_values['DataPackage'].text, '1286')
         self.assertEqual(panel.version_values['MainPackage'].text, '1284')
-        self.assertIn('檢查中', panel.header.status.text)
+        self.assertIn('驗證中', panel.header.status.text)
         panel.retry.dispatch('on_release')
         panel.restart.dispatch('on_release')
         self.assertEqual(actions, ['retry', 'restart'])

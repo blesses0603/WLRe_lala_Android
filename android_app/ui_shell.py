@@ -35,7 +35,10 @@ class BrandHeader(BoxLayout):
         if castle.is_file():
             try:
                 self._castle_texture = CoreImage(str(castle)).texture
-            except (OSError, ValueError):
+            except Exception:
+                # Decorative JPEGs are optional: Kivy SDL2 raises a generic
+                # Exception for truncated/corrupt images. Never block login,
+                # the resource gate, or other real UI controls for artwork.
                 self._castle_texture = None
         with self.canvas.before:
             self._castle_tint = Color(.55, .85, 1, .25)

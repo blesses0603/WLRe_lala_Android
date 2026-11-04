@@ -79,7 +79,7 @@ class Party(Page):
             tabs.add_widget(btn)
         board.add_widget(tabs)
         self.scroll=ScrollView(do_scroll_x=False,bar_width=dp(2),
-                               size_hint_y=None,height=dp(185))
+                               size_hint_y=None,height=dp(163))
         self.entries=BoxLayout(orientation='vertical',size_hint_y=None,
                                spacing=dp(4),padding=[dp(2),dp(3)])
         self.entries.bind(minimum_height=self.entries.setter('height'))
@@ -102,13 +102,10 @@ class Party(Page):
                                        icon='pin',height=42))
         bottom.add_widget(SocialButton('必要成員',self.guard,
                                        icon='shield',height=42))
-        bottom.add_widget(SocialButton('整理',self._render_compact,
-                                       icon='refresh',height=42))
+        bottom.add_widget(SocialButton('邀請開關',self.flag,
+                                       icon='settings',height=42))
         board.add_widget(bottom)
-        # Existing team command protection remains behind manual actions.
-        self.extra=SocialButton('組隊邀請開關',self.flag,
-                                icon='settings',height=36)
-        board.add_widget(self.extra)
+        # The original team command guard still runs on every manual action.
         self._render_compact()
 
     def _select_party_tab(self,name):
@@ -351,7 +348,7 @@ class Chat(Page):
         panel.add_widget(announcement)
         self.message_scroll=ScrollView(do_scroll_x=False,
                             bar_width=dp(3),size_hint_y=None,
-                            height=dp(257))
+                            height=dp(226))
         self.messages=BoxLayout(orientation='vertical',
                                size_hint_y=None,spacing=dp(5),
                                padding=[dp(4),dp(3),dp(4),dp(4)])

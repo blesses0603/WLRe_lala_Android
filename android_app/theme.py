@@ -153,6 +153,14 @@ def style_button(view, primary=False, danger=False, radius=18):
             else:
                 fill.rgba = BUTTON_PRESSED if pressed else SOFT
                 edge.rgba, view.color = BORDER, TEXT
+            # Disabled buttons must also lose their decorative highlight;
+            # otherwise a blocked destructive action looks enabled.
+            if hasattr(view, '_lala_button_sheen'):
+                sheen_tint, _ = view._lala_button_sheen
+                sheen_tint.rgba = (
+                    (.12,.26,.36,.06) if view.disabled else
+                    (.47,.98,1,.48) if variant == 'primary' else
+                    (.22,.69,.88,.24))
 
         view._lala_button_refresh = update
         view.bind(state=update, disabled=update)

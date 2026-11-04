@@ -49,7 +49,6 @@ class Party(Page):
         """Condensed server-backed party area, with three genuine views."""
         from kivy.metrics import dp
         from kivy.uix.boxlayout import BoxLayout
-        from kivy.uix.scrollview import ScrollView
         from kivy.uix.textinput import TextInput
         from android_app.theme import MUTED, style_input, style_button
         from android_app.pages.social_visual import (
@@ -78,13 +77,12 @@ class Party(Page):
             self.party_tabs[name]=btn
             tabs.add_widget(btn)
         board.add_widget(tabs)
-        self.scroll=ScrollView(do_scroll_x=False,bar_width=dp(2),
-                               size_hint_y=None,height=dp(163))
+        # One scroll owner: the dashboard. Avoid nesting another stencil
+        # scroll region inside the combined social work area.
         self.entries=BoxLayout(orientation='vertical',size_hint_y=None,
                                spacing=dp(4),padding=[dp(2),dp(3)])
         self.entries.bind(minimum_height=self.entries.setter('height'))
-        self.scroll.add_widget(self.entries)
-        board.add_widget(self.scroll)
+        board.add_widget(self.entries)
 
         actions=BoxLayout(size_hint_y=None,height=dp(40),spacing=dp(5))
         self.target=TextInput(hint_text='角色 ID',multiline=False,
@@ -115,8 +113,21 @@ class Party(Page):
 
     def _refresh_compact(self):
         p=self.state.get('party',{})
-        key=(str(p),str(self.state.get('player',{})),self.d.live,
-             self.party_tab,self.page_index)
+        player=self.state.get('player',{})
+        # Compact structural fingerprint: do not stringify all game state at
+        # every 0.5s refresh, or rebuild dozens of neon touch widgets.
+        near=p.get('nearby',{})
+        requests=p.get('requests',{})
+        teams=p.get('teams',{})
+        near_key=tuple((rid,item.get('name'),item.get('scene'))
+                       for rid,item in near.items() if isinstance(item,dict))
+        request_key=tuple((rid,item.get('status'),item.get('type'))
+                          for rid,item in requests.items() if isinstance(item,dict))
+        team_key=tuple((rid,t.get('leader_id'),tuple(t.get('members',())))
+                       for rid,t in teams.items() if isinstance(t,dict))
+        key=(p.get('status'),near_key,request_key,team_key,
+             player.get('scene'),player.get('role_id'),
+             bool(self.d.live),self.party_tab,self.page_index)
         if self.key==key:return
         self.key=key
         status=p.get('status','等待同步')
@@ -155,7 +166,7 @@ class Party(Page):
                 self.entries.add_widget(caption(
                     '尚無同場景已同步玩家；可稍後重新整理',
                     height=42))
-            for item in nearby[:32]:
+            for item in nearby[:6]:
                 rid=item['role_id']
                 self.entries.add_widget(NearbyTile(
                     str(item.get('name') or rid)[:35],rid,
@@ -166,7 +177,7 @@ class Party(Page):
         elif self.party_tab=='組隊申請':
             if not requests:
                 self.entries.add_widget(caption('目前沒有待回覆的組隊申請',height=42))
-            for key,request in requests[:25]:
+            for key,request in requests[:6]:
                 item=BoxLayout(size_hint_y=None,height=dp(44),spacing=dp(5))
                 title=caption(
                     '角色 '+player_name(self.state,request.get('role_id'))+
@@ -208,7 +219,6 @@ class Party(Page):
                         {'type':'team','action':'leave'},
                         '確認離開隊伍？隊長離隊會解散隊伍。'),
                     icon='users',height=38))
-        self.scroll.scroll_y=1
 
     def act(self, action, rid=None):
         try: rid = int(rid if rid is not None else self.target.text)

@@ -33,7 +33,8 @@ class ScreenshotStructureContract(unittest.TestCase):
         self.assertEqual(
             production.count("super().__init__(d, embedded=compact)"), 2)
         self.assertIn("row_default_height=dp(148)", production)
-        self.assertIn("'cols', 2 if width < dp(245) else 3", production)
+        self.assertIn("2 if width < dp(245) else", production)
+        self.assertIn("3 if width < dp(342) else 5", production)
         self.assertIn("workbench.add_widget(setup)", production)
         self.assertIn("workbench.add_widget(materials)", production)
         self.assertIn("workbench.add_widget(actions)", production)
@@ -92,6 +93,8 @@ class ScreenshotKivyLayout(unittest.TestCase):
             self.assertTrue(view.sections["煉金"]["expanded"])
             self.assertTrue(view.sections["製作工坊"]["expanded"])
             self.assertEqual(alchemy.material_grid.cols, 3)
+            alchemy.material_grid.width = dp(380)
+            self.assertEqual(alchemy.material_grid.cols, 5)
             self.assertEqual(alchemy.material_grid.row_default_height, dp(148))
             self.assertEqual(len(alchemy.material_grid.children), 5)
             self.assertEqual(len(alchemy.children), 1)  # one alchemy panel

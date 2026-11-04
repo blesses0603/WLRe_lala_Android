@@ -64,7 +64,9 @@ class Dashboard:
             subtitle='角色功能',
             verified=bool(getattr(app.manager, 'available', True)
                           and getattr(app.manager, 'resource_status', {}).get('ready')
-                          and self.catalog_ready))
+                          and self.catalog_ready),
+            alerts=lambda: setattr(self.navigation, 'text', '事件紀錄'),
+            settings=lambda: setattr(self.navigation, 'text', 'AI與補給設定'))
         self.shell = base
         base.add_widget(self.brand)
         self.status = neon_surface(label('等待服務同步'), color=SOFT, radius=12)

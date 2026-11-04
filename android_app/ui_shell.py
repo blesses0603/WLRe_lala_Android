@@ -51,7 +51,15 @@ class BrandHeader(BoxLayout):
         self._paint_sky()
 
         portrait = assets / 'verification_mascot.jpg'
-        if not portrait.is_file():
+        if portrait.is_file():
+            try:
+                # CoreImage surfaces decode failures before this asset is
+                # mounted as a live Kivy Image. A corrupt decoration must
+                # never hide the login and resource verification controls.
+                CoreImage(str(portrait)).texture
+            except Exception:
+                portrait = assets / 'app.png'
+        else:
             portrait = assets / 'app.png'
         self.logo = Image(source=str(portrait),
                           size_hint_x=None, width=dp(87),

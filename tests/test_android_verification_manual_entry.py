@@ -21,7 +21,7 @@ class ManualEntryContracts(unittest.TestCase):
         self.assertIn("VerificationRail", names)
         for name in ("cube", "layers", "database", "document", "bundle",
                      "gear", "shield", "check-circle", "refresh", "wifi", "play"):
-            self.assertIn(repr(name), icon_code)
+            self.assertIn('"' + name + '"', icon_code)
         self.assertIn("Line(", icon_code)
         self.assertIn("Ellipse(", icon_code)
         self.assertNotIn("Clock.schedule_interval(", icon_code)

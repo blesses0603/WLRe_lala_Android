@@ -22,53 +22,92 @@ from wlre.core.efficiency import duration
 
 class Alchemy(Page):
     def __init__(self, d, compact=False):
-        super().__init__(d)
+        super().__init__(d, embedded=compact)
         self.compact = compact
         self.material_icons = {}
         from android_app.pages.ui_components import feature_card, status_line
         self.materials = [None]*5
 
-        setup = feature_card('煉金設定',
-                             '模式與次數必須由原有煉金核心驗證')
-        self.mode = select(setup, '煉金術', ['無技能'])
-        self.runs = field(setup, '執行次數（1～999）', 1, True)
-        self.add_widget(setup)
+        workbench = (feature_card(
+            '煉金 (Alchemy)', '選取已確認的材料，預覽消耗後手動開始',
+            show_icon=False) if compact else None)
+        if compact:
+            setup = BoxLayout(
+                orientation='vertical', spacing=dp(5), size_hint_y=None)
+            setup.bind(minimum_height=setup.setter('height'))
+        else:
+            setup = feature_card('煉金設定',
+                                 '模式與次數必須由原有煉金核心驗證')
+        if compact:
+            # Adjacent controls consume one short row instead of two stacked
+            # full-width forms on an actual narrow phone.
+            controls = BoxLayout(
+                orientation='horizontal', spacing=dp(8),
+                size_hint_y=None, height=dp(94))
+            mode_box = BoxLayout(orientation='vertical')
+            count_box = BoxLayout(orientation='vertical')
+            self.mode = select(mode_box, '煉金術', ['無技能'])
+            self.runs = field(count_box, '執行次數', 1, True)
+            self.mode.font_size = self.runs.font_size = '13sp'
+            controls.add_widget(mode_box)
+            controls.add_widget(count_box)
+            setup.add_widget(controls)
+            setup.add_widget(row(
+                button('－', lambda: self.adjust_runs(-1)),
+                button('＋', lambda: self.adjust_runs(1)),
+                button('10 次', lambda: self.set_runs(10)),
+                button('50 次', lambda: self.set_runs(50)),
+                button('100 次', lambda: self.set_runs(100))))
+        else:
+            self.mode = select(setup, '煉金術', ['無技能'])
+            self.runs = field(setup, '執行次數（1～999）', 1, True)
+            self.add_widget(setup)
 
-        materials = feature_card(
-            '材料槽位',
-            '五格顯示背包已選材料；每次數量為本地草稿，確認後才送出')
+        if compact:
+            materials = BoxLayout(
+                orientation='vertical', spacing=dp(5), size_hint_y=None)
+            materials.bind(minimum_height=materials.setter('height'))
+            self.material_status = status_line('煉金材料：0／5 格')
+            materials.add_widget(self.material_status)
+        else:
+            materials = feature_card(
+                '材料槽位',
+                '五個來源格位；僅使用已確認且未受限制的背包物品')
         self.slots = []
         if compact:
-            # A real icon tray, rather than five full-height nested forms.
-            # On a narrow 320dp screen, tiles wrap to two columns.
+            # Show the actual material slots before setup inputs. Three
+            # columns fit a 320dp viewport without five full nested forms.
             self.material_grid = GridLayout(
-                cols=2, spacing=dp(6), size_hint_y=None,
-                row_default_height=dp(184), row_force_default=True)
+                cols=3, spacing=dp(5), size_hint_y=None,
+                row_default_height=dp(148), row_force_default=True)
             self.material_grid.bind(
                 minimum_height=self.material_grid.setter('height'))
             self.material_grid.bind(
                 width=lambda grid, width: setattr(
-                    grid, 'cols', 2 if width < dp(285) else 3))
+                    grid, 'cols', (
+                        2 if width < dp(245) else
+                        3 if width < dp(342) else 5)))
             for index in range(5):
                 tile = surface(BoxLayout(
                     orientation='vertical', spacing=dp(3),
                     padding=[dp(5), dp(5), dp(5), dp(5)],
-                    size_hint_y=None, height=dp(184)),
+                    size_hint_y=None, height=dp(148)),
                     color=SOFT, radius=13)
-                icon = AnchorLayout(size_hint_y=None, height=dp(58))
+                icon = AnchorLayout(size_hint_y=None, height=dp(48))
                 self.material_icons[index] = icon
                 tile.add_widget(icon)
-                control = button('選擇材料 {}'.format(index+1),
-                                 lambda i=index: self.choose(i), 42)
-                control.font_size = '12sp'
+                control = button('材料 {}'.format(index+1),
+                                 lambda i=index: self.choose(i), 38)
+                control.font_size = '11sp'
+                control.shorten = True
                 tile.add_widget(control)
                 tile.add_widget(Label(
-                    text='每次數量', color=MUTED, font_size='11sp',
-                    size_hint_y=None, height=dp(18)))
+                    text='每次數量', color=MUTED, font_size='10sp',
+                    size_hint_y=None, height=dp(16)))
                 count = style_input(TextInput(
                     text='1', multiline=False, input_filter='int',
                     input_type='number', font_size='14sp',
-                    size_hint_y=None, height=dp(42)))
+                    size_hint_y=None, height=dp(36)))
                 tile.add_widget(count)
                 self.slots.append((control, count))
                 self.material_grid.add_widget(tile)
@@ -84,17 +123,49 @@ class Alchemy(Page):
                 count = field(slot, '每次數量', 1, True)
                 self.slots.append((control, count))
                 materials.add_widget(slot)
-        self.add_widget(materials)
+        if compact:
+            # The reference shows a single alchemy panel with short controls,
+            # a five-slot inventory tray, and actions—not three nested cards.
+            workbench.add_widget(setup)
+            workbench.add_widget(materials)
+            self.add_widget(workbench)
+        else:
+            self.add_widget(materials)
 
-        actions = feature_card('煉金佇列與執行',
-                               '預覽本次總消耗，確認後才送出')
+        if compact:
+            actions = BoxLayout(
+                orientation='vertical', spacing=dp(7), size_hint_y=None)
+            actions.bind(minimum_height=actions.setter('height'))
+        else:
+            actions = feature_card('煉金佇列與執行',
+                                   '預覽本次總消耗，確認後才送出')
         self.info = status_line('等待煉金狀態同步')
         actions.add_widget(self.info)
-        actions.add_widget(button('預覽消耗／開始連續煉金', self.begin, 56))
+        if compact:
+            self.cost_preview = status_line('尚未預覽材料消耗')
+            actions.add_widget(self.cost_preview)
+            actions.add_widget(row(
+                button('預覽消耗', self.preview_cost),
+                button('開始連續煉金', self.begin)))
+        else:
+            actions.add_widget(button(
+                '預覽消耗／開始連續煉金', self.begin, 56))
         actions.add_widget(row(
             button('停止後續煉金', lambda: d.send({'type':'stop_alchemy'})),
             button('清空材料', self.clear)))
-        self.add_widget(actions)
+        if compact:
+            workbench.add_widget(actions)
+            self.mode.bind(text=lambda *_: self._invalidate_preview())
+            self.runs.bind(text=lambda *_: self._invalidate_preview())
+            for _, count in self.slots:
+                count.bind(text=lambda *_: self._invalidate_preview())
+        else:
+            self.add_widget(actions)
+
+    def _invalidate_preview(self):
+        if self.compact:
+            self.cost_preview.text = '材料或設定有變更，請重新預覽消耗'
+
     def _show_material_icon(self, index, value):
         """Only a selected, server-sourced item receives an original sprite."""
         if not self.compact:
@@ -105,14 +176,20 @@ class Alchemy(Page):
             holder.add_widget(Label(
                 text='＋', color=ACCENT, font_size='28sp'))
         else:
-            holder.add_widget(item_image(value['item_id'], size=50))
+            holder.add_widget(item_image(value['item_id'], size=42))
 
     def clear(self):
         self.materials = [None]*5
         for i, (b, _) in enumerate(self.slots):
-            b.text = ('選擇材料 {}'.format(i+1) if self.compact
+            b.text = ('材料 {}'.format(i+1) if self.compact
                       else f'材料 {i+1}：選擇')
             self._show_material_icon(i, None)
+        self._update_material_status()
+        self._invalidate_preview()
+    def _update_material_status(self):
+        if self.compact:
+            count = sum(value is not None for value in self.materials)
+            self.material_status.text = '煉金材料：{}／5 格'.format(count)
     def choose(self, index):
         entries = [(None, '清除此格')] + [(dict(v), f"#{v['index']} {item_name(v['item_id'])} ×{v['count']}")
             for v in self.state.get('inventory', {}).get('items', {}).values() if not material_problem(v)]
@@ -121,23 +198,58 @@ class Alchemy(Page):
         self.materials[index] = value
         if self.compact:
             self.slots[index][0].text = (
-                '格位 #{} {}'.format(value['index'],
-                    item_name(value['item_id'])) if value
-                else '選擇材料 {}'.format(index+1))
+                '格位 #{}'.format(value['index']) if value
+                else '材料 {}'.format(index+1))
             self._show_material_icon(index, value)
+            self._update_material_status()
+            self._invalidate_preview()
         else:
             self.slots[index][0].text = f'材料 {index+1}：'+(f"#{value['index']} {item_name(value['item_id'])}" if value else '選擇')
+    def set_runs(self, value):
+        # A UI shortcut, never a server command. The original core still
+        # validates 1–999 as part of prepare().
+        if not self.runs.disabled:
+            self.runs.text = str(max(1, min(999, int(value))))
+
+    def adjust_runs(self, delta):
+        try:
+            count = int(self.runs.text)
+        except (ValueError, TypeError):
+            count = 1
+        self.set_runs(count + delta)
+
+    def _current_plan(self):
+        command = dict(
+            type='start_alchemy', mode=self.mode.text,
+            runs=int(self.runs.text), materials=[
+                dict(index=v['index'], item_id=v['item_id'],
+                     count=int(self.slots[i][1].text))
+                for i, v in enumerate(self.materials) if v])
+        state = SimpleNamespace(**self.state)
+        state.snapshot = lambda: self.state
+        plan = prepare(state, command)
+        summary = (
+            f"{plan['mode']}煉金，共 {plan['runs']} 次\n" +
+            '\n'.join(
+                f"#{v['index']} {item_name(v['item_id'])} "
+                f"每次 {v['count']}，共消耗 {v['count']*plan['runs']}"
+                for v in plan['consumption']))
+        return command, summary
+
+    def preview_cost(self):
+        try:
+            _, summary = self._current_plan()
+            if self.compact:
+                self.cost_preview.text = summary + '\n僅供預覽，尚未發送'
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            self.d.message.text = str(exc)
+
     def begin(self):
         try:
-            command = dict(type='start_alchemy', mode=self.mode.text, runs=int(self.runs.text), materials=[
-                dict(index=v['index'], item_id=v['item_id'], count=int(self.slots[i][1].text))
-                for i, v in enumerate(self.materials) if v])
-            state = SimpleNamespace(**self.state); state.snapshot = lambda: self.state
-            plan = prepare(state, command)
-            text = f"{plan['mode']}煉金，共 {plan['runs']} 次\n"+'\n'.join(
-                f"#{v['index']} {item_name(v['item_id'])} 每次 {v['count']}，共消耗 {v['count']*plan['runs']}" for v in plan['consumption'])
+            command, text = self._current_plan()
             self.d.send(command, text+'\n\n確認消耗材料並開始？')
-        except (ValueError, KeyError, TypeError, AttributeError) as exc: self.d.message.text = str(exc)
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            self.d.message.text = str(exc)
     def refresh(self):
         options = modes(self.state); self.mode.values = options
         if self.mode.text not in options and options: self.mode.text = options[-1]
@@ -150,15 +262,18 @@ class Alchemy(Page):
 
 class Crafting(Page):
     def __init__(self, d, compact=False):
-        super().__init__(d)
+        super().__init__(d, embedded=compact)
         self.compact = compact
         self.preview_icon_id = None
         from android_app.pages.ui_components import feature_card, status_line
         self.selected = None
         self.offset = 0
 
-        browse = feature_card('製作工坊 · 配方目錄',
-                              '只列已確認開放配方，可依設備與收藏篩選')
+        browse = feature_card(
+            '配方目錄' if compact else '製作工坊 · 配方目錄',
+            '僅列已確認開放配方；點選可在右側查看所需材料'
+            if compact else '只列已確認開放配方，可依設備與收藏篩選',
+            show_icon=not compact)
         browse.add_widget(row(
             button('自訂清單', self.plan),
             button('進入自家帳篷',
@@ -170,9 +285,11 @@ class Crafting(Page):
         if compact:
             self.catalog_status = status_line('等待已確認配方')
             browse.add_widget(self.catalog_status)
+            # The target screenshot shows a vertical recipe list on the
+            # left and in-page details on the right (not a six-card grid).
             self.catalog = GridLayout(
-                cols=2, spacing=dp(7), size_hint_y=None,
-                row_default_height=dp(156), row_force_default=True)
+                cols=1, spacing=dp(6), size_hint_y=None,
+                row_default_height=dp(106), row_force_default=True)
             self.catalog.bind(
                 minimum_height=self.catalog.setter('height'))
         else:
@@ -182,13 +299,15 @@ class Crafting(Page):
         browse.add_widget(row(
             button('‹ 上一頁', lambda: self.move(-1)),
             button('下一頁 ›', lambda: self.move(1))))
-        self.add_widget(browse)
+        if not compact:
+            self.add_widget(browse)
 
         if compact:
             # One in-page recipe detail panel; the existing verified recipe
             # dialog remains the only way to add to the server queue.
             preview = feature_card(
-                '目前選取配方', '點選配方先檢視已核對的設備與材料，送出需再次確認')
+                '目前選取配方', '點選配方先檢視已核對的設備與材料，送出需再次確認',
+                show_icon=False)
             self.preview_image = AnchorLayout(
                 anchor_x='left', size_hint_y=None, height=dp(70))
             preview.add_widget(self.preview_image)
@@ -198,11 +317,21 @@ class Crafting(Page):
                 '開啟配方詳情／加入排程', self.open_preview, 56)
             self.preview_action.disabled = True
             preview.add_widget(self.preview_action)
-            self.add_widget(preview)
+            self.crafting_panes = GridLayout(
+                cols=2, spacing=dp(8), size_hint_y=None)
+            self.crafting_panes.bind(
+                minimum_height=self.crafting_panes.setter('height'))
+            self.crafting_panes.bind(
+                width=lambda panel, width: setattr(
+                    panel, 'cols', 1 if width < dp(390) else 2))
+            self.crafting_panes.add_widget(browse)
+            self.crafting_panes.add_widget(preview)
+            self.add_widget(self.crafting_panes)
 
         execution = feature_card('伺服器製作佇列',
                                  '順序、用料與剩餘時間由已同步狀態確認',
-                                 variant='highlight')
+                                 variant='highlight',
+                                 show_icon=not compact)
         self.queue_info = status_line('等待排程同步')
         execution.add_widget(self.queue_info)
         self.queue = column()
@@ -250,30 +379,29 @@ class Crafting(Page):
         for recipe in recipes[self.offset*6:self.offset*6+6]:
             sid = recipe['item_id']; status, _ = availability(s, recipe)
             if self.compact:
-                # Two-column icon catalog for the paired screen. The full
-                # standalone list and original recipe confirmation stay intact.
                 card = surface(BoxLayout(
-                    orientation='vertical', spacing=dp(3),
-                    padding=[dp(7), dp(6), dp(7), dp(6)],
-                    size_hint_y=None, height=dp(156)),
-                    color=SOFT, radius=13)
-                header = BoxLayout(
-                    orientation='horizontal', spacing=dp(5),
-                    size_hint_y=None, height=dp(58))
-                header.add_widget(item_image(sid, 48))
+                    orientation='vertical', spacing=dp(2),
+                    padding=[dp(6), dp(4), dp(6), dp(4)],
+                    size_hint_y=None, height=dp(106)),
+                    color=SOFT, radius=12)
+                summary = BoxLayout(
+                    orientation='horizontal', spacing=dp(4),
+                    size_hint_y=None, height=dp(54))
+                summary.add_widget(item_image(sid, 44))
                 name = label(
-                    ('♥ ' if sid in favorites else '') + item_name(sid), 50)
+                    ('★ ' if sid in favorites else '') + item_name(sid),
+                    48)
                 name.font_size = '12sp'
-                header.add_widget(name)
-                card.add_widget(header)
-                state_line = label(
-                    status + ' · ' + item_name(recipe['tool_id']), 31)
-                state_line.font_size = '10sp'
-                state_line.color = MUTED
-                card.add_widget(state_line)
+                summary.add_widget(name)
+                card.add_widget(summary)
+                info_line = label(
+                    status + ' · ' + item_name(recipe['tool_id']), 18)
+                info_line.font_size = '10sp'
+                info_line.color = MUTED
+                card.add_widget(info_line)
                 card.add_widget(button(
-                    '預覽配方', lambda r=recipe: self.preview_recipe(r),
-                    44))
+                    '查看材料與詳情', lambda r=recipe: self.preview_recipe(r),
+                    30))
             else:
                 # Standalone production list retains its original full rows.
                 card = surface(BoxLayout(

@@ -38,7 +38,7 @@ CARD_SYMBOLS = {
 }
 
 
-def feature_card(title, subtitle='', *, variant='normal'):
+def feature_card(title, subtitle='', *, variant='normal', show_icon=True):
     """The reference image's two-tone, luminous game interface card."""
     panel = BoxLayout(orientation='vertical', size_hint_y=None,
                       padding=[dp(13), dp(12), dp(13), dp(13)],
@@ -48,7 +48,8 @@ def feature_card(title, subtitle='', *, variant='normal'):
     neon_surface(panel, color=shade, border=BORDER, radius=20,
                  bright=variant == 'highlight')
     panel.add_widget(section_title(title, subtitle,
-                                   icon=CARD_SYMBOLS.get(title, '✧')))
+                                   icon=CARD_SYMBOLS.get(title, '✧'),
+                                   show_icon=show_icon))
     return panel
 
 

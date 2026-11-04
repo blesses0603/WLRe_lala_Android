@@ -11,7 +11,8 @@ from kivy.uix.boxlayout import BoxLayout
 
 from android_app.pages.general import Page
 from android_app.pages.ui_components import feature_card, status_line
-from android_app.widgets import button
+from android_app.widgets import button, row
+from android_app.theme import style_button
 
 
 # module, class, heading, explanation. These are existing feature pages.
@@ -173,6 +174,54 @@ class ExpeditionAndInstances(PairedFeatures):
         super().__init__(d, '遠征＋副本')
 
 
-class AlchemyAndCrafting(PairedFeatures):
+class AlchemyAndCrafting(Page):
+    """Alchemy, recipe browser, detail preview and server queue on one page.
+
+    This is a single scrolling workspace, as in the supplied reference
+    design. No tabs hide one of the two functions. Both reuse their verified
+    controllers; choosing ingredients and previewing recipes sends nothing.
+    """
+
+    WORK_AREAS = (
+        ('煉金', 'Alchemy'),
+        ('製作工坊', 'Crafting'),
+    )
+
     def __init__(self, d):
-        super().__init__(d, '煉金＋製作')
+        # Dashboard already displays the selected feature name. Retain only
+        # one shell so the full workbench is visible without nested frames.
+        super().__init__(d, show_title=False)
+        self.pair_name = '煉金＋製作'
+        self.sections = {}
+        self.workbench = BoxLayout(
+            orientation='vertical', spacing=dp(10), size_hint_y=None)
+        self.workbench.bind(
+            minimum_height=self.workbench.setter('height'))
+        self.add_widget(self.workbench)
+
+        module = import_module('android_app.pages.production')
+        for title, cls_name in self.WORK_AREAS:
+            proxy = _SectionDashboard(self.d, '')
+            view = getattr(module, cls_name)(proxy, compact=True)
+            self.sections[title] = {
+                'class': cls_name, 'view': view, 'expanded': True,
+            }
+            # Alchemy above, crafting catalog/details/queue below.
+            self.workbench.add_widget(view)
+        self.refresh()
+
+    def refresh(self):
+        for section in self.sections.values():
+            section['view'].refresh()
+
+    def expand(self, title):
+        # Both work areas are already visible; retain a safe compatibility
+        # method for any previously wired navigation callback.
+        if title not in self.sections:
+            raise KeyError(title)
+
+    def close(self):
+        for section in self.sections.values():
+            close = getattr(section['view'], 'close', None)
+            if callable(close):
+                close()

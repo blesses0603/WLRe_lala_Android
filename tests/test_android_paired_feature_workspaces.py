@@ -32,7 +32,7 @@ class PairedOfflineContract(unittest.TestCase):
         self.assertIn("'煉金＋製作': ('combined', 'AlchemyAndCrafting')", code)
         self.assertIn("lambda name=title: self.toggle(name)", paired)
         self.assertIn("if compact else page_type(proxy)", paired)
-        self.assertIn("page_type(proxy, compact=True)", paired)
+        self.assertIn("getattr(module, cls_name)(proxy, compact=True)", paired)
         self.assertIn("section['slot'].remove_widget(view)", paired)
         self.assertIn("section['view'].refresh()", paired)
 
@@ -124,7 +124,7 @@ class PairedKivyBehavior(unittest.TestCase):
         from kivy.metrics import dp
         from kivy.uix.boxlayout import BoxLayout
         from android_app.pages.combined import (
-            ChatAndParty, ExpeditionAndInstances, AlchemyAndCrafting)
+            ChatAndParty, ExpeditionAndInstances)
 
         class StubFeature(BoxLayout):
             def __init__(self, dashboard, compact=False):
@@ -149,7 +149,6 @@ class PairedKivyBehavior(unittest.TestCase):
             (ChatAndParty, "聊天＋組隊", "聊天訊息", "組隊管理"),
             (ExpeditionAndInstances, "遠征＋副本",
              "星之方舟／遠征", "副本／協力"),
-            (AlchemyAndCrafting, "煉金＋製作", "煉金", "製作工坊"),
         )
         with patch("android_app.pages.combined.import_module",
                    return_value=modules):
@@ -166,36 +165,63 @@ class PairedKivyBehavior(unittest.TestCase):
                     self.assertEqual(len(second["slot"].children), 1)
                     self.assertTrue(second["expanded"])
                     self.assertNotEqual(second["view"].d.page_name, name)
-                    if name == "煉金＋製作":
-                        self.assertTrue(first["view"].compact)
-                        self.assertTrue(second["view"].compact)
-                        self.assertEqual(first["view"].d.page_name, "")
-                        self.assertEqual(second["view"].d.page_name, "")
-                    else:
-                        self.assertFalse(second["view"].compact)
+                    self.assertFalse(second["view"].compact)
                     if name == "遠征＋副本":
                         # Prevent standalone auto-room query in paired view.
                         self.assertNotEqual(second["view"].d.page_name, "副本資料")
                     original = second["view"]
-                    if name == "煉金＋製作":
-                        # Two compact tabs, exactly one active at a time.
-                        self.assertFalse(first["expanded"])
-                        combined.toggle(first_name)
-                        self.assertTrue(first["expanded"])
-                        self.assertFalse(second["expanded"])
-                        combined.toggle(second_name)
-                        self.assertTrue(second["expanded"])
-                        self.assertEqual(len(combined.workbench.children), 1)
-                    else:
-                        # The other two paired pages preserve collapse behavior.
-                        combined.toggle(second_name)
-                        combined.refresh()
-                        self.assertFalse(second["expanded"])
-                        combined.toggle(second_name)
+                    # These two original pairs still collapse their sections.
+                    combined.toggle(second_name)
+                    combined.refresh()
+                    self.assertFalse(second["expanded"])
+                    combined.toggle(second_name)
                     self.assertIs(second["view"], original)
                     self.assertEqual(sent, [])
                     combined.close()
                     self.assertEqual(original.close_count, 1)
+
+
+    def test_alchemy_and_crafting_are_both_visible_in_reference_layout(self):
+        from kivy.uix.boxlayout import BoxLayout
+        from android_app.pages.combined import AlchemyAndCrafting
+
+        sent = []
+        dashboard = SimpleNamespace(
+            page_name="煉金＋製作", state={}, data={}, closed=False,
+            live=False, message=SimpleNamespace(text=""),
+            send=lambda *args: sent.append(args))
+
+        class StubProduction(BoxLayout):
+            def __init__(self, dashboard, compact=False):
+                super().__init__(orientation="vertical", size_hint_y=None,
+                                 height=48)
+                self.d = dashboard
+                self.compact = compact
+                self.count = 0
+                self.closes = 0
+            def refresh(self):
+                self.count += 1
+            def close(self):
+                self.closes += 1
+
+        module = SimpleNamespace(Alchemy=StubProduction,
+                                 Crafting=StubProduction)
+        with patch("android_app.pages.combined.import_module",
+                   return_value=module):
+            view = AlchemyAndCrafting(dashboard)
+            self.assertEqual(len(view.workbench.children), 2)
+            for area in ("煉金", "製作工坊"):
+                self.assertTrue(view.sections[area]["expanded"])
+                self.assertTrue(view.sections[area]["view"].compact)
+            before = [view.sections[a]["view"] for a in ("煉金", "製作工坊")]
+            view.refresh()
+            view.expand("製作工坊")
+            self.assertEqual(
+                before, [view.sections[a]["view"]
+                         for a in ("煉金", "製作工坊")])
+            self.assertEqual(sent, [])
+            view.close()
+            self.assertTrue(all(item.closes == 1 for item in before))
 
 
 if __name__ == "__main__":

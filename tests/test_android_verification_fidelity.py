@@ -136,6 +136,7 @@ class ModelTests(unittest.TestCase):
             self.assertTrue(path.is_file(), name)
             self.assertLess(path.stat().st_size, 12 * 1024)
             self.assertTrue(path.read_bytes().startswith(b"\xff\xd8\xff"))
+            self.assertTrue(path.read_bytes().endswith(b"\xff\xd9"), name)
         code = (ROOT / "android_app/verification_ui.py").read_text("utf-8")
         self.assertIn("mascot = _ASSETS / 'verification_mascot.jpg'", code)
         self.assertIn("castle = _ASSETS / 'verification_castle.jpg'", code)

@@ -1,7 +1,7 @@
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from android_app.widgets import column, label, button, select, row
-from android_app.theme import surface, SURFACE
+from android_app.theme import neon_surface, SURFACE
 from android_app.ui_shell import section_title
 from wlre.core.efficiency import rates, progress, forecast, STAGES
 from android_app.overview_model import overview_lines
@@ -10,7 +10,7 @@ from android_app.overview_model import overview_lines
 class Page(BoxLayout):
     def __init__(self, dashboard):
         super().__init__(orientation='vertical', size_hint_y=None, spacing=dp(12), padding=dp(14))
-        surface(self, color=SURFACE, radius=20)
+        neon_surface(self, color=SURFACE, radius=20)
         self.bind(minimum_height=self.setter('height'))
         self.d = dashboard; self.key = None
         # Shared section heading applies to every page subclass. Nothing is
@@ -86,7 +86,7 @@ class Overview(Page):
         self.tent_info.text = activity_text(self.state.get('tent', {}))
         self.auto_status.text = self.state.get('automation', {}).get(
             'status', '等待同步')
-        self.info.text = '\\n'.join(overview_lines(self.state))
+        self.info.text = '\n'.join(overview_lines(self.state))
         from android_app.overview_model import overview_model
         profiles = overview_model(self.state).get('profiles', [])
         current = profiles[0] if profiles else {}
@@ -101,17 +101,36 @@ class Overview(Page):
 
 class Events(Page):
     def __init__(self, d):
-        super().__init__(d); self.info = label(); self.add_widget(self.info)
-    def refresh(self): self.info.text = '\n'.join(self.d.data.get('log', [])) or '尚無事件紀錄'
+        super().__init__(d)
+        from android_app.pages.ui_components import feature_card, status_line
+        records = feature_card('事件紀錄', '僅顯示此帳號已取得的實際遊戲事件')
+        self.info = status_line('等待事件同步')
+        records.add_widget(self.info)
+        self.add_widget(records)
+
+    def refresh(self):
+        self.info.text = '\n'.join(self.d.data.get('log', [])) or '尚無事件紀錄'
 
 
 class Efficiency(Page):
     def __init__(self, d):
         super().__init__(d)
-        self.subject = select(self, '統計對象', ['等待資料']); self.subject.bind(text=lambda *_: self.render())
-        self.unit = select(self, '效率單位', ['分', '時', '天', '秒']); self.unit.bind(text=lambda *_: self.render())
-        self.info = label(); self.add_widget(self.info)
-        self.add_widget(button('重新統計', lambda: d.send({'type': 'reset_efficiency'}, '重設本帳號的經驗效率統計？')))
+        from android_app.pages.ui_components import feature_card, status_line
+        filters = feature_card('效率分析條件',
+                               '統計結果依已完成戰鬥樣本計算，不填入推測數值')
+        self.subject = select(filters, '統計對象', ['等待資料'])
+        self.subject.bind(text=lambda *_: self.render())
+        self.unit = select(filters, '效率單位', ['分', '時', '天', '秒'])
+        self.unit.bind(text=lambda *_: self.render())
+        self.add_widget(filters)
+        results = feature_card('經驗統計結果', variant='highlight')
+        self.info = status_line('等待角色經驗資料')
+        results.add_widget(self.info)
+        results.add_widget(button(
+            '重新統計',
+            lambda: d.send({'type': 'reset_efficiency'},
+                           '重設本帳號的經驗效率統計？')))
+        self.add_widget(results)
         self.lookup = {}
     def refresh(self):
         self.lookup = {r['name']+'｜'+key: r for key, r in self.state.get('efficiency', {}).get('rows', {}).items()}

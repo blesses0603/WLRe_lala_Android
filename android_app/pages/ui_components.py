@@ -12,18 +12,43 @@ from kivy.graphics import Color, RoundedRectangle
 
 from android_app.theme import style_button
 
-from android_app.theme import ACCENT, MUTED, SOFT, SURFACE, TEXT, BORDER, surface
+from android_app.theme import ACCENT, MUTED, SOFT, SURFACE, TEXT, BORDER, neon_surface
 from android_app.ui_shell import section_title
 
 
+CARD_SYMBOLS = {
+    '角色與場景':'◈', '自動化控制':'⚙', '帳篷活動':'⌂',
+    '近期事件':'◷', '包包／超空間袋／特技':'▦',
+    '道具與特技清單':'▤', '選取道具':'✦',
+    '小地圖與即時位置':'◇', '目標座標與移動':'⌖',
+    'NPC／出口與地圖工具':'◇', '聊天訊息':'✉',
+    '發送訊息':'➤', '組隊管理':'♧', '附近玩家':'♙',
+    '我的隊伍':'♧', '待確認邀請／申請':'▣',
+    '夥伴出戰':'♢', '角色能力':'✦', '分配屬性點':'▤',
+    '星之方舟／遠征狀態':'✧', '自動派遣條件':'⚙',
+    '目前可用任務':'▤', '駐紮所夥伴':'♢',
+    '官方副本／協力資料':'◇', '伺服器房間':'▣',
+    '副本操作':'✥', '免費協力獎勵':'✧',
+    '煉金設定':'⬡', '材料槽位':'▦', '煉金佇列與執行':'◷',
+    '製作工坊 · 配方目錄':'⚒', '伺服器製作佇列':'◷',
+    '目前場景 NPC':'♙', 'NPC 對話':'✉',
+    '儲藏空間與操作':'▣', '選取來源道具':'▦',
+    '時間魔方':'✧', '魔方自動開啟':'⚙',
+    'AI 與戰後補給':'⚙',
+}
+
+
 def feature_card(title, subtitle='', *, variant='normal'):
+    """The reference image's two-tone, luminous game interface card."""
     panel = BoxLayout(orientation='vertical', size_hint_y=None,
-                      padding=[dp(12), dp(10), dp(12), dp(12)],
+                      padding=[dp(13), dp(12), dp(13), dp(13)],
                       spacing=dp(9))
     panel.bind(minimum_height=panel.setter('height'))
     shade = SOFT if variant == 'highlight' else SURFACE
-    surface(panel, color=shade, border=BORDER, radius=19)
-    panel.add_widget(section_title(title, subtitle))
+    neon_surface(panel, color=shade, border=BORDER, radius=20,
+                 bright=variant == 'highlight')
+    panel.add_widget(section_title(title, subtitle,
+                                   icon=CARD_SYMBOLS.get(title, '✧')))
     return panel
 
 

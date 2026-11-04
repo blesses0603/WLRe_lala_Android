@@ -8,16 +8,16 @@ from pathlib import Path
 from kivy.graphics import Color, RoundedRectangle, Ellipse, InstructionGroup
 from kivy.metrics import dp
 
-BACKGROUND = (0.020, 0.038, 0.080, 1)
-SURFACE = (0.045, 0.115, 0.205, 0.99)
+BACKGROUND = (0.010, 0.027, 0.060, 1)
+SURFACE = (0.021, 0.084, 0.161, 0.99)
 TEXT = (0.94, 0.975, 1.0, 1)
 MUTED = (0.65, 0.79, 0.87, 1)
-ACCENT = (0.30, 0.91, 0.97, 1)
-SOFT = (0.068, 0.205, 0.310, 1)
+ACCENT = (0.29, 0.94, 0.98, 1)
+SOFT = (0.035, 0.147, 0.246, 1)
 DANGER = (1.0, 0.47, 0.53, 1)
-BORDER = (0.21, 0.66, 0.83, 0.80)
+BORDER = (0.18, 0.75, 0.92, 0.88)
 
-PRIMARY_FILL = (0.018, 0.47, 0.57, 1)
+PRIMARY_FILL = (0.015, 0.47, 0.56, 1)
 PRIMARY_PRESSED = (0.025, 0.32, 0.43, 1)
 BUTTON_PRESSED = (0.09, 0.29, 0.43, 1)
 DANGER_FILL = (0.26, 0.105, 0.16, 1)
@@ -85,6 +85,42 @@ def surface(view, color=SURFACE, radius=22, border=BORDER):
     return view
 
 
+
+def neon_surface(view, color=SURFACE, radius=22, border=BORDER, bright=False):
+    """Static glass shell with softly lit rim; shared across all 18 pages.
+
+    A single bounded, resize-aware halo + highlight per major card, not a
+    continuous blur shader or per-frame animation. Existing `surface` markers
+    are retained so older widget and input tests remain valid.
+    """
+    surface(view, color=color, radius=radius, border=border)
+    if hasattr(view, '_lala_neon_parts'):
+        return view
+
+    halo_color = Color(.05, .79, 1.0, .24 if bright else .12)
+    halo = RoundedRectangle(pos=view.pos, size=view.size,
+                            radius=[dp(radius+3)])
+    backing = InstructionGroup()
+    backing.add(halo_color)
+    backing.add(halo)
+    # Insert behind the existing glass fill, never above child controls.
+    view.canvas.before.insert(0, backing)
+    with view.canvas.before:
+        glint_color = Color(.52, .97, 1, .55 if bright else .30)
+        glint = RoundedRectangle(radius=[dp(2)])
+
+    def geometry(*_):
+        halo.pos = (view.x-dp(2), view.y-dp(2))
+        halo.size = (view.width+dp(4), view.height+dp(4))
+        glint.pos = (view.x+dp(18), view.y+view.height-dp(2))
+        glint.size = (max(0, view.width-dp(36)), dp(1))
+
+    geometry()
+    view.bind(pos=geometry, size=geometry)
+    view._lala_neon_parts = (halo_color, halo, glint_color, glint)
+    return view
+
+
 def style_button(view, primary=False, danger=False, radius=18):
     """Shared visual states for Buttons, Spinners and dropdown SpinnerOptions."""
     view.background_normal = ''
@@ -117,10 +153,35 @@ def style_button(view, primary=False, danger=False, radius=18):
             else:
                 fill.rgba = BUTTON_PRESSED if pressed else SOFT
                 edge.rgba, view.color = BORDER, TEXT
+            # Disabled buttons must also lose their decorative highlight;
+            # otherwise a blocked destructive action looks enabled.
+            if hasattr(view, '_lala_button_sheen'):
+                sheen_tint, _ = view._lala_button_sheen
+                sheen_tint.rgba = (
+                    (.12,.26,.36,.06) if view.disabled else
+                    (.47,.98,1,.48) if variant == 'primary' else
+                    (.22,.69,.88,.24))
 
         view._lala_button_refresh = update
         view.bind(state=update, disabled=update)
+        # One static top-edge highlight makes normal buttons match the
+        # reference art without animated glows or expensive FBO blur.
+        with view.canvas.before:
+            sheen_tint = Color(.65, .98, 1, .32)
+            sheen = RoundedRectangle(radius=[dp(2)])
+        def sheen_geometry(*_):
+            sheen.pos = (view.x+dp(14), view.y+view.height-dp(2))
+            sheen.size = (max(0, view.width-dp(28)), dp(1))
+        view.bind(pos=sheen_geometry, size=sheen_geometry)
+        sheen_geometry()
+        view._lala_button_sheen = (sheen_tint, sheen)
     view._lala_button_refresh()
+    if hasattr(view, '_lala_button_sheen'):
+        tint, _ = view._lala_button_sheen
+        tint.rgba = ((.45,.98,1,.48) if not view.disabled
+                     and view._lala_button_variant == 'primary' else
+                     (.25,.70,.89,.25) if not view.disabled else
+                     (.14,.28,.39,.08))
     return view
 
 

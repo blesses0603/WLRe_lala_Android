@@ -10,7 +10,7 @@ from kivy.uix.spinner import Spinner, SpinnerOption
 from kivy.uix.checkbox import CheckBox
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.popup import Popup
-from android_app.theme import TEXT, MUTED, ACCENT, SURFACE, SOFT, BACKGROUND, surface, style_button, style_input, style_checkbox
+from android_app.theme import TEXT, MUTED, ACCENT, SURFACE, SOFT, BACKGROUND, surface, neon_surface, style_button, style_input, style_checkbox
 from android_app.ui_shell import section_title
 from android_app.assets import function_icon
 
@@ -103,7 +103,7 @@ def dialog(title, body, height=.92):
     """All dialogs share the real Kivy neon shell, including their titles."""
     scroll = ScrollView(do_scroll_x=False, bar_width=dp(3))
     scroll.add_widget(body)
-    frame = surface(BoxLayout(orientation='vertical', padding=dp(12),
+    frame = neon_surface(BoxLayout(orientation='vertical', padding=dp(12),
                               spacing=dp(8)), color=SURFACE, radius=24)
     frame.add_widget(section_title(title))
     frame.add_widget(scroll)

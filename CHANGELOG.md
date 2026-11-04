@@ -8,6 +8,8 @@
 - 新增 tests/test_android_verification_fidelity.py 回歸測試，覆蓋七項狀態、雙端 SHA-256 Token、無效版本／日期、下載失敗、舊資訊清除、Kivy 真實按鈕與圖片素材。
 - Android 預計版本 v7.1.11 → v7.1.12。電腦版 Repository、來源鎖及遊戲核心不變。CI、完整 ARM64 APK、實機畫面與正式服驗收分開回報；不自動合併 main 或建立 Release／Tag。
 
+- **同版本跨頁視覺一致性追加**：登入／帳號／角色工作區、四區導覽、全部 18 個功能頁與共用對話框改用 reference-style 星空主視覺、青藍霓虹玻璃卡、原版 1262 功能圖示及靜態按鈕高光；事件紀錄、經驗效率與戰場陣形也採資訊／操作分區，保留原伺服器指令與實際資料來源。新增 `tests/test_android_all_pages_visual_fidelity.py` 的 AST、18 頁映射、實際 Kivy Widget、登入雙端驗證與不新增動畫回歸。沿用 v7.1.12，不重複升版；本次仍不代表手機與參考圖像素級一致，須真機截圖/FPS 驗收。
+
 ## 7.1.11 Android 霓虹介面第三階段：進階操作畫面（2026-11-04，開發修補候選）
 
 - 基於已合併 Android main 的 v7.1.10 第一階段 PR #51 與第二階段 PR #52，第三階段只修改 Android UI 模組；電腦版 Repository 與版本號不變。Android 預計版本 v7.1.10 → **v7.1.11**，同步 buildozer、版本常數、README、Android 指南。

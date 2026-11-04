@@ -156,7 +156,24 @@ def style_button(view, primary=False, danger=False, radius=18):
 
         view._lala_button_refresh = update
         view.bind(state=update, disabled=update)
+        # One static top-edge highlight makes normal buttons match the
+        # reference art without animated glows or expensive FBO blur.
+        with view.canvas.before:
+            sheen_tint = Color(.65, .98, 1, .32)
+            sheen = RoundedRectangle(radius=[dp(2)])
+        def sheen_geometry(*_):
+            sheen.pos = (view.x+dp(14), view.y+view.height-dp(2))
+            sheen.size = (max(0, view.width-dp(28)), dp(1))
+        view.bind(pos=sheen_geometry, size=sheen_geometry)
+        sheen_geometry()
+        view._lala_button_sheen = (sheen_tint, sheen)
     view._lala_button_refresh()
+    if hasattr(view, '_lala_button_sheen'):
+        tint, _ = view._lala_button_sheen
+        tint.rgba = ((.45,.98,1,.48) if not view.disabled
+                     and view._lala_button_variant == 'primary' else
+                     (.25,.70,.89,.25) if not view.disabled else
+                     (.14,.28,.39,.08))
     return view
 
 

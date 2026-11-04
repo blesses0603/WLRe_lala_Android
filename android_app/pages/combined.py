@@ -1,6 +1,6 @@
 """Android touch-friendly paired feature workspaces.
 
-Reuses the exact six established Kivy pages and their server-side safety
+Reuses established Kivy pages and their server-side safety
 checks; expanding a section never dispatches a gameplay command. Section
 widgets are created only on demand and retained, so drafts survive collapse.
 """
@@ -108,11 +108,13 @@ class PairedFeatures(Page):
             page_type = getattr(module, section['class'])
             # "副本／協力" is deliberately not "副本資料": the standalone
             # InstanceCatalog.refresh() auto-query must not run here.
-            # Only this one paired screen uses the new compact production
-            # presentation. Standalone Alchemy/Crafting and the other two
-            # paired screens retain their existing widget trees.
-            compact = self.pair_name == '煉金＋製作'
-            proxy = _SectionDashboard(self.d, '' if compact else title)
+            # Production uses its existing compact presentation. Only the
+            # explicitly opted-in reference sections use compact settings or
+            # attributes; standalone pages and other pairs remain unchanged.
+            compact = (self.pair_name == '煉金＋製作'
+                       or section.get('compact', False))
+            proxy = _SectionDashboard(
+                self.d, '' if compact else section.get('page_heading', title))
             section['view'] = (page_type(proxy, compact=True)
                                if compact else page_type(proxy))
         section['slot'].add_widget(section['view'])
@@ -319,3 +321,86 @@ class AlchemyAndCrafting(Page):
             close = getattr(section['view'], 'close', None)
             if callable(close):
                 close()
+
+
+class _ReferenceWorkspace(PairedFeatures):
+    """Retained original controllers inside one vertical phone workspace.
+
+    Navigation and expansion are presentation only. In particular, opening a
+    tool must never issue its gameplay command or imply server readiness.
+    """
+
+    def __init__(self, dashboard, name):
+        Page.__init__(self, dashboard, embedded=True, show_title=False)
+        self.pair_name = name
+        self.sections = {}
+
+    def add_section(self, module, cls_name, title, subtitle='', *,
+                    visible=False, compact=False):
+        # Visible controllers already contain their own feature headings and
+        # surfaces. Avoid adding another card around those same controls.
+        panel = (BoxLayout(orientation='vertical', size_hint_y=None,
+                           spacing=dp(8)) if visible
+                 else feature_card(title, subtitle))
+        panel.bind(minimum_height=panel.setter('height'))
+        toggle = button('展開' + title, lambda: self.toggle(title), 52)
+        if not visible:
+            panel.add_widget(toggle)
+        slot = BoxLayout(orientation='vertical', size_hint_y=None,
+                         height=0, spacing=dp(8))
+        slot.bind(minimum_height=slot.setter('height'))
+        panel.add_widget(slot)
+        self.sections[title] = {
+            'module': module, 'class': cls_name, 'slot': slot,
+            'toggle': toggle, 'view': None, 'expanded': False,
+            'page_heading': '', 'compact': compact,
+        }
+        self.add_widget(panel)
+        if visible:
+            self.expand(title)
+
+    def pause_render(self):
+        # Dashboard calls this on navigation away. Forward cancellation only
+        # to materialized views; never instantiate tools during cleanup.
+        for section in self.sections.values():
+            pause = getattr(section['view'], 'pause_render', None)
+            if callable(pause):
+                pause()
+
+
+class CompanionsAndAttributes(_ReferenceWorkspace):
+    """Live companion deployment followed by the real attribute draft editor.
+
+    The sample artwork's names, maximum party size and affinity scale are not
+    protocol facts. All values and action restrictions stay with the original
+    controllers; allocation drafts survive refresh and returning to this page.
+    """
+
+    def __init__(self, d):
+        super().__init__(d, '夥伴＋能力')
+        self.add_section('companions', 'Companions', '夥伴出戰', visible=True)
+        self.add_section('attributes', 'Attributes', '角色能力',
+                         visible=True, compact=True)
+
+
+class SettingsAndTools(_ReferenceWorkspace):
+    """Account settings and expandable, server-backed utilities in one place."""
+
+    def __init__(self, d):
+        super().__init__(d, '設定與工具')
+        guide = feature_card(
+            '設定與工具中心',
+            '設定依帳號保存；工具展開後才載入，操作仍需伺服器確認',
+            variant='highlight')
+        self.add_widget(guide)
+        self.add_section('settings', 'SettingsPage', 'AI與補給設定',
+                         visible=True, compact=True)
+        self.add_section(
+            'npc', 'NPC', 'NPC 互動與對話',
+            '查看目前場景、對話選項與已驗證商店資訊')
+        self.add_section(
+            'storage', 'Storage', '儲藏存取',
+            '儲藏室／雜物櫃；選取物品後核對庫存並確認存取')
+        self.add_section(
+            'benefits', 'Benefits', '福利／魔方',
+            '查看實際魔方次數、倒數與背景服務排程')

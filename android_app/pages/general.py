@@ -99,7 +99,7 @@ class Overview(Page):
         self.sp_meter.set_value(current.get('sp'), current.get('max_sp'))
         recent = self.d.data.get('log', [])
         if type(recent) is list:
-            self.recent_events.text = '\\n'.join(str(x) for x in recent[-3:]) or '尚無事件紀錄'
+            self.recent_events.text = '\n'.join(str(x) for x in recent[-5:]) or '尚無事件紀錄'
         else:
             self.recent_events.text = '事件資料尚未同步'
 
@@ -158,4 +158,3 @@ class Efficiency(Page):
                      '升級：'+forecast(remaining, rate, elapsed)+'｜一轉190：'+(forecast(reborn, rate, elapsed) if r.get('degree') == 1 else '—')]
         if r.get('level_inferred') or r.get('degree_inferred'): text.append('此夥伴／坐騎的等級或階段依經驗曲線推估')
         self.info.text = '\n\n'.join(text)+'\n\n預估採用已完成戰鬥的有效樣本；未同步時不推算。'
-

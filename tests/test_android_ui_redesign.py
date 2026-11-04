@@ -66,10 +66,10 @@ class AndroidVisualRedesignTests(unittest.TestCase):
             '角色能力', '煉金', '製作', '經驗效率', '事件紀錄',
             'AI與補給設定', 'NPC', '儲藏存取', '福利',
         }
-        paired = {'聊天＋組隊', '遠征＋副本', '煉金＋製作'}
+        paired = {'聊天＋組隊', '遠征＋副本', '煉金＋製作', '夥伴＋能力', '設定與工具'}
         self.assertEqual(len(original), 18)
         self.assertEqual(set(pages), original | paired)
-        self.assertEqual(len(pages), 21)
+        self.assertEqual(len(pages), 23)
         self.assertEqual(
             [name for name, _ in routes],
             ['首頁', '資料／資源', '運行紀錄', '工具箱'])

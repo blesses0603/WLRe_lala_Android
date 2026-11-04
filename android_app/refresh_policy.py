@@ -9,7 +9,8 @@ widget refreshes are coalesced; actions and the newest snapshot remain live.
 PERIODS = {'聊天': 0.5, '聊天＋組隊': 0.5,
            '遠征': 1.0, '遠征＋副本': 1.0,
            '製作': 1.0, '煉金＋製作': 1.0,
-           '副本資料': 1.0, '經驗效率': 1.0, '福利': 1.0}
+           '副本資料': 1.0, '經驗效率': 1.0, '福利': 1.0,
+           '設定與工具': 1.0}
 IDLE_REFRESH_SECONDS = 5.0
 MIN_RENDER_SECONDS = 0.9
 

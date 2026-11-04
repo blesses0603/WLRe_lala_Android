@@ -177,10 +177,21 @@ class PairedKivyBehavior(unittest.TestCase):
                         # Prevent standalone auto-room query in paired view.
                         self.assertNotEqual(second["view"].d.page_name, "副本資料")
                     original = second["view"]
-                    combined.toggle(second_name)
-                    combined.refresh()
-                    self.assertFalse(second["expanded"])
-                    combined.toggle(second_name)
+                    if name == "煉金＋製作":
+                        # Two compact tabs, exactly one active at a time.
+                        self.assertFalse(first["expanded"])
+                        combined.toggle(first_name)
+                        self.assertTrue(first["expanded"])
+                        self.assertFalse(second["expanded"])
+                        combined.toggle(second_name)
+                        self.assertTrue(second["expanded"])
+                        self.assertEqual(len(combined.workbench.children), 1)
+                    else:
+                        # The other two paired pages preserve collapse behavior.
+                        combined.toggle(second_name)
+                        combined.refresh()
+                        self.assertFalse(second["expanded"])
+                        combined.toggle(second_name)
                     self.assertIs(second["view"], original)
                     self.assertEqual(sent, [])
                     combined.close()

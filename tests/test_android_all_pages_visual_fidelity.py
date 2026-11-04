@@ -144,6 +144,18 @@ class LiveKivyStyles(unittest.TestCase):
         actions.disabled=True
         self.assertEqual(actions._lala_button_variant,'primary')
 
+    def test_corrupt_optional_castle_never_blocks_brand(self):
+        from unittest.mock import patch
+        from android_app.ui_shell import BrandHeader
+        # SDL2's image provider raises Exception, not always OSError.
+        with patch('android_app.ui_shell.CoreImage', side_effect=Exception('SDL2: Unable to load image')):
+            header = BrandHeader(subtitle='資源驗證', verified=False)
+        self.assertIsNone(header._castle_texture)
+        self.assertEqual(tuple(header._castle_image.size), (0, 0))
+        self.assertIn('尚未通過', header.status.text)
+        header.set_verified(True)
+        self.assertIn('已驗證', header.status.text)
+
     def test_working_brand_and_all_four_routes(self):
         from android_app.ui_shell import BrandHeader, NavigationDock, NAV_ROUTES
         header=BrandHeader(subtitle='角色功能', verified=False)

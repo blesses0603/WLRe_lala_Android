@@ -1,4 +1,5 @@
 from kivy.metrics import dp
+from kivy.clock import Clock
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.boxlayout import BoxLayout
@@ -6,7 +7,7 @@ from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.label import Label
 from android_app.pages.general import Page
 from android_app.widgets import column, label, button, row, field, select, pick, dialog
-from android_app.assets import item_image
+from android_app.assets import item_image, prefetch_item_icons
 from android_app.bag_model import visible_items, item_details, PAGE_SIZE, COLUMNS, ICON_SIZE
 from android_app.theme import surface, SURFACE, TEXT
 from wlre.services.items.combat_resources import (CAT, item_name, available, heal_effects,
@@ -35,6 +36,9 @@ def battle_guard(command, state):
     return dict(command, battle_count=state.get('battle_count'), round=state.get('battle', {}).get('round'))
 
 
+ITEM_RENDER_BATCH = 6  # At most six icon widgets / decode operations per UI frame.
+
+
 class IconBagCell(ButtonBehavior, BoxLayout):
     """Original item sprite with rounded touch target and stack count."""
     def __init__(self, index, record, name, callback, **kwargs):
@@ -61,6 +65,15 @@ class Resources(Page):
         super().__init__(d)
         from android_app.pages.ui_components import feature_card, status_line
         self.offset = 0
+        self._render_event = None
+        self._render_generation = 0
+        self._pending_items = ()
+        self._render_index = 0
+        self._summary_text = ''
+        self._use_grid = False
+        self._is_inventory = True
+        self._read_only = False
+        self._render_inventory = {}
 
         filters = feature_card('包包／超空間袋／特技', '選擇資料來源、檢視方式及搜尋條件')
         filters.add_widget(row(
@@ -102,42 +115,102 @@ class Resources(Page):
         self.storage_section.bind(text=lambda *_: self.find())
         self.display.bind(text=lambda *_: self.find())
         self.query.bind(text=lambda *_: self.find())
-    def find(self): self.offset = 0; self.key = None; self.refresh()
-    def move(self, delta): self.offset = max(0, self.offset+delta); self.key = None; self.refresh()
+    def find(self):
+        self.offset = 0
+        self.key = None
+        self.refresh()
+
+    def move(self, delta):
+        self.offset = max(0, self.offset + delta)
+        self.key = None
+        self.refresh()
+
+    def close(self):
+        """Do not leave image construction scheduled after closing a workspace."""
+        self._cancel_render()
+
+    def pause_render(self):
+        """Stop offscreen image work; rebuild from current data on return."""
+        if self._render_event is not None:
+            self._cancel_render()
+            self.key = None
+
+    def _cancel_render(self):
+        self._render_generation += 1
+        if self._render_event is not None:
+            self._render_event.cancel()
+            self._render_event = None
+        self._pending_items = ()
+        self._render_index = 0
+
+    def _view_key(self, state, inventory):
+        """Avoid stringifying ALL knowledge and battle data for a bag view.
+
+        The source snapshots may be mutated in place in preview/testing, so
+        record a frozen fingerprint rather than relying on dict identity.
+        Skill pages retain their full dependency scope so combat/learned
+        updates cannot be masked by an over-aggressive cache.
+        """
+        options = (self.kind.text, self.storage_section.text,
+                   self.display.text, self.query.text, self.offset)
+        if self.kind.text in ('包包', '超空間袋'):
+            return ('items', bool(inventory.get('ready')),
+                    bool(inventory.get('reliable')),
+                    repr(inventory.get('items')),
+                    repr(inventory.get('reserved')), *options)
+        # Skill rows depend on learned/equipped data, actor status and item
+        # costs, not on unrelated NPC dialogues or whole-world knowledge.
+        knowledge = state.get('knowledge') or {}
+        return ('skills', repr(knowledge.get('player')),
+                repr(knowledge.get('companions')),
+                knowledge.get('active_npc_id'),
+                repr(state.get('battle_units')),
+                repr(state.get('battle')), repr(state.get('player')),
+                repr(state.get('inventory')),
+                *options)
+
     def refresh(self):
         state = self.state
-        actual_inventory = state.get('inventory', {})
+        actual_inventory = state.get('inventory') or {}
         read_only = self.kind.text == '超空間袋'
         storage = state.get('room_storage') or {}
-        bucket = ('garage' if self.storage_section.text == '儲藏室'
-                  else 'materials')
+        bucket = 'garage' if self.storage_section.text == '儲藏室' else 'materials'
         inventory = (storage.get(bucket) or {}) if read_only else actual_inventory
-        key = (str(inventory), str(state.get('knowledge')),
-               str(state.get('battle_units')), self.query.text,
-               self.kind.text, self.storage_section.text,
-               self.display.text, self.offset)
+        key = self._view_key(state, inventory)
         if key == self.key:
             return
-        self.key = key
+
         search = self.query.text.strip().casefold()
-        self.grid.clear_widgets()
-        self.rows.clear_widgets()
         is_inventory = self.kind.text in ('包包', '超空間袋')
         if is_inventory:
             entries = visible_items(inventory, search) if inventory.get('ready') else []
         else:
             entries = [(a, skill) for a in actors(state, True)
                        for skill in skill_rows(state, a)
-                       if search in (actor_label(a)+skill['name']+str(skill['id'])).casefold()]
+                       if search in (actor_label(a) + skill['name'] + str(skill['id'])).casefold()]
         use_grid = is_inventory and self.display.text == '大圖示（24 格）'
         page_size = PAGE_SIZE if use_grid else 15
-        pages = max(1, (len(entries)+page_size-1)//page_size)
-        self.offset = min(self.offset, pages-1)
+        pages = max(1, (len(entries) + page_size - 1) // page_size)
+        self.offset = min(self.offset, pages - 1)
+
+        # Cancel old batches before clearing widgets; pending callbacks must
+        # not append stale items after a mode/search/page/server change.
+        self._cancel_render()
+        self.grid.clear_widgets()
+        self.rows.clear_widgets()
+        self.key = self._view_key(state, inventory)
+        self._read_only = read_only
+        self._is_inventory = is_inventory
+        self._use_grid = use_grid
+        self._render_inventory = inventory
+        self._pending_items = tuple(entries[
+            self.offset * page_size:(self.offset + 1) * page_size])
+        self._render_index = 0
+
         if read_only:
             data_status = ('已同步' if inventory.get('ready')
                            else '等待伺服器同步；不會以普通背包資料代替')
-            source = ('超空間袋／'+self.storage_section.text +
-                      ' · 唯讀 ' + data_status)
+            source = '超空間袋／' + self.storage_section.text + ' · 唯讀 ' + data_status
         elif is_inventory:
             source = ('包包已同步' if actual_inventory.get('ready')
                       else '等待包包同步')
@@ -145,37 +218,61 @@ class Resources(Page):
                               else '數量未確認')
         else:
             source = '已確認特技'
-        self.info.text = source + (
+        self._summary_text = source + (
             '\n{}/{} 頁 · {} 項{}'.format(
-                self.offset+1, pages, len(entries),
+                self.offset + 1, pages, len(entries),
                 ' · 每頁 24 格' if use_grid else ''))
-        for value in entries[self.offset*page_size:self.offset*page_size+page_size]:
-            if is_inventory:
+        self.info.text = self._summary_text
+        self._render_chunk(self._render_generation)
+
+    def _render_chunk(self, generation):
+        """Bound item icon decoding and Kivy widget creation per frame."""
+        if generation != self._render_generation:
+            return
+        self._render_event = None
+        start = self._render_index
+        stop = min(start + ITEM_RENDER_BATCH, len(self._pending_items))
+        batch = self._pending_items[start:stop]
+        if self._is_inventory and batch:
+            # A batch opens item_icons.zip only once for its distinct misses.
+            prefetch_item_icons([record['item_id'] for _, record, _ in batch])
+        for value in batch:
+            if self._is_inventory:
                 index, record, name = value
-                if use_grid:
+                if self._use_grid:
                     self.grid.add_widget(IconBagCell(
                         index, record, name, self.show_item))
                 else:
                     sid = record['item_id']
-                    text = '#{} {} ×{}'.format(
-                        index, name, record.get('count', 0))
-                    if not read_only:
+                    text = '#{} {} ×{}'.format(index, name, record.get('count', 0))
+                    if not self._read_only:
                         effects = '／'.join('{}+{}'.format(k.upper(), v)
                                            for k, v in heal_effects(sid).items())
                         text += '\n可用 {} · {}'.format(
-                            available(inventory, str(index)), effects)
+                            available(self._render_inventory, str(index)), effects)
                     line = row(item_image(sid), button(
-                        text, lambda n=index,v=record:self.show_item(n,v), 68))
+                        text, lambda n=index, v=record: self.show_item(n, v), 68))
                     line.height = dp(68)
                     self.rows.add_widget(line)
             else:
                 actor, skill = value
-                text = (actor_label(actor)+'｜'+skill['name']+
-                    ' Lv.{} · SP {}\n'.format(skill['level'], skill['sp'])+
-                    ('；'.join(skill['reasons']) or '基礎條件可用')+
-                    ' · '+skill['source'])
+                text = (actor_label(actor) + '｜' + skill['name'] +
+                    ' Lv.{} · SP {}\n'.format(skill['level'], skill['sp']) +
+                    ('；'.join(skill['reasons']) or '基礎條件可用') +
+                    ' · ' + skill['source'])
                 self.rows.add_widget(button(
-                    text, lambda a=actor,v=skill:self.use_skill(a,v), 90))
+                    text, lambda a=actor, v=skill: self.use_skill(a, v), 90))
+        self._render_index = stop
+        total = len(self._pending_items)
+        if stop < total:
+            self.info.text = self._summary_text + (
+                '\n正在顯示本頁 {} / {} 項…'.format(stop, total))
+            self._render_event = Clock.schedule_once(
+                lambda _dt, g=generation: self._render_chunk(g), 0)
+        else:
+            self.info.text = self._summary_text
+            self._pending_items = ()
+            self._render_inventory = {}
 
     def show_item(self, index, record):
         read_only = self.kind.text == '超空間袋'

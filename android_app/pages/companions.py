@@ -1,4 +1,5 @@
 """Touch-first manual partner deployment; game server owns final state."""
+from kivy.metrics import dp
 from android_app.pages.general import Page
 from android_app.widgets import label, button, row
 from wlre.services.battle.companions import problem
@@ -55,7 +56,7 @@ class Companions(Page):
             "出戰" if action == "deploy" else "休息", partner["name"]))
 
     def refresh(self):
-        from android_app.pages.ui_components import feature_card, status_line
+        from android_app.pages.ui_components import feature_card, status_line, StatMeter
         knowledge=self.state.get('knowledge',{})
         if not knowledge.get('companions_ready'):
             self.info.text='等待伺服器同步夥伴清單'
@@ -67,8 +68,9 @@ class Companions(Page):
         if signature==self._signature:
             return
         self._signature=signature
-        self.info.text='已同步 {} 名夥伴，切換需等待伺服器回覆'.format(
-            len(rows))
+        active_count=sum(1 for item in rows if item['active'])
+        self.info.text='已同步 {} 名夥伴｜目前出戰 {} 名｜切換需伺服器確認'.format(
+            len(rows),active_count)
         self.items.clear_widgets()
         if not rows:
             self.items.add_widget(status_line('目前沒有已確認的夥伴'))
@@ -77,20 +79,29 @@ class Companions(Page):
             card=feature_card(item['name'],
                               'Lv.{}｜{}'.format(item['level'],status),
                               variant='highlight' if item['active'] else 'normal')
-            card.add_widget(status_line(
-                'HP {}/{}　SP {}/{}'.format(
-                    item['hp'],item['max_hp'],item['sp'],item['max_sp'])))
+            # Source-backed metres: if HP/SP is absent, the component clearly
+            # displays waiting for server data instead of a fabricated bar.
+            hp_meter=StatMeter('HP',tint=(.26,.86,.55,1))
+            sp_meter=StatMeter('SP',tint=(.26,.75,.99,1))
+            hp_meter.set_value(item['hp'],item['max_hp'])
+            sp_meter.set_value(item['sp'],item['max_sp'])
+            card.add_widget(hp_meter)
+            card.add_widget(sp_meter)
+            # The protocol exposes faith without a verified maximum. Do not
+            # invent a progress percentage like the reference illustration.
             card.add_widget(status_line(
                 '忠誠／好友度：{}'.format(item['faith'])))
             deploy=button(
                 '設為出戰',
-                lambda p=item:self.change(p,'deploy'))
+                lambda p=item:self.change(p,'deploy'),56)
             rest=button(
                 '讓夥伴休息',
-                lambda p=item:self.change(p,'rest'))
+                lambda p=item:self.change(p,'rest'),56)
             deploy.disabled=bool(item['reasons']['deploy']) or not self.d.live
             rest.disabled=bool(item['reasons']['rest']) or not self.d.live
-            card.add_widget(row(deploy,rest))
+            actions=row(deploy,rest)
+            actions.height=dp(56)
+            card.add_widget(actions)
             reasons=[v for v in item['reasons'].values() if v]
             if reasons:
                 card.add_widget(status_line(

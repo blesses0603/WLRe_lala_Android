@@ -105,8 +105,15 @@ class Resources(Page):
         self.add_widget(inventory)
 
         selection = feature_card('選取道具', '查看數量、效果與使用限制')
+        self._selected_ref = None
+        self._selected_icon_id = None
         self.selected_info = status_line('點選背包格位或清單項目查看詳細資訊')
         selection.add_widget(self.selected_info)
+        self.selected_preview = AnchorLayout(
+            size_hint_y=None, height=dp(72), anchor_x='center', anchor_y='center')
+        selection.add_widget(self.selected_preview)
+        self.selected_details = status_line('尚未選取道具')
+        selection.add_widget(self.selected_details)
         selection.add_widget(button(
             'HP／SP 藥水儲存槽', self.storage))
         self.add_widget(selection)
@@ -203,6 +210,7 @@ class Resources(Page):
         self._is_inventory = is_inventory
         self._use_grid = use_grid
         self._render_inventory = inventory
+        self._sync_selected_panel(inventory, read_only)
         self._pending_items = tuple(entries[
             self.offset * page_size:(self.offset + 1) * page_size])
         self._render_index = 0
@@ -274,6 +282,43 @@ class Resources(Page):
             self._pending_items = ()
             self._render_inventory = {}
 
+    def _clear_selected(self, reason='點選背包格位或清單項目查看詳細資訊'):
+        self._selected_ref = None
+        self._selected_icon_id = None
+        self.selected_preview.clear_widgets()
+        self.selected_info.text = reason
+        self.selected_details.text = '尚未選取道具'
+
+    def _display_selected(self, info, read_only):
+        if self._selected_icon_id != info['id']:
+            self.selected_preview.clear_widgets()
+            self.selected_preview.add_widget(item_image(info['id'], size=64))
+            self._selected_icon_id = info['id']
+        self.selected_info.text = '{} · 格位 #{} · 持有 {}'.format(
+            info['name'], info['index'], info['count'])
+        self.selected_details.text = (
+            '物品 ID：{}｜{}\n{}'.format(
+                info['id'],
+                '超空間袋唯讀' if read_only else
+                '可用 {}｜保留 {}'.format(info['available'], info['reserved']),
+                '；'.join(info['lines'])))
+
+    def _sync_selected_panel(self, inventory, read_only):
+        """Clear stale selection when server items or the storage source change."""
+        chosen = self._selected_ref
+        if chosen is None:
+            return
+        kind, section, index, item_id = chosen
+        if (kind != self.kind.text or section != self.storage_section.text
+                or self.kind.text == '已確認特技'):
+            self._clear_selected()
+            return
+        current = (inventory.get('items') or {}).get(index)
+        if not current or current.get('item_id') != item_id:
+            self._clear_selected('原選取格位已變更，請重新選擇')
+            return
+        self._display_selected(item_details(inventory, index, current), read_only)
+
     def show_item(self, index, record):
         read_only = self.kind.text == '超空間袋'
         storage = self.state.get('room_storage') or {}
@@ -288,11 +333,9 @@ class Resources(Page):
             self.refresh()
             return
         info = item_details(inventory, index, current)
-        self.selected_info.text = (
-            '{} · 格位 #{} · 持有 {}{}'.format(
-                info['name'], info['index'], info['count'],
-                ' · 遠端唯讀' if read_only else
-                ' · 可用 {}'.format(info['available'])))
+        self._selected_ref = (self.kind.text, self.storage_section.text,
+                              str(index), current['item_id'])
+        self._display_selected(info, read_only)
         body = column()
         body.add_widget(item_image(info['id'], size=64))
         body.add_widget(label('{}（ID {}）'.format(info['name'], info['id'])))

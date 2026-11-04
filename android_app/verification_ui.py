@@ -74,7 +74,7 @@ def glow_panel(view, *, fill=_PANEL, radius=20, bright=False):
 
 class NeonAction(Button):
     def __init__(self, title, callback, *, primary=False, **kwargs):
-        super().__init__(text=title, size_hint_y=None, height=dp(60),
+        super().__init__(text=title, size_hint_y=None, height=dp(55),
                          font_size='17sp' if primary else '15sp',
                          bold=primary, **kwargs)
         self.background_normal = self.background_down = ''
@@ -112,7 +112,7 @@ class CosmicHeader(FloatLayout):
     """Decorative sky plus an actual mascot asset and true status badge."""
 
     def __init__(self, **kwargs):
-        super().__init__(size_hint_y=None, height=dp(145), **kwargs)
+        super().__init__(size_hint_y=None, height=dp(128), **kwargs)
         with self.canvas.before:
             Color(*_SKY)
             self.back = RoundedRectangle(radius=[dp(27)])
@@ -130,14 +130,14 @@ class CosmicHeader(FloatLayout):
         castle = _ASSETS / 'verification_castle.jpg'
         if castle.is_file():
             self.castle = Image(source=str(castle), opacity=.60,
-                size_hint=(None,None), size=(dp(138),dp(122)),
+                size_hint=(None,None), size=(dp(125),dp(109)),
                 pos_hint={'right':.99,'top':.99},fit_mode='contain')
             self.add_widget(self.castle)
         mascot = _ASSETS / 'verification_mascot.jpg'
         if not mascot.is_file():
             mascot = _ASSETS / 'app.png'
         self.add_widget(Image(source=str(mascot),fit_mode='contain',
-            size_hint=(None,None),size=(dp(125),dp(135)),
+            size_hint=(None,None),size=(dp(113),dp(119)),
             pos_hint={'x':.0,'center_y':.51}))
         headline = txt('飄流 RE:LaLa',size='23sp',
                        color=_CYAN,height=39,bold=True)
@@ -194,18 +194,18 @@ class CheckRow(BoxLayout):
 
     def __init__(self, key, title, description, symbol, **kwargs):
         super().__init__(orientation='horizontal', size_hint_y=None,
-                         height=dp(61), spacing=dp(7),
-                         padding=[dp(9),dp(7),dp(9),dp(7)],**kwargs)
+                         height=dp(54), spacing=dp(6),
+                         padding=[dp(8),dp(5),dp(8),dp(5)],**kwargs)
         glow_panel(self, fill=_INNER, radius=15)
         self.mark = Label(text=symbol, color=_CYAN, font_size='22sp',
                           size_hint_x=None,width=dp(34))
         self.add_widget(self.mark)
         descriptions = BoxLayout(orientation='vertical',spacing=dp(1))
-        descriptions.add_widget(txt(title,size='15sp',height=26,bold=True))
+        descriptions.add_widget(txt(title,size='15sp',height=24,bold=True))
         descriptions.add_widget(txt(description,size='10sp',
-                                    height=20,color=MUTED))
+                                    height=18,color=MUTED))
         self.add_widget(descriptions)
-        self.state = txt('',size='11sp',height=38,color=MUTED,bold=True)
+        self.state = txt('',size='11sp',height=36,color=MUTED,bold=True)
         self.state.size_hint_x=None
         self.state.width=dp(80)
         self.state.halign='right'
@@ -233,25 +233,25 @@ class VerificationDashboard(BoxLayout):
         super().__init__(orientation='vertical',**kwargs)
         self.scroller=ScrollView(do_scroll_x=False,bar_width=dp(3))
         root=BoxLayout(orientation='vertical',size_hint_y=None,
-                       padding=[dp(12),dp(28),dp(12),dp(24)],
-                       spacing=dp(13))
+                       padding=[dp(12),dp(24),dp(12),dp(20)],
+                       spacing=dp(9))
         root.bind(minimum_height=root.setter('height'))
 
         self.hero=CosmicHeader()
         root.add_widget(self.hero)
 
         inspection=BoxLayout(orientation='vertical',size_hint_y=None,
-                             padding=[dp(13),dp(12),dp(13),dp(14)],
-                             spacing=dp(6))
+                             padding=[dp(11),dp(9),dp(11),dp(10)],
+                             spacing=dp(4))
         inspection.bind(minimum_height=inspection.setter('height'))
         glow_panel(inspection,radius=24,bright=True)
         title=txt('⬡  官方資料與資料庫檢查',
-                  size='21sp',height=41,bold=True)
+                  size='21sp',height=38,bold=True)
         inspection.add_widget(title)
         self.caption=grow(txt(
             '首次啟動會核對官方版本、雙 Manifest、必要 Bundle、'
             '完整 Runtime 與 SQLite 資料庫。只有全部通過才開放帳號登入。',
-            size='13sp',height=57),minimum=57)
+            size='13sp',height=50),minimum=50)
         inspection.add_widget(self.caption)
 
         self.rows={}
@@ -262,45 +262,45 @@ class VerificationDashboard(BoxLayout):
         root.add_widget(inspection)
 
         versions=BoxLayout(orientation='vertical',size_hint_y=None,
-                           padding=[dp(13),dp(10),dp(13),dp(10)],
+                           padding=[dp(12),dp(8),dp(12),dp(8)],
                            spacing=dp(7))
         versions.bind(minimum_height=versions.setter('height'))
         glow_panel(versions,radius=21)
         versions.add_widget(txt('ⓘ  版本資訊',size='18sp',
-                                 height=35,bold=True))
-        cards=BoxLayout(size_hint_y=None,height=dp(52),spacing=dp(8))
+                                 height=32,bold=True))
+        cards=BoxLayout(size_hint_y=None,height=dp(48),spacing=dp(8))
         self.version_labels={}
         for name in ('DataPackage','MainPackage'):
             card=BoxLayout(orientation='vertical',size_hint_y=None,
-                           height=dp(51),padding=[dp(8),dp(4)])
+                           height=dp(48),padding=[dp(8),dp(3)])
             glow_panel(card,fill=_INNER,radius=13)
-            card.add_widget(txt(name,size='11sp',height=20,color=MUTED))
+            card.add_widget(txt(name,size='11sp',height=19,color=MUTED))
             value=txt('— 尚未取得',size='14sp',color=_CYAN,
-                      height=25,bold=True)
+                      height=23,bold=True)
             card.add_widget(value)
             self.version_labels[name]=value
             cards.add_widget(card)
         versions.add_widget(cards)
         versions.add_widget(txt(
             '應用程式版本：v'+ANDROID_VERSION+'  ·  資料來源：官方伺服器',
-            size='11sp',color=MUTED,height=24))
+            size='11sp',color=MUTED,height=21))
         root.add_widget(versions)
 
         result=BoxLayout(orientation='vertical',size_hint_y=None,
-                         padding=[dp(13),dp(10),dp(13),dp(11)],
+                         padding=[dp(12),dp(9),dp(12),dp(9)],
                          spacing=dp(4))
         result.bind(minimum_height=result.setter('height'))
         glow_panel(result,radius=21)
         result.add_widget(txt('⌁  最近檢查結果',
-                               size='18sp',height=36,bold=True))
+                               size='18sp',height=31,bold=True))
         self.status=txt('等待背景服務啟動',size='14sp',
-                        color=_CYAN,height=30,bold=True)
+                        color=_CYAN,height=29,bold=True)
         result.add_widget(self.status)
         self.detail=grow(txt('尚無檢查結果。',size='12sp',
-                             color=MUTED,height=39),minimum=39)
+                             color=MUTED,height=33),minimum=33)
         result.add_widget(self.detail)
         self.checked=txt('檢查時間：尚未取得',
-                         size='11sp',height=24,color=MUTED)
+                         size='11sp',height=21,color=MUTED)
         result.add_widget(self.checked)
         root.add_widget(result)
 
@@ -313,7 +313,7 @@ class VerificationDashboard(BoxLayout):
         notice=grow(txt(
             'ⓘ 官方資源校驗未完成時，不提供帳號登入，'
             '也不會略過任何驗證。',
-            size='11sp',height=29,color=MUTED),minimum=29)
+            size='11sp',height=24,color=MUTED),minimum=24)
         root.add_widget(notice)
         self.scroller.add_widget(root)
         self.add_widget(self.scroller)

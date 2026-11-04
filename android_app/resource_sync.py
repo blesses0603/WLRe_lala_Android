@@ -5,6 +5,7 @@ validates and activates the shared, private cache before exposing game pages.
 """
 import copy
 import os
+import re
 from pathlib import Path
 import threading
 
@@ -116,6 +117,56 @@ def resource_message(report):
     return message + '\n檢查階段：' + stage + '；' + (detail or '官方回應無法解析或版本資料不完整')
 
 
+
+def safe_display_receipt(report):
+    """Only bounded, validated *observations*, never guessed game versions.
+
+    Values are safe to send from the foreground service to the Activity UI.
+    The login predicate still requires two independent complete checks.
+    """
+    receipt = {'verified_versions': {}, 'checked_at_utc': None,
+               'failure_code': None}
+    if type(report) is not dict:
+        return receipt
+    remote = report.get('remote')
+    if type(remote) is dict and remote.get('status') in (
+            'same_resources', 'resources_changed'):
+        packages = remote.get('packages')
+        if type(packages) is dict:
+            for name in ('DataPackage', 'MainPackage'):
+                item = packages.get(name)
+                if type(item) is not dict or item.get('comparison') not in (
+                        'same', 'newer', 'older', 'different'):
+                    continue
+                value = item.get('remote')
+                if type(value) is str:
+                    match = re.fullmatch(
+                        r'([0-9]{1,6})(?:_[A-Za-z0-9_]{1,50})?', value)
+                    if match:
+                        receipt['verified_versions'][name] = match.group(1)
+        checked = remote.get('checked_at_utc')
+        if type(checked) is str and re.fullmatch(
+                r'20[0-9]{2}-[01][0-9]-[0-3][0-9]'
+                r'T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](?:\+00:00|Z)?', checked):
+            receipt['checked_at_utc'] = checked
+    failure = report.get('runtime_failure')
+    if type(failure) is dict:
+        known = {
+            'manifest_download_failed', 'manifest_parser_missing',
+            'manifest_parse_failed', 'manifest_validation_failed',
+            'manifest_identity_mismatch', 'manifest_asset_missing',
+            'bundle_download_failed', 'bundle_integrity_failed',
+            'bundle_plan_failed', 'required_bundle_missing',
+            'required_bundle_invalid', 'runtime_parse_failed',
+            'runtime_data_invalid', 'runtime_identity_mismatch',
+            'runtime_catalog_unavailable', 'runtime_check_failed',
+            'runtime_check_superseded',
+        }
+        if type(failure.get('code')) is str and failure['code'] in known:
+            receipt['failure_code'] = failure['code']
+    return receipt
+
+
 class ResourceSync:
     def __init__(self, *, download=True, preparer=None, checker=None):
         self.download = download
@@ -123,7 +174,8 @@ class ResourceSync:
         self.checker = checker
         self.lock = threading.Lock()
         self.worker = None
-        self.value = dict(status='idle', ready=False, message='等待官方資料檢查', revision=0)
+        self.value = dict(status='idle', ready=False, message='等待官方資料檢查', revision=0,
+                          verified_versions={}, checked_at_utc=None, failure_code=None)
         self._preparation_issue = None
 
     def snapshot(self):
@@ -139,7 +191,8 @@ class ResourceSync:
         with self.lock:
             if self.worker is not None and self.worker.is_alive():
                 return False
-            self.value.update(status='checking', ready=False, message='核對官方版本、Manifest 與資料庫')
+            self.value.update(status='checking', ready=False, message='核對官方版本、Manifest 與資料庫',
+                              verified_versions={}, checked_at_utc=None, failure_code=None)
             self._preparation_issue = None
             self.value['revision'] += 1
             self.worker = threading.Thread(target=self._run, name='official-resource-sync', daemon=True)
@@ -166,13 +219,15 @@ class ResourceSync:
             if (not ready and self._preparation_issue == 'download_limit'
                     and report.get('block_reason') == 'runtime_unavailable'):
                 message += '\n準備階段：必要 Bundle 超過單次下載上限（32 MiB／24 檔）'
+            receipt = safe_display_receipt(report)
             self._update(status='ready' if ready else 'blocked', ready=ready,
                          catalog_token=list(current_catalog_token()),
-                         message=message,
-                         counts=report.get('record_counts', {}))
+                         message=message, counts=report.get('record_counts', {}),
+                         **receipt)
         except Exception as exc:
             # Exception messages can expose device paths and remote payloads.
-            self._update(status='error', ready=False,
+            self._update(status='error', ready=False, verified_versions={},
+                         checked_at_utc=None, failure_code=None,
                          message='官方資料準備失敗（'+type(exc).__name__+'）；請重新檢查')
 
     def _progress(self, phase, details):
@@ -194,7 +249,8 @@ class ResourceSync:
     def reset(self):
         with self.lock:
             if self.worker is not None and self.worker.is_alive(): return False
-            self.value.update(status='idle', ready=False, message='等待背景服務重新驗證')
+            self.value.update(status='idle', ready=False, message='等待背景服務重新驗證',
+                              verified_versions={}, checked_at_utc=None, failure_code=None)
             self.value['revision'] += 1
             return True
 

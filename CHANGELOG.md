@@ -1,5 +1,13 @@
 # 版本紀錄
 
+## 7.1.12 Android 官方資源驗證頁視覺還原（2026-11-04，修補候選）
+
+- 依使用者提供的深藍星空霓虹 UI 參考圖及 v7.1.10 實機畫面差距，重製 Android 專屬資源驗證入口：角色／城堡輕量圖片、靜態發光邊框、七個獨立驗證卡、真實版本卡、最近檢查結果與可操作按鈕。
+- 新增 android_app/verification_presentation.py 狀態白名單及 android_app/verification_ui.py 真正的 Kivy 畫面；修改 android_app/app.py 接到原有驗證及登入閘門，不跳過任何來源驗證。
+- android_app/resource_sync.py 僅傳送已核對的版本數字、UTC 檢查時間與固定錯誤類別；重試清空過期資訊，不傳送原始秘密、不因取得版本號就解鎖帳號。
+- 新增 tests/test_android_verification_fidelity.py 回歸測試，覆蓋七項狀態、雙端 SHA-256 Token、無效版本／日期、下載失敗、舊資訊清除、Kivy 真實按鈕與圖片素材。
+- Android 預計版本 v7.1.11 → v7.1.12。電腦版 Repository、來源鎖及遊戲核心不變。CI、完整 ARM64 APK、實機畫面與正式服驗收分開回報；不自動合併 main 或建立 Release／Tag。
+
 ## 7.1.11 Android 霓虹介面第三階段：進階操作畫面（2026-11-04，開發修補候選）
 
 - 基於已合併 Android main 的 v7.1.10 第一階段 PR #51 與第二階段 PR #52，第三階段只修改 Android UI 模組；電腦版 Repository 與版本號不變。Android 預計版本 v7.1.10 → **v7.1.11**，同步 buildozer、版本常數、README、Android 指南。

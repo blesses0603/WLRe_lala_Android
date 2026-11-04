@@ -321,7 +321,7 @@ class VerificationDashboard(BoxLayout):
                         height=dp(7*34+6*3), spacing=dp(5))
         self.rail=VerificationRail(size_hint_y=None, height=dp(7*34+6*3))
         track.add_widget(self.rail)
-        steps_box=BoxLayout(orientation='vertical', spacing=dp(4))
+        steps_box=BoxLayout(orientation='vertical', spacing=dp(3))
         self.rows={}
         for (key,name,description),symbol in zip(STEPS,self._ICONS):
             item=CheckRow(key,name,description,symbol)

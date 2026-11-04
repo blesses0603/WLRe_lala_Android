@@ -224,7 +224,9 @@ class LaLaApp(App):
         return verified_for_login(
             getattr(self.manager, 'resource_status', {}), local,
             connected=bool(getattr(self.manager, 'background', False)
-                           and getat    def _enter_verified_login(self, *_):
+                           and getattr(self.manager, 'available', False)))
+
+    def _enter_verified_login(self, *_):
         """Only an explicit tap can reveal login, after a fresh double gate."""
         if platform != 'android' or self._login_host is None or self._login_visible:
             return
@@ -288,8 +290,6 @@ class LaLaApp(App):
             not connected or service.get('status') == 'checking'
             or local.get('status') == 'checking'
             or getattr(self.manager, '_resource_request_pending', False))
-
-, '_resource_request_pending', False))
 
     def _build_login_view(self):
         from android_app.widgets import column, label, button, row, RoundedSpinnerOption

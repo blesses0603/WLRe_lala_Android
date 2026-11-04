@@ -147,7 +147,7 @@ def safe_display_receipt(report):
         checked = remote.get('checked_at_utc')
         if type(checked) is str and re.fullmatch(
                 r'20[0-9]{2}-[01][0-9]-[0-3][0-9]'
-                r'T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](?:\\+00:00|Z)?', checked):
+                r'T[0-2][0-9]:[0-5][0-9]:[0-5][0-9](?:\+00:00|Z)?', checked):
             receipt['checked_at_utc'] = checked
     failure = report.get('runtime_failure')
     if type(failure) is dict:

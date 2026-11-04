@@ -86,7 +86,7 @@ class Overview(Page):
         self.tent_info.text = activity_text(self.state.get('tent', {}))
         self.auto_status.text = self.state.get('automation', {}).get(
             'status', '等待同步')
-        self.info.text = '\\n'.join(overview_lines(self.state))
+        self.info.text = '\n'.join(overview_lines(self.state))
         from android_app.overview_model import overview_model
         profiles = overview_model(self.state).get('profiles', [])
         current = profiles[0] if profiles else {}

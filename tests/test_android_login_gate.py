@@ -88,6 +88,11 @@ class VisibleAndroidLoginGate(unittest.TestCase):
 
             service["catalog_token"] = list(TOKEN)
             app._update_verification_gate()
+            # New UI shows the seven verified checkpoints briefly and then
+            # performs a second, fail-closed gate check before transition.
+            self.assertFalse(app._login_visible)
+            self.assertIsNotNone(app._verification_enter_event)
+            app._enter_login_if_verified()
             self.assertTrue(app._login_visible)
             self.assertIn(app._login_view, root.children)
             self.assertNotIn(app._verification_view, root.children)

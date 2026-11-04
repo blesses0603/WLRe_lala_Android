@@ -21,8 +21,13 @@ def feature_card(title, subtitle='', *, variant='normal'):
                       padding=[dp(12), dp(10), dp(12), dp(12)],
                       spacing=dp(9))
     panel.bind(minimum_height=panel.setter('height'))
-    shade = SOFT if variant == 'highlight' else SURFACE
-    surface(panel, color=shade, border=BORDER, radius=19)
+    # The same deep navy / cyan edge treatments as the verification
+    # reference are used throughout the game's feature pages.
+    highlighted = variant == 'highlight'
+    shade = ((.040, .146, .250, .99) if highlighted
+             else (.025, .090, .167, .99))
+    surface(panel, color=shade,
+            border=ACCENT if highlighted else BORDER, radius=19)
     panel.add_widget(section_title(title, subtitle))
     return panel
 

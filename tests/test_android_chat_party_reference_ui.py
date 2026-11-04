@@ -47,7 +47,7 @@ class SocialScreenshotContracts(unittest.TestCase):
         for symbol in ("home","layers","bars","grid","chat","users",
                        "send","megaphone","pin","invite","smile",
                        "refresh"):
-            self.assertIn("'"+symbol+"'",visual)
+            self.assertTrue(('\''+symbol+'\'' in visual) or ('"'+symbol+'"' in visual), symbol)
         self.assertIn("class SocialIcon(Widget)",visual)
         self.assertIn("class MessageTile(BoxLayout)",visual)
         self.assertIn("class NearbyTile(BoxLayout)",visual)

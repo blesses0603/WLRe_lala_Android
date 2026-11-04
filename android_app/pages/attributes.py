@@ -49,7 +49,6 @@ class Attributes(Page):
             current=status_line('目前值：待同步')
             stat.add_widget(current)
             self.stat_values[key]=current
-            editor.add_widget(stat)
             control=TextInput(
                 text='0',multiline=False,input_filter='int',
                 input_type='number',font_size='15sp',
@@ -62,8 +61,14 @@ class Attributes(Page):
             for part in (decrement,increment):
                 part.size_hint_x=None
                 part.width=dp(54)
-            editor.add_widget(row(label('增加點數'),
-                                  decrement,control,increment))
+            # The current value and its local +/- allocation draft belong
+            # on the same touch card, as in the reference screen.
+            draft=row(decrement,control,increment)
+            draft.height=dp(48)
+            stat.add_widget(draft)
+            editor.add_widget(stat)
+        self.available=status_line('可分配點數：等待伺服器同步', prominent=True)
+        editor.add_widget(self.available)
         self.status=status_line()
         editor.add_widget(self.status)
         editor.add_widget(button('檢查並確認分配',self.allocate,56))
@@ -104,6 +109,11 @@ class Attributes(Page):
         self.info.text = "\n".join(attribute_lines(self.state))
         player=(self.state.get('knowledge') or {}).get('player') or {}
         stats=player.get('stats') or {}
+        points=stats.get('attribute_potential') if player.get('ready') else None
+        self.available.text=(
+            '可分配點數：{}'.format(points)
+            if type(points) is int and points >= 0
+            else '可分配點數：等待伺服器同步')
         for key,_ in ATTRIBUTES:
             value=stats.get(key) if player.get('ready') else None
             self.stat_values[key].text=(

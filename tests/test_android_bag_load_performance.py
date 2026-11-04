@@ -99,3 +99,50 @@ class BagLoadLive(unittest.TestCase):
             self.assertEqual(len(page.grid.children), 24)
             self.assertEqual(page._render_event, None)
             page.close()
+
+    def test_skills_ignore_unrelated_knowledge_but_track_learned_updates(self):
+        from android_app.pages.resources import Resources
+        state = {"knowledge": {"player": {"skills": {"100": {"level": 1}}}},
+                 "inventory": {"ready": False}}
+        fake = SimpleNamespace(state=state, page_name="包包與特技",
+                               live=False, message=SimpleNamespace(text=""))
+        actor = {"name": "角色", "pid": 1}
+        skill = {"id": 100, "name": "已確認測試特技", "level": 1,
+                 "sp": 3, "reasons": [], "source": "learned"}
+        with patch("android_app.pages.resources.actors", return_value=[actor]), \\
+             patch("android_app.pages.resources.skill_rows", return_value=[skill]), \\
+             patch("android_app.pages.resources.prefetch_item_icons"):
+            page = Resources(fake)
+            page.kind.text = "已確認特技"
+            before = page._render_generation
+            state["knowledge"]["unrelated_chat_log"] = ["這不應重新建置技能清單"]
+            page.refresh()
+            self.assertEqual(page._render_generation, before)
+            state["knowledge"]["player"]["skills"]["100"]["level"] = 2
+            page.refresh()
+            self.assertGreater(page._render_generation, before)
+            page.close()
+
+    def test_offscreen_pause_cancels_pending_icon_jobs(self):
+        from android_app.pages.resources import Resources
+        state = {"inventory": {"ready": True,
+                 "items": {str(n): {"item_id": 1, "count": n}
+                           for n in range(24)}}}
+        fake = SimpleNamespace(state=state, page_name="包包與特技",
+                               live=False, message=SimpleNamespace(text=""))
+        entries = [(str(n), state["inventory"]["items"][str(n)], "道具")
+                   for n in range(24)]
+        with patch("android_app.pages.resources.visible_items", return_value=entries), \\
+             patch("android_app.pages.resources.prefetch_item_icons"), \\
+             patch("android_app.pages.resources.item_image",
+                   return_value=__import__("kivy.uix.widget", fromlist=["Widget"]).Widget()):
+            page = Resources(fake)
+            page.refresh()
+            pending = page._render_generation
+            self.assertIsNotNone(page._render_event)
+            page.pause_render()
+            self.assertIsNone(page._render_event)
+            self.assertIsNone(page.key)
+            page._render_chunk(pending)
+            self.assertEqual(len(page.grid.children), 6)
+            page.close()

@@ -49,7 +49,6 @@ class Party(Page):
         """Condensed server-backed party area, with three genuine views."""
         from kivy.metrics import dp
         from kivy.uix.boxlayout import BoxLayout
-        from kivy.uix.scrollview import ScrollView
         from kivy.uix.textinput import TextInput
         from android_app.theme import MUTED, style_input, style_button
         from android_app.pages.social_visual import (
@@ -78,13 +77,12 @@ class Party(Page):
             self.party_tabs[name]=btn
             tabs.add_widget(btn)
         board.add_widget(tabs)
-        self.scroll=ScrollView(do_scroll_x=False,bar_width=dp(2),
-                               size_hint_y=None,height=dp(163))
+        # One scroll owner: the dashboard. Avoid nesting another stencil
+        # scroll region inside the combined social work area.
         self.entries=BoxLayout(orientation='vertical',size_hint_y=None,
                                spacing=dp(4),padding=[dp(2),dp(3)])
         self.entries.bind(minimum_height=self.entries.setter('height'))
-        self.scroll.add_widget(self.entries)
-        board.add_widget(self.scroll)
+        board.add_widget(self.entries)
 
         actions=BoxLayout(size_hint_y=None,height=dp(40),spacing=dp(5))
         self.target=TextInput(hint_text='角色 ID',multiline=False,
@@ -115,8 +113,21 @@ class Party(Page):
 
     def _refresh_compact(self):
         p=self.state.get('party',{})
-        key=(str(p),str(self.state.get('player',{})),self.d.live,
-             self.party_tab,self.page_index)
+        player=self.state.get('player',{})
+        # Compact structural fingerprint: do not stringify all game state at
+        # every 0.5s refresh, or rebuild dozens of neon touch widgets.
+        near=p.get('nearby',{})
+        requests=p.get('requests',{})
+        teams=p.get('teams',{})
+        near_key=tuple((rid,item.get('name'),item.get('scene'))
+                       for rid,item in near.items() if isinstance(item,dict))
+        request_key=tuple((rid,item.get('status'),item.get('type'))
+                          for rid,item in requests.items() if isinstance(item,dict))
+        team_key=tuple((rid,t.get('leader_id'),tuple(t.get('members',())))
+                       for rid,t in teams.items() if isinstance(t,dict))
+        key=(p.get('status'),near_key,request_key,team_key,
+             player.get('scene'),player.get('role_id'),
+             bool(self.d.live),self.party_tab,self.page_index)
         if self.key==key:return
         self.key=key
         status=p.get('status','等待同步')
@@ -155,7 +166,7 @@ class Party(Page):
                 self.entries.add_widget(caption(
                     '尚無同場景已同步玩家；可稍後重新整理',
                     height=42))
-            for item in nearby[:32]:
+            for item in nearby[:6]:
                 rid=item['role_id']
                 self.entries.add_widget(NearbyTile(
                     str(item.get('name') or rid)[:35],rid,
@@ -166,7 +177,7 @@ class Party(Page):
         elif self.party_tab=='組隊申請':
             if not requests:
                 self.entries.add_widget(caption('目前沒有待回覆的組隊申請',height=42))
-            for key,request in requests[:25]:
+            for key,request in requests[:6]:
                 item=BoxLayout(size_hint_y=None,height=dp(44),spacing=dp(5))
                 title=caption(
                     '角色 '+player_name(self.state,request.get('role_id'))+
@@ -208,7 +219,6 @@ class Party(Page):
                         {'type':'team','action':'leave'},
                         '確認離開隊伍？隊長離隊會解散隊伍。'),
                     icon='users',height=38))
-        self.scroll.scroll_y=1
 
     def act(self, action, rid=None):
         try: rid = int(rid if rid is not None else self.target.text)
@@ -346,9 +356,14 @@ class Chat(Page):
             size='10sp',height=26)
         announcement.add_widget(self.announcement)
         panel.add_widget(announcement)
-        self.message_scroll=ScrollView(do_scroll_x=False,
-                            bar_width=dp(3),size_hint_y=None,
-                            height=dp(226))
+        # Dashboard already owns the only vertical ScrollView.
+        # A fixed nested ScrollView caused black/empty clip regions and
+        # competed for drags with the full chat/party page on Android.
+        self.message_scroll=BoxLayout(orientation='vertical',
+                                      size_hint_y=None,spacing=dp(2),
+                                      padding=[dp(3),dp(4)])
+        self.message_scroll.bind(
+            minimum_height=self.message_scroll.setter('height'))
         self.messages=BoxLayout(orientation='vertical',
                                size_hint_y=None,spacing=dp(5),
                                padding=[dp(4),dp(3),dp(4),dp(4)])
@@ -358,32 +373,22 @@ class Chat(Page):
 
         reactions=BoxLayout(size_hint_y=None,height=dp(38),spacing=dp(5))
         neon_surface(reactions,color=SOFT,radius=13)
-        # Use actual, included game emote assets. Missing ZIP / JPEG support
-        # falls back to an operable picker, never a Unicode tofu symbol.
+        # Batch read the verified emoji archive once. AnchorLayout positions
+        # genuine sprites without manual center bindings or overlapping icons.
         try:
-            from android_app.assets import emoji_entries, emoji_texture
-            from kivy.uix.image import Image
+            from android_app.assets import emoji_entries, prefetch_emoji_textures
+            from android_app.pages.social_visual import EmojiQuickButton
             keys=[
                 int(key) for key,row in emoji_entries().items()
                 if str(key).isdigit() and isinstance(row,dict)
                 and row.get('available',True)
-            ][:7]
+            ][:6]
+            sprites=prefetch_emoji_textures(keys) if keys else {}
             for key in keys:
-                action=SocialButton('',lambda idx=key:self._insert_emoji(idx),
-                                    icon='smile',height=34,font='10sp')
-                try:
-                    sprite=emoji_texture(key)
-                    if sprite is not None:
-                        img=Image(texture=sprite,size_hint=(None,None),
-                                  size=(dp(26),dp(26)))
-                        action.add_widget(img)
-                        action.bind(pos=lambda w,*_,icon=img:
-                                    setattr(icon,'center',w.center))
-                        img.center=action.center
-                        action.glyph.opacity=0
-                except (OSError,KeyError,ValueError):
-                    pass
-                reactions.add_widget(action)
+                sprite=sprites.get(key)
+                if sprite is not None:
+                    reactions.add_widget(EmojiQuickButton(
+                        sprite, lambda idx=key:self._insert_emoji(idx)))
         except (OSError,KeyError,ValueError,ImportError,TypeError):
             pass
         reactions.add_widget(SocialButton(
@@ -474,8 +479,8 @@ class Chat(Page):
         self.messages.clear_widgets()
         if not filtered:
             self.messages.add_widget(caption(
-                '尚無從目前角色同步的聊天訊息',
-                height=dp(56),size='12sp'))
+                '尚無同步訊息，請選擇頻道或等待伺服器資料',
+                height=56,size='12sp'))
         pid=self.state.get('player',{}).get('role_id')
         for record in filtered[self.offset*20:self.offset*20+20]:
             sender=record.get('name') or str(record.get('role_id','未知角色'))
@@ -501,7 +506,7 @@ class Chat(Page):
         else:
             self.announcement.text='聊天紀錄來自目前角色；尚無已同步系統公告'
         self.online.text='角色已連線' if self.d.live else '等待角色連線'
-        self.message_scroll.scroll_y=0
+        # Outer dashboard scroll preserves the user's position.
 
     def cancel_quote(self): self.quote = None; self.quote_label.text = '未引用訊息'
     def emojis(self):
@@ -617,6 +622,26 @@ class Chat(Page):
                 self.send_button.disabled = False
                 self.d.message.text = '等待伺服器發話結果逾時；原文字已保留，重送前請先檢查聊天紀錄'
                 self.delivery_status.text = '逾時未確認，請先檢查聊天紀錄'
+        if getattr(self, 'compact', False):
+            rows = self.d.data.get('chat', [])
+            rows = rows if isinstance(rows, list) else []
+            # Snapshot identity can change every IPC tick. Compare bounded
+            # message fields instead of stringify/recreate the full Kivy tree.
+            fingerprint = tuple(
+                (item.get('role_id'),item.get('channel'),item.get('name'),
+                 item.get('text'),item.get('reply_text'))
+                for item in rows[-200:] if isinstance(item, dict))
+            key=(fingerprint, self.filter.text)
+            self.online.text = ('角色已連線' if self.d.live else '等待角色連線')
+            if key != self.key:
+                previous=getattr(self,'_previous', [])
+                was_latest=self.offset >= max(0,(len(previous)+19)//20-1)
+                self._previous=rows
+                if was_latest:
+                    self.offset=999
+                self.key=key
+                self.render()
+            return
         key = (str(self.d.data.get('chat')), self.filter.text)
         if key != self.key:
             was_latest = self.offset >= max(0, ((len(getattr(self, '_previous', []))+19)//20)-1)

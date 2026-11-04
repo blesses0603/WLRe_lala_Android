@@ -89,6 +89,45 @@ def emoji_texture(index):
     except (KeyError, OSError, ValueError): return None
 
 
+def prefetch_emoji_textures(indices):
+    """Load several preview emojis with ONE verified resource read and ZIP open.
+
+    Previously a row of seven emoji buttons reopened and SHA-256 verified
+    the entire SQLite ZIP BLOB seven times on Kivy's UI thread. Only request
+    a small set, and preserve the shared bounded texture cache.
+    """
+    catalog = emoji_entries()
+    pending = []
+    results = {}
+    for index in dict.fromkeys(indices):
+        data = catalog.get(str(index))
+        if not isinstance(data, dict) or not data.get('available', True):
+            continue
+        sprite = data.get('sprite')
+        if not isinstance(sprite, str) or not sprite:
+            continue
+        key = ('emoji_images.zip', sprite + '.png')
+        cached = _CACHE.get(key)
+        if cached is not None:
+            _CACHE.move_to_end(key)
+            results[index] = cached.texture
+        else:
+            pending.append((index, key))
+    if pending:
+        from wlre.storage.bundled_database import load_bundled_bytes
+        raw = load_bundled_bytes('emoji_images.zip', root=RESOURCE_ROOT)
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            for index, key in pending:
+                try:
+                    value = CoreImage(io.BytesIO(archive.read(key[1])), ext='png')
+                except (KeyError, OSError, ValueError):
+                    continue
+                _CACHE[key] = value
+                results[index] = value.texture
+        _trim_texture_cache()
+    return results
+
+
 # Original function pictograms are from the user-provided 1262 game atlas.
 GAME_ICONS = {
     '角色概況': 'MainIcon_041',

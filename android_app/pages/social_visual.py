@@ -6,9 +6,13 @@ No continuous animation, textures, network calls or chat commands here.
 """
 from math import cos, sin, pi
 
-from kivy.graphics import Color, Ellipse, Line, RoundedRectangle
+from kivy.graphics import (Color, Ellipse, Line, RoundedRectangle,
+                           PushMatrix, PopMatrix, Translate, Scale)
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.anchorlayout import AnchorLayout
+from kivy.uix.behaviors import ButtonBehavior
+from kivy.uix.image import Image
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
@@ -23,44 +27,52 @@ class SocialIcon(Widget):
         self.symbol, self.tint = symbol, tint
         super().__init__(size_hint=(None, None),
                          size=(dp(edge), dp(edge)), **kwargs)
-        self.bind(size=self._paint, pos=self._paint)
-        self._paint()
+        self._paint()  # Create static geometry exactly once.
+        self.bind(pos=self._sync_geometry, size=self._sync_geometry)
+        self._sync_geometry()
 
     def colorize(self, tint):
-        self.tint = tint
-        self._paint()
+        if self.tint != tint:
+            self.tint = tint
+            self._tone.rgba = tint  # No canvas.clear() or path reallocation.
 
-    def _paint(self, *_):
-        self.canvas.before.clear()
-        scale = min(self.width, self.height) / 24.0
-        ox = self.center_x - 12 * scale
-        oy = self.center_y - 12 * scale
+    def _sync_geometry(self, *_):
+        scale = max(0.01, min(self.width, self.height) / 24.0)
+        self._translate.x = self.center_x - 12 * scale
+        self._translate.y = self.center_y - 12 * scale
+        self._scale.x = scale
+        self._scale.y = scale
 
+    def _paint(self):
+        """Normalize strokes to 24 units; update only matrices on layout."""
         def p(x, y):
-            return (ox + x * scale, oy + y * scale)
+            return (x, y)
 
-        def lines(*points, closed=False, thick=1.8):
+        def lines(*points, closed=False, thick=1.10):
             coords = []
             for x, y in points:
                 coords.extend(p(x, y))
-            Line(points=coords, close=closed, width=dp(thick),
+            Line(points=coords, close=closed, width=thick,
                  joint="round", cap="round")
 
         def circ(x, y, radius, fill=False):
             px, py = p(x, y)
             if fill:
-                Ellipse(pos=(px-radius*scale,py-radius*scale),
-                        size=(2*radius*scale,2*radius*scale))
+                Ellipse(pos=(px-radius, py-radius),
+                        size=(2*radius, 2*radius))
             else:
-                Line(circle=(px,py,radius*scale),width=dp(1.8))
+                Line(circle=(px, py, radius), width=1.1)
 
         def rect(x, y, w, h, radius=2):
-            px,py = p(x,y)
-            Line(rounded_rectangle=(px,py,w*scale,h*scale,radius*scale),
-                 width=dp(1.8))
+            px, py = p(x, y)
+            Line(rounded_rectangle=(px, py, w, h, radius),
+                 width=1.1)
 
         with self.canvas.before:
-            Color(*self.tint)
+            PushMatrix()
+            self._translate = Translate()
+            self._scale = Scale()
+            self._tone = Color(*self.tint)
             symbol = self.symbol
             if symbol in ("chat", "message"):
                 rect(2, 5, 20, 16, 4)
@@ -91,15 +103,15 @@ class SocialIcon(Widget):
                 if symbol == "shield":
                     lines((12,2),(20,6),(20,18),(12,22),(4,18),(4,6),
                           (12,2),closed=True)
-                lines((6,12),(10,8),(18,17),thick=2.3)
+                lines((6,12),(10,8),(18,17),thick=1.45)
             elif symbol == "heart":
                 lines((12,3),(3,12),(3,17),(7,21),(12,18),
                       (17,21),(21,17),(21,12),(12,3),closed=True)
             elif symbol == "smile":
                 circ(12,12,10)
                 circ(8,15,1,True); circ(16,15,1,True)
-                Line(ellipse=(*p(6,7),12*scale,7*scale,180,360),
-                     width=dp(1.8))
+                Line(ellipse=(*p(6,7),12,7,180,360),
+                     width=1.1)
             elif symbol == "flame":
                 lines((12,2),(6,6),(4,11),(7,15),(10,20),
                       (10,14),(15,21),(20,13),(19,7),(12,2),closed=True)
@@ -113,9 +125,9 @@ class SocialIcon(Widget):
                 lines((2,7),(22,7),(19,20),(13,13),(8,20),
                       (5,13),(2,7),closed=True)
             elif symbol in ("chevron", "arrow"):
-                lines((6,16),(12,9),(18,16),thick=2.3)
+                lines((6,16),(12,9),(18,16),thick=1.45)
             elif symbol == "refresh":
-                Line(circle=(*p(12,12),8*scale,40,315),width=dp(2))
+                Line(circle=(*p(12,12),8,40,315),width=1.25)
                 lines((18,19),(20,18),(20,12))
             elif symbol == "list":
                 for y in (6,12,18):
@@ -154,6 +166,7 @@ class SocialIcon(Widget):
             else:
                 circ(12,12,9)
 
+            PopMatrix()
 
 def caption(text, *, size='12sp', color=MUTED, height=28, bold=False):
     view = Label(text=str(text), font_size=size, color=color,
@@ -176,7 +189,8 @@ class SocialButton(Button):
         self.font_size=font
         self.halign='center'
         self.valign='middle'
-        self.glyph=SocialIcon(icon, edge=19)
+        self.padding_x = dp(23) if title else 0
+        self.glyph=SocialIcon(icon, edge=17)
         self.add_widget(self.glyph)
         self.bind(pos=self._place_glyph, size=self._place_glyph)
         self.bind(on_release=lambda *_: callback())
@@ -184,10 +198,22 @@ class SocialButton(Button):
 
     def _place_glyph(self, *_):
         self.glyph.pos=(self.center_x-self.glyph.width/2
-                        if not self.text else self.x+dp(6),
+                        if not self.text else self.x+dp(7),
                         self.center_y-self.glyph.height/2)
-        self.text_size=(max(0,self.width-dp(16)),self.height)
+        self.text_size=(max(0,self.width-dp(27 if self.text else 8)),self.height)
 
+
+
+class EmojiQuickButton(ButtonBehavior, AnchorLayout):
+    """Game emoji stays centered and clipped to its own touch-friendly cell."""
+
+    def __init__(self, texture, callback, **kwargs):
+        super().__init__(size_hint_y=None, height=dp(35), **kwargs)
+        neon_surface(self, color=SOFT, radius=11, border=BORDER)
+        self.sprite = Image(texture=texture, size_hint=(None, None),
+                            size=(dp(24), dp(24)), fit_mode='contain')
+        self.add_widget(self.sprite)
+        self.bind(on_release=lambda *_: callback())
 
 def heading(title, *, icon='chat', subtitle=None, color=TEXT):
     panel=BoxLayout(orientation='horizontal',size_hint_y=None,

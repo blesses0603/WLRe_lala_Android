@@ -69,9 +69,9 @@ class SocialScreenshotContracts(unittest.TestCase):
         self.assertIn("if getattr(self, 'compact', False):",sources)
 
     def test_version_changed_only_android(self):
-        self.assertIn('ANDROID_VERSION = "7.1.20"',
+        self.assertIn('ANDROID_VERSION = "7.1.21"',
                       code("android_app/version.py"))
-        self.assertIn("version = 7.1.20",code("buildozer.spec"))
+        self.assertIn("version = 7.1.21",code("buildozer.spec"))
 
 
 HAS_KIVY = importlib.util.find_spec("kivy") is not None

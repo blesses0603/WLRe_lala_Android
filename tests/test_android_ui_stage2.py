@@ -36,8 +36,10 @@ class StageTwoOfflineTests(unittest.TestCase):
         sources = {p: source(p) for p in PAGES}
         for command in ("type='automatic_flows'", "type='tent'"):
             self.assertIn(command, sources['general'])
-        for gate in ("current.get('item_id') != record.get('item_id')",
+        for gate in ("record.get('item_id') != item_id",
                      "self.d.live", "read_only", "learned_command",
+                     "def _selected_snapshot(self):",
+                     "fresh['available'] <= 0",
                      "food_command", "battle_guard"):
             self.assertIn(gate, sources['resources'])
         for command in ("type='walk'", "type='portal_walk'",

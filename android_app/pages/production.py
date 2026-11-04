@@ -368,7 +368,7 @@ class Crafting(Page):
             tools_row.add_widget(action_button(
                 '自訂清單', self.plan, height=37))
             tools_row.add_widget(action_button(
-                '進入自家帳篷',
+                '進入帳篷',
                 lambda: d.send(dict(type='craft', action='enter')),
                 height=37))
             browse.add_widget(tools_row)
@@ -508,6 +508,14 @@ class Crafting(Page):
             self.catalog.add_widget(label(
                 '沒有符合條件的配方，請調整搜尋或設備篩選。',
                 60 if self.compact else None))
+        if self.compact:
+            # The target's first recipe is visually selected by default.
+            # This is a read-only preview, NEVER a craft enqueue action.
+            visible = recipes[self.offset*6:self.offset*6+6]
+            if not visible:
+                self.selected = None
+            elif self.selected not in {row['item_id'] for row in visible}:
+                self.selected = visible[0]['item_id']
         for recipe in recipes[self.offset*6:self.offset*6+6]:
             sid = recipe['item_id']; status, _ = availability(s, recipe)
             if self.compact:
@@ -516,7 +524,7 @@ class Crafting(Page):
                     status + ' · ' + item_name(recipe['tool_id']),
                     self.preview_recipe, favorite=sid in favorites,
                     icon_factory=lambda item_id:
-                        item_image(item_id, size=45))
+                        item_image(item_id, size=39))
                 card.set_selected(sid == self.selected)
             else:
                 # Standalone production list retains its original full rows.
@@ -544,6 +552,11 @@ class Crafting(Page):
                 card.add_widget(action)
             self.catalog.add_widget(card)
         self.queue_info.text = craft.get('status', '等待排程同步')+f"\n完成 {craft.get('completed',0)} 項｜伺服器排程 {len(craft.get('queue',{}))} 項"
+        if self.compact and not craft.get('queue'):
+            self.queue.add_widget(tiny_label(
+                '目前沒有製作排程' if craft.get('ready')
+                else '等待伺服器排程同步',
+                height=30, font_size='12sp', color=MUTED))
         for value in sorted(craft.get('queue', {}).values(), key=lambda r: r['index']):
             sid = value['item_id']; index = value['index']
             seconds = effective_time(s, value)
@@ -564,13 +577,14 @@ class Crafting(Page):
                 self.queue.add_widget(label(f"#{index} {item_name(sid)} ×{value['count']} · 剩餘 {duration(remaining)}"))
                 self.queue.add_widget(row(*(button(text, lambda action=action, i=index: self.queue_action(action, i))
                     for text, action in (('上移','up'),('下移','down'),('刪除','delete')))))
-        if self.compact and self.selected is not None:
+        if self.compact:
             self._render_preview()
 
     def preview_recipe(self, recipe):
         """Preview only. Never sends a craft/add/plan command."""
         self.selected = recipe['item_id']
         if self.compact:
+            self.preview_quantity.text = '1'
             for widget in self.catalog.children:
                 if isinstance(widget, RecipeRow):
                     widget.set_selected(widget.item_id == self.selected)
@@ -584,16 +598,27 @@ class Crafting(Page):
             self.selected = None
             self.preview_icon_id = None
             self.preview_image.clear_widgets()
-            self.preview_info.text = '未選取已確認開放的配方'
+            self.preview_info.text = '請從左側選擇配方，查看設備與材料需求'
             self.preview_action.disabled = True
             self.preview_ingredients.clear_widgets()
+            self.preview_ingredients.add_widget(tiny_label(
+                '尚未選取已確認配方', height=28, color=MUTED))
+            return
+        try:
+            batch_count = int(self.preview_quantity.text)
+            if batch_count < 1:
+                raise ValueError('批數應至少為 1')
+        except (ValueError, TypeError):
+            self.preview_action.disabled = True
+            self.preview_ingredients.clear_widgets()
+            self.preview_info.text = '請輸入有效製作批數，再查看實際材料需求'
             return
         sid = recipe['item_id']
-        status, reason = availability(self.state, recipe)
-        requirements = material_rows(self.state, recipe, 1)
+        status, reason = availability(self.state, recipe, batch_count)
+        requirements = material_rows(self.state, recipe, batch_count)
         lines = [
             '{}（ID {}）'.format(item_name(sid), sid),
-            '產量 {}｜製作時間 {}'.format(
+            '每批產量 {}｜單批時間 {}'.format(
                 recipe['output'], duration(recipe['seconds'])),
             '設備：{} · {}'.format(
                 item_name(recipe['tool_id']),
@@ -620,12 +645,22 @@ class Crafting(Page):
             self._render_preview()
             self.d.message.text = '此配方已更新或尚未確認開放，請重新選取'
             return
-        self.recipe(recipe)
+        try:
+            amount = int(self.preview_quantity.text)
+            if amount < 1:
+                raise ValueError()
+        except (ValueError, TypeError):
+            self.preview_action.disabled = True
+            self.d.message.text = '請輸入有效製作批數'
+            return
+        # Pass the visible draft to the ORIGINAL confirmation dialog.
+        # The final recipe_plan is still executed at the point of enqueue.
+        self.recipe(recipe, initial_count=amount)
 
     def queue_action(self, action, index):
         self.d.send(dict(type='craft', action=action, index=index, revision=self.state.get('crafting', {}).get('revision')),
                     '確認移除排程？材料是否退還依伺服器規則。' if action == 'delete' else None)
-    def recipe(self, recipe):
+    def recipe(self, recipe, initial_count=1):
         sid = recipe['item_id']; body = column(); body.add_widget(item_image(sid, 64))
         status, reason = availability(self.state, recipe)
         counts = owned_counts(self.state, sid)
@@ -633,7 +668,7 @@ class Crafting(Page):
             f"設備：{item_name(recipe['tool_id'])} · {tool_status(self.state, recipe['tool_id'])}\n"+
             '背包 {}｜已擺 {}｜保管 {}｜排程產出 {}'.format(*(counts[k] if counts[k] is not None else '待同步' for k in ('bag','placed','stored','queued')))+
             '\n'+status+'：'+reason))
-        count = field(body, '批數', 1, True); materials = label(); body.add_widget(materials)
+        count = field(body, '批數', initial_count, True); materials = label(); body.add_widget(materials)
         def refresh(*_):
             try:
                 number = int(count.text)

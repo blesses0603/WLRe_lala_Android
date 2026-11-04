@@ -175,11 +175,11 @@ class ExpeditionAndInstances(PairedFeatures):
 
 
 class AlchemyAndCrafting(Page):
-    """One actual workbench, not two complete pages inside nested cards.
+    """Alchemy, recipe browser, detail preview and server queue on one page.
 
-    Switching between the two functional areas does not recreate the Kivy
-    controls: local material selections, counts and recipe filters survive.
-    Only the selected area refreshes on dashboard polling.
+    This is a single scrolling workspace, as in the supplied reference
+    design. No tabs hide one of the two functions. Both reuse their verified
+    controllers; choosing ingredients and previewing recipes sends nothing.
     """
 
     WORK_AREAS = (
@@ -188,91 +188,40 @@ class AlchemyAndCrafting(Page):
     )
 
     def __init__(self, d):
-        # Dashboard already shows the selected feature name in its chooser.
-        # Avoid repeating that heading inside another bordered feature page.
+        # Dashboard already displays the selected feature name. Retain only
+        # one shell so the full workbench is visible without nested frames.
         super().__init__(d, show_title=False)
         self.pair_name = '煉金＋製作'
-        self.active = None
         self.sections = {}
-
-        self.alchemy_tab = button(
-            '煉金材料', lambda: self.select('煉金'), 48)
-        self.crafting_tab = button(
-            '製作配方', lambda: self.select('製作工坊'), 48)
-        self.switcher = row(self.alchemy_tab, self.crafting_tab)
-        self.tab_buttons = {
-            '煉金': self.alchemy_tab, '製作工坊': self.crafting_tab}
-        self.add_widget(self.switcher)
-        self.note = status_line(
-            '選取材料與配方不會自動送出；消耗及排程需明確確認')
-        self.note.font_size = '12sp'
-        self.add_widget(self.note)
-
         self.workbench = BoxLayout(
-            orientation='vertical', spacing=dp(6), size_hint_y=None)
+            orientation='vertical', spacing=dp(10), size_hint_y=None)
         self.workbench.bind(
             minimum_height=self.workbench.setter('height'))
         self.add_widget(self.workbench)
 
+        module = import_module('android_app.pages.production')
         for title, cls_name in self.WORK_AREAS:
-            slot = BoxLayout(
-                orientation='vertical', size_hint_y=None)
-            slot.bind(minimum_height=slot.setter('height'))
-            self.sections[title] = {
-                'class': cls_name, 'slot': slot,
-                'view': None, 'expanded': False,
-            }
-
-        self.select('煉金')
-
-    def select(self, title):
-        """Switch panels locally without triggering a gameplay command."""
-        if title == self.active:
-            return
-        previous = self.active
-        if previous is not None:
-            old = self.sections[previous]
-            pause = getattr(old['view'], 'pause_render', None)
-            if callable(pause):
-                pause()
-            self.workbench.remove_widget(old['slot'])
-            old['expanded'] = False
-
-        section = self.sections[title]
-        if section['view'] is None:
-            module = import_module('android_app.pages.production')
-            page_type = getattr(module, section['class'])
-            # These controllers have the original alchemy/crafting validation.
-            # Embedded mode only changes visual framing, not command behavior.
             proxy = _SectionDashboard(self.d, '')
-            section['view'] = page_type(proxy, compact=True)
-            section['slot'].add_widget(section['view'])
-
-        self.workbench.add_widget(section['slot'])
-        section['expanded'] = True
-        self.active = title
-        for key, control in self.tab_buttons.items():
-            style_button(control, primary=key == title)
-        self.note.text = (
-            '五格材料及每次數量；送出前預覽消耗'
-            if title == '煉金' else
-            '已確認配方與材料需求；加入排程需再次確認')
-        section['view'].refresh()
-
-    def expand(self, title):
-        self.select(title)
-
-    def toggle(self, title):
-        self.select(title)
+            view = getattr(module, cls_name)(proxy, compact=True)
+            self.sections[title] = {
+                'class': cls_name, 'view': view, 'expanded': True,
+            }
+            # Alchemy above, crafting catalog/details/queue below.
+            self.workbench.add_widget(view)
+        self.refresh()
 
     def refresh(self):
-        if self.active is not None:
-            self.sections[self.active]['view'].refresh()
+        for section in self.sections.values():
+            section['view'].refresh()
+
+    def expand(self, title):
+        # Both work areas are already visible; retain a safe compatibility
+        # method for any previously wired navigation callback.
+        if title not in self.sections:
+            raise KeyError(title)
 
     def close(self):
         for section in self.sections.values():
-            view = section['view']
-            if view is not None:
-                close = getattr(view, 'close', None)
-                if callable(close):
-                    close()
+            close = getattr(section['view'], 'close', None)
+            if callable(close):
+                close()

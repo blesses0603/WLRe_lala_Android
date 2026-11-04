@@ -13,8 +13,11 @@ from android_app.ui_shell import BrandHeader, NavigationDock
 from android_app.theme import TEXT, SURFACE, ACCENT, MUTED, SOFT, surface, neon_surface, style_button
 from android_app.refresh_policy import RefreshPolicy
 
-PAGES = ('角色概況', '包包與特技', '小地圖', '戰場陣形', '聊天', '組隊',
-         '夥伴出戰', '遠征', '副本資料', '角色能力', '煉金', '製作', '經驗效率', '事件紀錄', 'AI與補給設定', 'NPC', '儲藏存取', '福利')
+PAGES = ('角色概況', '包包與特技', '小地圖', '戰場陣形',
+         '聊天＋組隊', '遠征＋副本', '煉金＋製作',
+         '聊天', '組隊', '夥伴出戰', '遠征', '副本資料',
+         '角色能力', '煉金', '製作', '經驗效率', '事件紀錄',
+         'AI與補給設定', 'NPC', '儲藏存取', '福利')
 
 # Lazy imports: importing every page on the first tab switch pulls in maps,
 # resource catalogs and image helpers on the Kivy UI thread.
@@ -23,6 +26,9 @@ _PAGE_IMPL = {
     '包包與特技': ('resources', 'Resources'),
     '小地圖': ('map', 'MapPage'),
     '戰場陣形': ('resources', 'Battle'),
+    '聊天＋組隊': ('combined', 'ChatAndParty'),
+    '遠征＋副本': ('combined', 'ExpeditionAndInstances'),
+    '煉金＋製作': ('combined', 'AlchemyAndCrafting'),
     '聊天': ('social', 'Chat'),
     '組隊': ('social', 'Party'),
     '夥伴出戰': ('companions', 'Companions'),
@@ -154,8 +160,8 @@ class Dashboard:
         if not getattr(self.app.manager, 'available', True):
             self.brand.set_verified(False)
             self.status.text = '服務失聯，資料為最後同步內容；操作已停用'
-            if self.page_name == '聊天' and self.page:
-                self.page.refresh()  # Clear pending without discarding draft.
+            if self.page_name in ('聊天', '聊天＋組隊') and self.page:
+                self.page.refresh()  # Resolve pending chat without discarding drafts.
             return True
         manager = self.app.manager
         revisions = getattr(manager, 'detail_revisions', None)
@@ -190,7 +196,12 @@ class Dashboard:
         return True
 
     def chat_ack(self, value):
-        if '聊天' in self.views: self.views['聊天'][0].ack(value)
+        # Receipts are keyed by request_id. Both standalone and paired views
+        # must receive their own result without inventing a delivery status.
+        if '聊天' in self.views:
+            self.views['聊天'][0].ack(value)
+        if '聊天＋組隊' in self.views:
+            self.views['聊天＋組隊'][0].chat_ack(value)
 
     def close(self): self.popup.dismiss()
 

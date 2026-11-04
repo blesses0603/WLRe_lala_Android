@@ -47,9 +47,9 @@ def feature_card(title, subtitle='', *, variant='normal', show_icon=True):
     shade = SOFT if variant == 'highlight' else SURFACE
     neon_surface(panel, color=shade, border=BORDER, radius=20,
                  bright=variant == 'highlight')
-    panel.add_widget(section_title(
-        title, subtitle, icon=CARD_SYMBOLS.get(title, '✧'),
-        show_icon=show_icon))
+    panel.add_widget(section_title(title, subtitle,
+                                   icon=CARD_SYMBOLS.get(title, '✧'),
+                                   show_icon=show_icon))
     return panel
 
 

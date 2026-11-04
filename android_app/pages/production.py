@@ -22,7 +22,7 @@ from wlre.core.efficiency import duration
 
 class Alchemy(Page):
     def __init__(self, d, compact=False):
-        super().__init__(d)
+        super().__init__(d, embedded=compact)
         self.compact = compact
         self.material_icons = {}
         from android_app.pages.ui_components import feature_card, status_line
@@ -30,45 +30,61 @@ class Alchemy(Page):
 
         setup = feature_card('煉金設定',
                              '模式與次數必須由原有煉金核心驗證')
-        self.mode = select(setup, '煉金術', ['無技能'])
-        self.runs = field(setup, '執行次數（1～999）', 1, True)
-        self.add_widget(setup)
+        if compact:
+            # Adjacent controls consume one short row instead of two stacked
+            # full-width forms on an actual narrow phone.
+            controls = BoxLayout(
+                orientation='horizontal', spacing=dp(8),
+                size_hint_y=None, height=dp(94))
+            mode_box = BoxLayout(orientation='vertical')
+            count_box = BoxLayout(orientation='vertical')
+            self.mode = select(mode_box, '煉金術', ['無技能'])
+            self.runs = field(count_box, '執行次數', 1, True)
+            self.mode.font_size = self.runs.font_size = '13sp'
+            controls.add_widget(mode_box)
+            controls.add_widget(count_box)
+            setup.add_widget(controls)
+        else:
+            self.mode = select(setup, '煉金術', ['無技能'])
+            self.runs = field(setup, '執行次數（1～999）', 1, True)
+            self.add_widget(setup)
 
         materials = feature_card(
             '材料槽位',
             '五格顯示背包已選材料；每次數量為本地草稿，確認後才送出')
         self.slots = []
         if compact:
-            # A real icon tray, rather than five full-height nested forms.
-            # On a narrow 320dp screen, tiles wrap to two columns.
+            # Show the actual material slots before setup inputs. Three
+            # columns fit a 320dp viewport without five full nested forms.
             self.material_grid = GridLayout(
-                cols=2, spacing=dp(6), size_hint_y=None,
-                row_default_height=dp(184), row_force_default=True)
+                cols=3, spacing=dp(5), size_hint_y=None,
+                row_default_height=dp(148), row_force_default=True)
             self.material_grid.bind(
                 minimum_height=self.material_grid.setter('height'))
             self.material_grid.bind(
                 width=lambda grid, width: setattr(
-                    grid, 'cols', 2 if width < dp(285) else 3))
+                    grid, 'cols', 2 if width < dp(245) else 3))
             for index in range(5):
                 tile = surface(BoxLayout(
                     orientation='vertical', spacing=dp(3),
                     padding=[dp(5), dp(5), dp(5), dp(5)],
-                    size_hint_y=None, height=dp(184)),
+                    size_hint_y=None, height=dp(148)),
                     color=SOFT, radius=13)
-                icon = AnchorLayout(size_hint_y=None, height=dp(58))
+                icon = AnchorLayout(size_hint_y=None, height=dp(48))
                 self.material_icons[index] = icon
                 tile.add_widget(icon)
-                control = button('選擇材料 {}'.format(index+1),
-                                 lambda i=index: self.choose(i), 42)
-                control.font_size = '12sp'
+                control = button('材料 {}'.format(index+1),
+                                 lambda i=index: self.choose(i), 38)
+                control.font_size = '11sp'
+                control.shorten = True
                 tile.add_widget(control)
                 tile.add_widget(Label(
-                    text='每次數量', color=MUTED, font_size='11sp',
-                    size_hint_y=None, height=dp(18)))
+                    text='每次數量', color=MUTED, font_size='10sp',
+                    size_hint_y=None, height=dp(16)))
                 count = style_input(TextInput(
                     text='1', multiline=False, input_filter='int',
                     input_type='number', font_size='14sp',
-                    size_hint_y=None, height=dp(42)))
+                    size_hint_y=None, height=dp(36)))
                 tile.add_widget(count)
                 self.slots.append((control, count))
                 self.material_grid.add_widget(tile)
@@ -85,6 +101,10 @@ class Alchemy(Page):
                 self.slots.append((control, count))
                 materials.add_widget(slot)
         self.add_widget(materials)
+        if compact:
+            # The original order buried the material tray below a long
+            # settings form. Keep five actionable slots visible first.
+            self.add_widget(setup)
 
         actions = feature_card('煉金佇列與執行',
                                '預覽本次總消耗，確認後才送出')
@@ -105,12 +125,12 @@ class Alchemy(Page):
             holder.add_widget(Label(
                 text='＋', color=ACCENT, font_size='28sp'))
         else:
-            holder.add_widget(item_image(value['item_id'], size=50))
+            holder.add_widget(item_image(value['item_id'], size=42))
 
     def clear(self):
         self.materials = [None]*5
         for i, (b, _) in enumerate(self.slots):
-            b.text = ('選擇材料 {}'.format(i+1) if self.compact
+            b.text = ('材料 {}'.format(i+1) if self.compact
                       else f'材料 {i+1}：選擇')
             self._show_material_icon(i, None)
     def choose(self, index):
@@ -121,9 +141,8 @@ class Alchemy(Page):
         self.materials[index] = value
         if self.compact:
             self.slots[index][0].text = (
-                '格位 #{} {}'.format(value['index'],
-                    item_name(value['item_id'])) if value
-                else '選擇材料 {}'.format(index+1))
+                '格位 #{}'.format(value['index']) if value
+                else '材料 {}'.format(index+1))
             self._show_material_icon(index, value)
         else:
             self.slots[index][0].text = f'材料 {index+1}：'+(f"#{value['index']} {item_name(value['item_id'])}" if value else '選擇')
@@ -150,7 +169,7 @@ class Alchemy(Page):
 
 class Crafting(Page):
     def __init__(self, d, compact=False):
-        super().__init__(d)
+        super().__init__(d, embedded=compact)
         self.compact = compact
         self.preview_icon_id = None
         from android_app.pages.ui_components import feature_card, status_line

@@ -27,8 +27,9 @@ class BagLoadOffline(unittest.TestCase):
             self.assertIn(token, source)
         self.assertIn("with zipfile.ZipFile(", assets)
         self.assertIn("def prefetch_item_icons(item_ids):", assets)
-        for token in ("current.get('item_id') != record.get('item_id')",
-                      "read_only", "self.d.live", "learned_command"):
+        for token in ("record.get('item_id') != item_id",
+                      "read_only", "self.d.live", "learned_command",
+                      "fresh['available'] <= 0", "still_read_only"):
             self.assertIn(token, source)
 
 

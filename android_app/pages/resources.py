@@ -259,17 +259,32 @@ class Resources(Page):
 
 class Battle(Page):
     def __init__(self, d):
-        super().__init__(d); self.target = None; self.modes = {}
-        self.info = label(); self.add_widget(self.info)
-        self.grid = GridLayout(cols=4, spacing=dp(3), size_hint_y=None, height=dp(340)); self.add_widget(self.grid)
+        super().__init__(d)
+        from android_app.pages.ui_components import feature_card, status_line
+        self.target = None
+        self.modes = {}
+        panel = feature_card('戰場陣形', '點選我方單位設定行動；敵方單位指定目標',
+                             variant='highlight')
+        self.info = status_line('等待戰場資料同步')
+        panel.add_widget(self.info)
+        self.grid = GridLayout(cols=4, spacing=dp(3),
+                               size_hint_y=None, height=dp(340))
+        panel.add_widget(self.grid)
         self.buttons = {}
         for r in range(1, 5):
             for c in range(1, 5):
                 key = f'{c}:{r}'
                 b = button(key+' 空位', lambda k=key: self.choose(k), 82)
-                self.grid.add_widget(b); self.buttons[key] = b
-        self.actions = column(); self.add_widget(self.actions)
-        self.add_widget(button('本回合送出角色／夥伴指令', self.submit))
+                self.grid.add_widget(b)
+                self.buttons[key] = b
+        self.add_widget(panel)
+        command_panel = feature_card('本回合行動',
+                                     '伺服器確認前不推定命令已執行')
+        self.actions = column()
+        command_panel.add_widget(self.actions)
+        command_panel.add_widget(button(
+            '本回合送出角色／夥伴指令', self.submit, 56))
+        self.add_widget(command_panel)
     def choose(self, key):
         unit = self.state.get('battle_units', {}).get(key)
         if not unit: return
@@ -293,7 +308,8 @@ class Battle(Page):
             status = '已離場' if u.get('exited') else '已陣亡' if u.get('hp', 0) <= 0 else f"{u.get('hp', '—')}/{u.get('max_hp', '—')}"
             name = u.get('name', '?'); element = {0:'無',1:'地',2:'水',3:'火',4:'風'}.get(u.get('element'), '?')
             view.text = ('◎ ' if self.target == key else '')+element+' '+name+'\n'+status
-            view.background_color = (.3,.55,.65,1) if self.target == key else (.6,.7,.8,1)
+            from android_app.theme import style_button
+            style_button(view, primary=self.target == key)
         key = (str(units), str(self.modes), str(battle.get('commands')))
         if key != self.key:
             self.key = key; self.actions.clear_widgets()

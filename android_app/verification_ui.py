@@ -123,7 +123,7 @@ class CosmicHeader(FloatLayout):
     """Mascot, castle, cosmic rings and a live status badge."""
 
     def __init__(self, **kwargs):
-        super().__init__(size_hint_y=None, height=dp(124), **kwargs)
+        super().__init__(size_hint_y=None, height=dp(105), **kwargs)
         with self.canvas.before:
             Color(*_SKY)
             self.back = RoundedRectangle(radius=[dp(23)])
@@ -218,7 +218,7 @@ class CheckRow(BoxLayout):
 
     def __init__(self, key, title, description, symbol, **kwargs):
         super().__init__(orientation='horizontal', size_hint_y=None,
-                         height=dp(42), spacing=dp(4),
+                         height=dp(34), spacing=dp(3),
                          padding=[dp(8), dp(4), dp(8), dp(4)], **kwargs)
         glow_panel(self, fill=_INNER, radius=13)
         self.mark = NeonGlyph(symbol, edge=23)
@@ -314,12 +314,12 @@ class VerificationDashboard(BoxLayout):
             '首次啟動先核對官方版本、雙 Manifest、必要 Bundle、'
             '完整 Runtime 與 SQLite 資料庫。通過前不顯示帳號登入介面；'
             '所有項目通過後，請手動點選「進入帳號登入」。',
-            size='11sp', height=58), minimum=58)
+            size='11sp', height=49), minimum=49)
         inspection.add_widget(self.caption)
 
         track=BoxLayout(orientation='horizontal', size_hint_y=None,
-                        height=dp(7*42+6*4), spacing=dp(5))
-        self.rail=VerificationRail(size_hint_y=None, height=dp(7*42+6*4))
+                        height=dp(7*34+6*3), spacing=dp(5))
+        self.rail=VerificationRail(size_hint_y=None, height=dp(7*34+6*3))
         track.add_widget(self.rail)
         steps_box=BoxLayout(orientation='vertical', spacing=dp(4))
         self.rows={}

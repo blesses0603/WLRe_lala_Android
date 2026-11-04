@@ -195,11 +195,13 @@ class AlchemyAndCrafting(Page):
         self.active = None
         self.sections = {}
 
-        self.switcher = row(
-            button('煉金材料', lambda: self.select('煉金'), 48),
-            button('製作配方', lambda: self.select('製作工坊'), 48))
-        self.tab_buttons = dict(zip(
-            ('煉金', '製作工坊'), reversed(self.switcher.children)))
+        self.alchemy_tab = button(
+            '煉金材料', lambda: self.select('煉金'), 48)
+        self.crafting_tab = button(
+            '製作配方', lambda: self.select('製作工坊'), 48)
+        self.switcher = row(self.alchemy_tab, self.crafting_tab)
+        self.tab_buttons = {
+            '煉金': self.alchemy_tab, '製作工坊': self.crafting_tab}
         self.add_widget(self.switcher)
         self.note = status_line(
             '選取材料與配方不會自動送出；消耗及排程需明確確認')

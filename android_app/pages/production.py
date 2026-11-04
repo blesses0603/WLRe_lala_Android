@@ -155,8 +155,17 @@ class Alchemy(Page):
             button('清空材料', self.clear)))
         if compact:
             workbench.add_widget(actions)
+            self.mode.bind(text=lambda *_: self._invalidate_preview())
+            self.runs.bind(text=lambda *_: self._invalidate_preview())
+            for _, count in self.slots:
+                count.bind(text=lambda *_: self._invalidate_preview())
         else:
             self.add_widget(actions)
+
+    def _invalidate_preview(self):
+        if self.compact:
+            self.cost_preview.text = '材料或設定有變更，請重新預覽消耗'
+
     def _show_material_icon(self, index, value):
         """Only a selected, server-sourced item receives an original sprite."""
         if not self.compact:
@@ -176,6 +185,7 @@ class Alchemy(Page):
                       else f'材料 {i+1}：選擇')
             self._show_material_icon(i, None)
         self._update_material_status()
+        self._invalidate_preview()
     def _update_material_status(self):
         if self.compact:
             count = sum(value is not None for value in self.materials)
@@ -192,6 +202,7 @@ class Alchemy(Page):
                 else '材料 {}'.format(index+1))
             self._show_material_icon(index, value)
             self._update_material_status()
+            self._invalidate_preview()
         else:
             self.slots[index][0].text = f'材料 {index+1}：'+(f"#{value['index']} {item_name(value['item_id'])}" if value else '選擇')
     def set_runs(self, value):

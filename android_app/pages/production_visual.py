@@ -73,11 +73,13 @@ class AlchemyLevelBar(BoxLayout):
     skills cannot be selected just because a mockup contains that button.
     """
 
+    # Four visible grades replace mockup's unsupported three mode labels.
+    # The left side must remain the real server/core mode string.
     LEVELS = (
-        ('無技能', '無技能'),
-        ('一般', '初級'),
-        ('中階', '中級'),
-        ('高階', '高級'),
+        ('無技能', '無煉金術'),
+        ('一般', '初級煉金術'),
+        ('中階', '中級煉金術'),
+        ('高階', '高級煉金術'),
     )
 
     def __init__(self, on_choose):

@@ -52,6 +52,12 @@ class Alchemy(Page):
             controls.add_widget(mode_box)
             controls.add_widget(count_box)
             setup.add_widget(controls)
+            setup.add_widget(row(
+                button('－', lambda: self.adjust_runs(-1)),
+                button('＋', lambda: self.adjust_runs(1)),
+                button('10 次', lambda: self.set_runs(10)),
+                button('50 次', lambda: self.set_runs(50)),
+                button('100 次', lambda: self.set_runs(100))))
         else:
             self.mode = select(setup, '煉金術', ['無技能'])
             self.runs = field(setup, '執行次數（1～999）', 1, True)
@@ -78,7 +84,9 @@ class Alchemy(Page):
                 minimum_height=self.material_grid.setter('height'))
             self.material_grid.bind(
                 width=lambda grid, width: setattr(
-                    grid, 'cols', 2 if width < dp(245) else 3))
+                    grid, 'cols', (
+                        2 if width < dp(245) else
+                        3 if width < dp(342) else 5)))
             for index in range(5):
                 tile = surface(BoxLayout(
                     orientation='vertical', spacing=dp(3),
@@ -133,7 +141,15 @@ class Alchemy(Page):
                                    '預覽本次總消耗，確認後才送出')
         self.info = status_line('等待煉金狀態同步')
         actions.add_widget(self.info)
-        actions.add_widget(button('預覽消耗／開始連續煉金', self.begin, 56))
+        if compact:
+            self.cost_preview = status_line('尚未預覽材料消耗')
+            actions.add_widget(self.cost_preview)
+            actions.add_widget(row(
+                button('預覽消耗', self.preview_cost),
+                button('開始連續煉金', self.begin)))
+        else:
+            actions.add_widget(button(
+                '預覽消耗／開始連續煉金', self.begin, 56))
         actions.add_widget(row(
             button('停止後續煉金', lambda: d.send({'type':'stop_alchemy'})),
             button('清空材料', self.clear)))
@@ -178,17 +194,51 @@ class Alchemy(Page):
             self._update_material_status()
         else:
             self.slots[index][0].text = f'材料 {index+1}：'+(f"#{value['index']} {item_name(value['item_id'])}" if value else '選擇')
+    def set_runs(self, value):
+        # A UI shortcut, never a server command. The original core still
+        # validates 1–999 as part of prepare().
+        if not self.runs.disabled:
+            self.runs.text = str(max(1, min(999, int(value))))
+
+    def adjust_runs(self, delta):
+        try:
+            count = int(self.runs.text)
+        except (ValueError, TypeError):
+            count = 1
+        self.set_runs(count + delta)
+
+    def _current_plan(self):
+        command = dict(
+            type='start_alchemy', mode=self.mode.text,
+            runs=int(self.runs.text), materials=[
+                dict(index=v['index'], item_id=v['item_id'],
+                     count=int(self.slots[i][1].text))
+                for i, v in enumerate(self.materials) if v])
+        state = SimpleNamespace(**self.state)
+        state.snapshot = lambda: self.state
+        plan = prepare(state, command)
+        summary = (
+            f"{plan['mode']}煉金，共 {plan['runs']} 次\n" +
+            '\n'.join(
+                f"#{v['index']} {item_name(v['item_id'])} "
+                f"每次 {v['count']}，共消耗 {v['count']*plan['runs']}"
+                for v in plan['consumption']))
+        return command, summary
+
+    def preview_cost(self):
+        try:
+            _, summary = self._current_plan()
+            if self.compact:
+                self.cost_preview.text = summary + '\n僅供預覽，尚未發送'
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            self.d.message.text = str(exc)
+
     def begin(self):
         try:
-            command = dict(type='start_alchemy', mode=self.mode.text, runs=int(self.runs.text), materials=[
-                dict(index=v['index'], item_id=v['item_id'], count=int(self.slots[i][1].text))
-                for i, v in enumerate(self.materials) if v])
-            state = SimpleNamespace(**self.state); state.snapshot = lambda: self.state
-            plan = prepare(state, command)
-            text = f"{plan['mode']}煉金，共 {plan['runs']} 次\n"+'\n'.join(
-                f"#{v['index']} {item_name(v['item_id'])} 每次 {v['count']}，共消耗 {v['count']*plan['runs']}" for v in plan['consumption'])
+            command, text = self._current_plan()
             self.d.send(command, text+'\n\n確認消耗材料並開始？')
-        except (ValueError, KeyError, TypeError, AttributeError) as exc: self.d.message.text = str(exc)
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            self.d.message.text = str(exc)
     def refresh(self):
         options = modes(self.state); self.mode.values = options
         if self.mode.text not in options and options: self.mode.text = options[-1]

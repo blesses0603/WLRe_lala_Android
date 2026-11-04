@@ -28,9 +28,16 @@ class Alchemy(Page):
         from android_app.pages.ui_components import feature_card, status_line
         self.materials = [None]*5
 
-        setup = feature_card('煉金設定',
-                             '模式與次數必須由原有煉金核心驗證',
-                             show_icon=not compact)
+        workbench = (feature_card(
+            '煉金 (Alchemy)', '選取已確認的材料，預覽消耗後手動開始',
+            show_icon=False) if compact else None)
+        if compact:
+            setup = BoxLayout(
+                orientation='vertical', spacing=dp(5), size_hint_y=None)
+            setup.bind(minimum_height=setup.setter('height'))
+        else:
+            setup = feature_card('煉金設定',
+                                 '模式與次數必須由原有煉金核心驗證')
         if compact:
             # Adjacent controls consume one short row instead of two stacked
             # full-width forms on an actual narrow phone.
@@ -50,10 +57,16 @@ class Alchemy(Page):
             self.runs = field(setup, '執行次數（1～999）', 1, True)
             self.add_widget(setup)
 
-        materials = feature_card(
-            '材料槽位',
-            '五格顯示背包已選材料；每次數量為本地草稿，確認後才送出',
-            show_icon=not compact)
+        if compact:
+            materials = BoxLayout(
+                orientation='vertical', spacing=dp(5), size_hint_y=None)
+            materials.bind(minimum_height=materials.setter('height'))
+            self.material_status = status_line('煉金材料：0／5 格')
+            materials.add_widget(self.material_status)
+        else:
+            materials = feature_card(
+                '材料槽位',
+                '五個來源格位；僅使用已確認且未受限制的背包物品')
         self.slots = []
         if compact:
             # Show the actual material slots before setup inputs. Three
@@ -102,22 +115,32 @@ class Alchemy(Page):
                 count = field(slot, '每次數量', 1, True)
                 self.slots.append((control, count))
                 materials.add_widget(slot)
-        self.add_widget(materials)
         if compact:
-            # The original order buried the material tray below a long
-            # settings form. Keep five actionable slots visible first.
-            self.add_widget(setup)
+            # The reference shows a single alchemy panel with short controls,
+            # a five-slot inventory tray, and actions—not three nested cards.
+            workbench.add_widget(setup)
+            workbench.add_widget(materials)
+            self.add_widget(workbench)
+        else:
+            self.add_widget(materials)
 
-        actions = feature_card('煉金佇列與執行',
-                               '預覽本次總消耗，確認後才送出',
-                               show_icon=not compact)
+        if compact:
+            actions = BoxLayout(
+                orientation='vertical', spacing=dp(7), size_hint_y=None)
+            actions.bind(minimum_height=actions.setter('height'))
+        else:
+            actions = feature_card('煉金佇列與執行',
+                                   '預覽本次總消耗，確認後才送出')
         self.info = status_line('等待煉金狀態同步')
         actions.add_widget(self.info)
         actions.add_widget(button('預覽消耗／開始連續煉金', self.begin, 56))
         actions.add_widget(row(
             button('停止後續煉金', lambda: d.send({'type':'stop_alchemy'})),
             button('清空材料', self.clear)))
-        self.add_widget(actions)
+        if compact:
+            workbench.add_widget(actions)
+        else:
+            self.add_widget(actions)
     def _show_material_icon(self, index, value):
         """Only a selected, server-sourced item receives an original sprite."""
         if not self.compact:
@@ -136,6 +159,11 @@ class Alchemy(Page):
             b.text = ('材料 {}'.format(i+1) if self.compact
                       else f'材料 {i+1}：選擇')
             self._show_material_icon(i, None)
+        self._update_material_status()
+    def _update_material_status(self):
+        if self.compact:
+            count = sum(value is not None for value in self.materials)
+            self.material_status.text = '煉金材料：{}／5 格'.format(count)
     def choose(self, index):
         entries = [(None, '清除此格')] + [(dict(v), f"#{v['index']} {item_name(v['item_id'])} ×{v['count']}")
             for v in self.state.get('inventory', {}).get('items', {}).values() if not material_problem(v)]
@@ -147,6 +175,7 @@ class Alchemy(Page):
                 '格位 #{}'.format(value['index']) if value
                 else '材料 {}'.format(index+1))
             self._show_material_icon(index, value)
+            self._update_material_status()
         else:
             self.slots[index][0].text = f'材料 {index+1}：'+(f"#{value['index']} {item_name(value['item_id'])}" if value else '選擇')
     def begin(self):

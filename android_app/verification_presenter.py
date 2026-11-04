@@ -71,7 +71,7 @@ def verification_view_state(service, local, *, connected):
             stage_status[5] = 'checking'
         elif phase in LOADING_PHASES:
             stage_status[4] = 'checking'
-        else:
+        elif phase not in IDENTITY_PHASES:
             stage_status[0] = 'checking'
         if service.get('status') == 'blocked':
             # Do not blame a particular stage without a trusted failure

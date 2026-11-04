@@ -226,6 +226,39 @@ class RecipeRow(ButtonBehavior, BoxLayout):
                 border=ACCENT if active else BORDER, radius=12)
 
 
+class CraftingSplit(BoxLayout):
+    """Top-aligned recipe browser / detail panes with a stable width ratio.
+
+    GridLayout previously expanded the detail card to its sibling's height
+    and vertically displaced its title. The two panels now keep their own
+    measured heights. On narrow screens they stack without losing data.
+    """
+
+    def __init__(self, browse, preview):
+        super().__init__(
+            orientation='horizontal', spacing=dp(7),
+            size_hint_y=None, height=dp(1))
+        self.browse = browse
+        self.preview = preview
+        for pane in (browse, preview):
+            pane.pos_hint = {'top': 1}
+            self.add_widget(pane)
+            pane.bind(height=self._layout_panes)
+        self.bind(width=self._layout_panes)
+        self._layout_panes()
+
+    def _layout_panes(self, *_):
+        wide = self.width >= dp(388)
+        self.orientation = 'horizontal' if wide else 'vertical'
+        self.browse.size_hint_x = .43 if wide else 1
+        self.preview.size_hint_x = .57 if wide else 1
+        if wide:
+            target = max(self.browse.height, self.preview.height)
+        else:
+            target = self.browse.height + self.preview.height + self.spacing
+        self.height = max(dp(1), target)
+
+
 class IngredientRow(BoxLayout):
     """Display only real material_rows values; unknown stock stays unknown."""
 

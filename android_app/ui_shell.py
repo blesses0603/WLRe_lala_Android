@@ -144,7 +144,7 @@ class NavigationDock(BoxLayout):
         self.buttons = {}
         for title, page in NAV_ROUTES:
             symbol = ('⌂', '▦', '◷', '⚙')[len(self.buttons)]
-            view = style_button(Button(text=symbol+'\\n'+title, size_hint_y=None,
+            view = style_button(Button(text=symbol+'\n'+title, size_hint_y=None,
                                        height=dp(54)), radius=16)
             # Two-line icon labels fit narrow 320dp screens.
             view.font_size = '11sp'

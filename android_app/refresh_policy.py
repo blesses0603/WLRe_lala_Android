@@ -6,7 +6,9 @@ widget refreshes are coalesced; actions and the newest snapshot remain live.
 
 # These pages have time-dependent UI even without new service data.
 # Keep chat's send-ack timeout responsive; other pages need only 1 Hz.
-PERIODS = {'聊天': 0.5, '遠征': 1.0, '製作': 1.0,
+PERIODS = {'聊天': 0.5, '聊天＋組隊': 0.5,
+           '遠征': 1.0, '遠征＋副本': 1.0,
+           '製作': 1.0, '煉金＋製作': 1.0,
            '副本資料': 1.0, '經驗效率': 1.0, '福利': 1.0}
 IDLE_REFRESH_SECONDS = 5.0
 MIN_RENDER_SECONDS = 0.9
@@ -28,7 +30,7 @@ class RefreshPolicy:
         urgent = page != self.page or live != self.live
         elapsed = now - self.last
         if not urgent:
-            interval = 0.5 if page == '聊天' else MIN_RENDER_SECONDS
+            interval = 0.5 if page in ('聊天', '聊天＋組隊') else MIN_RENDER_SECONDS
             if elapsed < interval:
                 return False
             if (revision == self.revision and elapsed <

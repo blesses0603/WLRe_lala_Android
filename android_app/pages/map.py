@@ -21,20 +21,55 @@ class MapCanvas(Widget):
     def __init__(self, on_pick, **kwargs):
         super().__init__(size_hint_y=None,height=dp(320),**kwargs)
         self.texture=None;self.projection=None;self.player=None;self.selected=None;self.portals=[];self.on_pick=on_pick
+        self.zoom=1.0
+        # Coordinates are normalized texture UV values (bottom left = 0, 0).
+        self.focus=(.5,.5)
         self._draw_signature=None
         self.bind(pos=lambda *_:self.draw(),size=lambda *_:self.draw())
     def box(self):
         side=min(self.width,self.height)
         return self.x+(self.width-side)/2,self.y+(self.height-side)/2,side
+    def bounds(self):
+        """Visible normalized part of the original image at the chosen zoom."""
+        half=.5/self.zoom
+        cx=max(half,min(1-half,self.focus[0]))
+        cy=max(half,min(1-half,self.focus[1]))
+        return cx-half,cy-half,cx+half,cy+half
+    def set_zoom(self, zoom):
+        self.zoom=max(1.0,min(3.0,float(zoom)))
+        self.draw()
+    def reset_view(self):
+        self.zoom=1.0
+        self.focus=(.5,.5)
+        self.draw()
+    def center_on(self,u,v):
+        """Center by source pixel coordinates, not by game packet position."""
+        self.focus=(max(0.,min(1.,u/1024)),
+                    max(0.,min(1.,1-v/1024)))
+        self.draw()
     def screen(self,u,v):
-        x,y,size=self.box();return x+u/1024*size,y+(1024-v)/1024*size
+        """Project full-map pixels into the cropped, zoomed display."""
+        x,y,size=self.box()
+        left,bottom,right,top=self.bounds()
+        return (x+(u/1024-left)/(right-left)*size,
+                y+(1-v/1024-bottom)/(top-bottom)*size)
+    def pixel_at(self,x,y):
+        """Inverse of screen(): a tap remains correct when zoomed."""
+        bx,by,size=self.box()
+        if size<=0 or not (bx<=x<=bx+size and by<=y<=by+size):
+            return None
+        left,bottom,right,top=self.bounds()
+        u=(left+(x-bx)/size*(right-left))*1024
+        v=(1-bottom-(y-by)/size*(top-bottom))*1024
+        return u,v
     def draw(self):
         # Bitmap texture, scene and markers can be stable while Kivy polls.
         # Skip expensive canvas clear/rebuild until something actually moves.
         marks=lambda point: tuple((point or {}).get(key) for key in ('x','y'))
         signature=(
             tuple(self.pos),tuple(self.size),id(self.texture),
-            id(self.projection),marks(self.player),marks(self.selected),
+            id(self.projection),self.zoom,self.bounds(),
+            marks(self.player),marks(self.selected),
             tuple((p.get('x'),p.get('y'),p.get('coordinate_valid'))
                   for p in self.portals),
         )
@@ -46,21 +81,27 @@ class MapCanvas(Widget):
         with self.canvas:
             Color(.08,.15,.2,1);Rectangle(pos=self.pos,size=self.size)
             if not self.texture:return
-            Color(1,1,1,1);Rectangle(texture=self.texture,pos=(x,y),size=(size,size))
+            left,bottom,right,top=self.bounds()
+            # Texture UV cropping avoids oversized sprites overflowing cards.
+            Color(1,1,1,1)
+            Rectangle(texture=self.texture,pos=(x,y),size=(size,size),
+                      tex_coords=(left,bottom,right,bottom,
+                                  right,top,left,top))
             if self.projection:
                 for portal in self.portals:
                     if portal.get('coordinate_valid'):
                         u,v=self.screen(*self.projection.packet_to_pixel(portal['x'],portal['y']))
-                        Color(.2,1,1,1);Line(circle=(u,v,dp(4)),width=1.2)
+                        if x<=u<=x+size and y<=v<=y+size:
+                            Color(.2,1,1,1);Line(circle=(u,v,dp(4)),width=1.2)
                 for point,color in ((self.player,(1,.2,.2,1)),(self.selected,(1,.85,.2,1))):
                     if point:
                         u,v=self.screen(*self.projection.packet_to_pixel(point['x'],point['y']))
-                        Color(*color);Ellipse(pos=(u-dp(4),v-dp(4)),size=(dp(8),dp(8)))
+                        if x<=u<=x+size and y<=v<=y+size:
+                            Color(*color);Ellipse(pos=(u-dp(4),v-dp(4)),size=(dp(8),dp(8)))
     def on_touch_down(self,touch):
-        x,y,size=self.box()
-        if self.texture and self.projection and x<=touch.x<=x+size and y<=touch.y<=y+size:
-            u=(touch.x-x)/size*1024;v=1024-(touch.y-y)/size*1024
-            px,py=self.projection.pixel_to_packet(u,v)
+        pixel=self.pixel_at(touch.x,touch.y)
+        if self.texture and self.projection and pixel is not None:
+            px,py=self.projection.pixel_to_packet(*pixel)
             self.on_pick(round(px),round(py));return True
         return super().on_touch_down(touch)
 
@@ -83,6 +124,13 @@ class MapPage(Page):
         map_card.add_widget(self.position_label)
         self.image=MapCanvas(self.picked)
         map_card.add_widget(self.image)
+        map_card.add_widget(row(
+            button('＋ 放大',lambda:self.change_zoom(.5)),
+            button('－ 縮小',lambda:self.change_zoom(-.5)),
+            button('定位角色',self.focus_player)))
+        map_card.add_widget(button('顯示全圖',self.reset_view))
+        self.zoom_status=status_line('地圖顯示倍率：100%｜只改變地圖檢視，不發送遊戲指令')
+        map_card.add_widget(self.zoom_status)
         self.note=status_line('輕觸地圖可選取目標座標')
         map_card.add_widget(self.note)
         self.add_widget(map_card)
@@ -107,6 +155,30 @@ class MapPage(Page):
         portals.add_widget(button('直接嘗試所選出口換圖',self.direct))
         portals.add_widget(button('逐圖核對',self.audit))
         self.add_widget(portals)
+    def _zoom_note(self):
+        self.zoom_status.text='地圖顯示倍率：{}%｜只改變地圖檢視'.format(
+            round(self.image.zoom*100))
+    def change_zoom(self,delta):
+        if self.image.texture is None or self.image.projection is None:
+            self.note.text='此場景尚無可縮放的原始小地圖'
+            return
+        self.image.set_zoom(self.image.zoom+delta)
+        self._zoom_note()
+    def reset_view(self):
+        self.image.reset_view()
+        self._zoom_note()
+    def focus_player(self):
+        point=self.image.player
+        if not point or not self.image.projection or not self.image.texture:
+            self.note.text='尚未同步角色位置，或此場景沒有原始小地圖'
+            return
+        try:
+            u,v=self.image.projection.packet_to_pixel(point['x'],point['y'])
+        except (ValueError,KeyError,TypeError):
+            self.note.text='角色座標尚無法對應至目前小地圖'
+            return
+        self.image.center_on(u,v)
+        self._zoom_note()
     def picked(self,x,y):
         self.x_input.text=str(x);self.y_input.text=str(y);self.image.selected={'x':x,'y':y};self.image.draw()
     def walk(self):
@@ -148,6 +220,8 @@ class MapPage(Page):
             self.token=token;self.maps=SmallMaps();self.portals=Portals()
             self.scene=scene;self.portal=None;self.image.selected=None;self.x_input.text=self.y_input.text=''
             self.image.texture=None;self.image.projection=None
+            self.image.reset_view()
+            self._zoom_note()
             if scene is not None:
                 try:
                     projection,model=self.maps.projection(scene)

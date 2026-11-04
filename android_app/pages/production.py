@@ -13,7 +13,10 @@ from kivy.core.clipboard import Clipboard
 from android_app.pages.general import Page
 from android_app.widgets import column, label, button, row, field, select, dialog, pick
 from android_app.assets import item_image
-from android_app.pages.production_visual import AlchemyLevelBar, tiny_label, ProductionPanel
+from android_app.pages.production_visual import (
+    AlchemyLevelBar, tiny_label, ProductionPanel, MaterialSlot,
+    RecipeRow, IngredientRow, QueueEntry, action_button,
+)
 from wlre.services.items.combat_resources import item_name
 from wlre.services.items.alchemy import modes, prepare, material_problem
 from wlre.services.items.crafting import RECIPES, confirmed_unlocked, recipe_plan, effective_time, elapsed
@@ -27,6 +30,7 @@ class Alchemy(Page):
         super().__init__(d, embedded=compact)
         self.compact = compact
         self.material_icons = {}
+        self.material_tiles = {}
         from android_app.pages.ui_components import feature_card, status_line
         self.materials = [None]*5
 
@@ -91,7 +95,7 @@ class Alchemy(Page):
             # columns fit a 320dp viewport without five full nested forms.
             self.material_grid = GridLayout(
                 cols=3, spacing=dp(5), size_hint_y=None,
-                row_default_height=dp(148), row_force_default=True)
+                row_default_height=dp(156), row_force_default=True)
             self.material_grid.bind(
                 minimum_height=self.material_grid.setter('height'))
             self.material_grid.bind(
@@ -100,28 +104,14 @@ class Alchemy(Page):
                         2 if width < dp(245) else
                         3 if width < dp(342) else 5)))
             for index in range(5):
-                tile = surface(BoxLayout(
-                    orientation='vertical', spacing=dp(3),
-                    padding=[dp(5), dp(5), dp(5), dp(5)],
-                    size_hint_y=None, height=dp(148)),
-                    color=SOFT, radius=13)
-                icon = AnchorLayout(size_hint_y=None, height=dp(48))
-                self.material_icons[index] = icon
-                tile.add_widget(icon)
-                control = button('材料 {}'.format(index+1),
-                                 lambda i=index: self.choose(i), 38)
-                control.font_size = '11sp'
-                control.shorten = True
-                tile.add_widget(control)
-                tile.add_widget(Label(
-                    text='每次數量', color=MUTED, font_size='10sp',
-                    size_hint_y=None, height=dp(16)))
-                count = style_input(TextInput(
-                    text='1', multiline=False, input_filter='int',
-                    input_type='number', font_size='14sp',
-                    size_hint_y=None, height=dp(36)))
-                tile.add_widget(count)
-                self.slots.append((control, count))
+                tile = MaterialSlot(
+                    index,
+                    on_choose=lambda i=index: self.choose(i),
+                    on_remove=lambda i=index: self.set_slot(i, None),
+                    icon_factory=lambda sid: item_image(sid, size=36))
+                self.material_tiles[index] = tile
+                self.material_icons[index] = tile.icon_holder
+                self.slots.append((tile.pick_button, tile.quantity))
                 self.material_grid.add_widget(tile)
                 self._show_material_icon(index, None)
             materials.add_widget(self.material_grid)
@@ -182,13 +172,9 @@ class Alchemy(Page):
         """Only a selected, server-sourced item receives an original sprite."""
         if not self.compact:
             return
-        holder = self.material_icons[index]
-        holder.clear_widgets()
-        if value is None:
-            holder.add_widget(Label(
-                text='＋', color=ACCENT, font_size='28sp'))
-        else:
-            holder.add_widget(item_image(value['item_id'], size=42))
+        tile = self.material_tiles[index]
+        tile.set_item(
+            value, item_name(value['item_id']) if value is not None else None)
 
     def clear(self):
         self.materials = [None]*5
@@ -209,9 +195,6 @@ class Alchemy(Page):
     def set_slot(self, index, value):
         self.materials[index] = value
         if self.compact:
-            self.slots[index][0].text = (
-                '格位 #{}'.format(value['index']) if value
-                else '材料 {}'.format(index+1))
             self._show_material_icon(index, value)
             self._update_material_status()
             self._invalidate_preview()
@@ -278,7 +261,12 @@ class Alchemy(Page):
         if self.compact:
             self.level_bar.set_available(options if not busy else (),
                                          self.mode.text)
-        for b, count in self.slots: b.disabled = count.disabled = bool(busy)
+        for i, (b, count) in enumerate(self.slots):
+            b.disabled = count.disabled = bool(busy)
+            if self.compact:
+                tile = self.material_tiles[i]
+                tile.remove_button.disabled = bool(busy) or (
+                    self.materials[i] is None)
         self.info.text = a.get('status', '等待同步')+f"\n完成 {a.get('completed', 0)}/{a.get('requested', 0)}"+'\n'+'\n'.join(
             f"{v.get('name', item_name(v['item_id']))} ×{v['count']}" for v in a.get('history', [])[-10:])
 

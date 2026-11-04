@@ -62,9 +62,14 @@ class ManualEntryContracts(unittest.TestCase):
 
     def test_versions_stay_synced(self):
         import re
-        app = re.search(r'ANDROID_VERSION = "(\d+\.\d+\.\d+)"',
-                        source("android_app/version.py"))
-        spec = re.search(r'(?m)^version = (\d+\.\d+\.\d+)
+        app = re.search(r'ANDROID_VERSION = "([0-9.]+)"',
+                        source('android_app/version.py'))
+        spec = re.search(r'^version = ([0-9.]+)',
+                         source('buildozer.spec'), flags=re.M)
+        self.assertIsNotNone(app)
+        self.assertIsNotNone(spec)
+        self.assertEqual(app.group(1), spec.group(1))
+        self.assertRegex(app.group(1), r'^[0-9]+[.][0-9]+[.][0-9]+')
 
 
 HAS_KIVY = importlib.util.find_spec("kivy") is not None

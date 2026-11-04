@@ -8,15 +8,20 @@ from android_app.overview_model import overview_lines
 
 
 class Page(BoxLayout):
-    def __init__(self, dashboard):
-        super().__init__(orientation='vertical', size_hint_y=None, spacing=dp(12), padding=dp(14))
-        neon_surface(self, color=SURFACE, radius=20)
+    def __init__(self, dashboard, *, embedded=False, show_title=True):
+        # Only an explicitly embedded page omits the extra background frame.
+        # All standalone feature pages retain their previous visual shell.
+        super().__init__(
+            orientation='vertical', size_hint_y=None,
+            spacing=dp(8) if embedded else dp(12),
+            padding=0 if embedded else dp(14))
+        if not embedded:
+            neon_surface(self, color=SURFACE, radius=20)
         self.bind(minimum_height=self.setter('height'))
         self.d = dashboard; self.key = None
-        # Shared section heading applies to every page subclass. Nothing is
-        # removed from feature constructors, commands or permission checks.
+        # A dedicated paired workspace has its own context selector.
         title = getattr(dashboard, 'page_name', '')
-        if type(title) is str and title:
+        if show_title and not embedded and type(title) is str and title:
             self.add_widget(section_title(title))
     @property
     def state(self): return self.d.state

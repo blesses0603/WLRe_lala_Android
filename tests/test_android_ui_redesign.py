@@ -60,7 +60,16 @@ class AndroidVisualRedesignTests(unittest.TestCase):
     def test_dock_routes_to_existing_pages(self):
         routes = exported_tuple('android_app/ui_shell.py', 'NAV_ROUTES')
         pages = exported_tuple('android_app/dashboard.py', 'PAGES')
-        self.assertEqual(len(pages), 18)
+        original = {
+            '角色概況', '包包與特技', '小地圖', '戰場陣形',
+            '聊天', '組隊', '夥伴出戰', '遠征', '副本資料',
+            '角色能力', '煉金', '製作', '經驗效率', '事件紀錄',
+            'AI與補給設定', 'NPC', '儲藏存取', '福利',
+        }
+        paired = {'聊天＋組隊', '遠征＋副本', '煉金＋製作'}
+        self.assertEqual(len(original), 18)
+        self.assertEqual(set(pages), original | paired)
+        self.assertEqual(len(pages), 21)
         self.assertEqual(
             [name for name, _ in routes],
             ['首頁', '資料／資源', '運行紀錄', '工具箱'])

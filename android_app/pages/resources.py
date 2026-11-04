@@ -74,6 +74,8 @@ class Resources(Page):
         self._is_inventory = True
         self._read_only = False
         self._render_inventory = {}
+        self._selected_item = None
+        self._selected_icon_id = None
 
         filters = feature_card('包包／超空間袋／特技', '選擇資料來源、檢視方式及搜尋條件')
         filters.add_widget(row(
@@ -104,9 +106,18 @@ class Resources(Page):
             button('下一頁', lambda: self.move(1))))
         self.add_widget(inventory)
 
-        selection = feature_card('選取道具', '查看數量、效果與使用限制')
-        self.selected_info = status_line('點選背包格位或清單項目查看詳細資訊')
+        selection = feature_card('選取道具', '點選格位直接預覽；完整操作前再次核對')
+        self.selected_info = status_line('點選包包或超空間袋格位查看道具資料')
         selection.add_widget(self.selected_info)
+        self.selected_icon = AnchorLayout(size_hint_y=None, height=dp(72),
+                                          anchor_x='left', anchor_y='center')
+        selection.add_widget(self.selected_icon)
+        self.selected_details = status_line('尚未選取道具；不顯示推測的效果')
+        selection.add_widget(self.selected_details)
+        self.selected_action = button('查看完整資料／使用已確認道具',
+                                      self.open_selected_item, 56)
+        self.selected_action.disabled = True
+        selection.add_widget(self.selected_action)
         selection.add_widget(button(
             'HP／SP 藥水儲存槽', self.storage))
         self.add_widget(selection)
@@ -118,12 +129,69 @@ class Resources(Page):
     def find(self):
         self.offset = 0
         self.key = None
+        self._clear_selected()
         self.refresh()
 
     def move(self, delta):
         self.offset = max(0, self.offset + delta)
         self.key = None
+        self._clear_selected()
         self.refresh()
+
+    def _clear_selected(self):
+        self._selected_item = None
+        self._selected_icon_id = None
+        self.selected_icon.clear_widgets()
+        self.selected_info.text = '點選包包或超空間袋格位查看道具資料'
+        self.selected_details.text = '尚未選取道具；不顯示推測的效果'
+        self.selected_action.disabled = True
+
+    def _selected_snapshot(self):
+        """Resolve a selection against CURRENT inventory, never a stale cell."""
+        selection = self._selected_item
+        if selection is None:
+            return None
+        kind, section, index, item_id = selection
+        if kind != self.kind.text or section != self.storage_section.text:
+            return None
+        if kind not in ('包包', '超空間袋'):
+            return None
+        read_only = kind == '超空間袋'
+        if read_only:
+            storage = self.state.get('room_storage') or {}
+            bucket = 'garage' if section == '儲藏室' else 'materials'
+            inventory = storage.get(bucket) or {}
+        else:
+            inventory = self.state.get('inventory') or {}
+        record = (inventory.get('items') or {}).get(index)
+        if not record or record.get('item_id') != item_id:
+            return None
+        return inventory, record, read_only, index
+
+    def _show_preview(self, snapshot):
+        inventory, record, read_only, index = snapshot
+        info = item_details(inventory, index, record)
+        self.selected_info.text = '{}（ID {}）｜格位 #{}｜持有 {}{}'.format(
+            info['name'], info['id'], info['index'], info['count'],
+            '｜超空間袋唯讀' if read_only else
+            '｜可用 {}｜保留 {}'.format(info['available'], info['reserved']))
+        self.selected_details.text = '已確認效果／屬性：' + '、'.join(info['lines'])
+        if self._selected_icon_id != info['id']:
+            self.selected_icon.clear_widgets()
+            self.selected_icon.add_widget(item_image(info['id'], size=64))
+            self._selected_icon_id = info['id']
+        self.selected_action.disabled = False
+        return info
+
+    def _revalidate_selected(self):
+        if self._selected_item is None:
+            return
+        snapshot = self._selected_snapshot()
+        if snapshot is None:
+            self._clear_selected()
+            self.d.message.text = '選取格位已更新，請重新選擇道具'
+        else:
+            self._show_preview(snapshot)
 
     def close(self):
         """Do not leave image construction scheduled after closing a workspace."""
@@ -223,6 +291,7 @@ class Resources(Page):
                 self.offset + 1, pages, len(entries),
                 ' · 每頁 24 格' if use_grid else ''))
         self.info.text = self._summary_text
+        self._revalidate_selected()
         self._render_chunk(self._render_generation)
 
     def _render_chunk(self, generation):
@@ -275,24 +344,31 @@ class Resources(Page):
             self._render_inventory = {}
 
     def show_item(self, index, record):
-        read_only = self.kind.text == '超空間袋'
-        storage = self.state.get('room_storage') or {}
-        bucket = ('garage' if self.storage_section.text == '儲藏室'
-                  else 'materials')
-        inventory = ((storage.get(bucket) or {}) if read_only
-                     else self.state.get('inventory') or {})
-        current = (inventory.get('items') or {}).get(str(index))
-        if not current or current.get('item_id') != record.get('item_id'):
-            self.d.message.text = '此格位已更新，請重新開啟道具'
+        """One tap updates a source-backed detail card without a modal."""
+        source = self.kind.text
+        if source not in ('包包', '超空間袋'):
+            return
+        section = self.storage_section.text
+        self._selected_item = (source, section, str(index),
+                               record.get('item_id'))
+        snapshot = self._selected_snapshot()
+        if snapshot is None:
+            self._clear_selected()
+            self.d.message.text = '此格位已更新，請重新選擇道具'
             self.key = None
             self.refresh()
             return
-        info = item_details(inventory, index, current)
-        self.selected_info.text = (
-            '{} · 格位 #{} · 持有 {}{}'.format(
-                info['name'], info['index'], info['count'],
-                ' · 遠端唯讀' if read_only else
-                ' · 可用 {}'.format(info['available'])))
+        self._show_preview(snapshot)
+
+    def open_selected_item(self):
+        """Detailed modal preserves existing manual actions and safety gates."""
+        snapshot = self._selected_snapshot()
+        if snapshot is None:
+            self._clear_selected()
+            self.d.message.text = '此格位已更新，請重新選擇道具'
+            return
+        inventory, record, read_only, index = snapshot
+        info = self._show_preview(snapshot)
         body = column()
         body.add_widget(item_image(info['id'], size=64))
         body.add_widget(label('{}（ID {}）'.format(info['name'], info['id'])))
@@ -304,12 +380,29 @@ class Resources(Page):
             body.add_widget(label(line))
         popup = None
         def action():
+            # Inventory/availability may change while the popup is open.
+            latest = self._selected_snapshot()
+            if latest is None:
+                self.d.message.text = '道具格位已更新，請重新選擇'
+                popup.dismiss()
+                self._clear_selected()
+                return
+            current_inventory, current, still_read_only, current_index = latest
+            fresh = item_details(current_inventory, current_index, current)
+            if (still_read_only or not self.d.live or
+                    fresh['available'] <= 0 or not fresh['effects']):
+                self.d.message.text = '目前無法使用此道具，請重新確認狀態'
+                popup.dismiss()
+                return
             popup.dismiss()
-            self.use_item(current)
+            # use_item() requires the original bag slot; it must never use a
+            # stale record or a record missing its validated slot index.
+            self.use_item(dict(current, index=current_index))
         if not read_only and info['available'] > 0 and info['effects'] and self.d.live:
             body.add_widget(button('使用已確認的 HP／SP 道具', action))
         body.add_widget(button('返回包包', lambda: popup.dismiss()))
-        popup = dialog('道具詳情' + ('（遠端唯讀）' if read_only else ''), body, .74)
+        popup = dialog('道具詳情' + ('（遠端唯讀）' if read_only else ''),
+                       body, .74)
 
     def storage(self):
         entries = [((a.get('npc_index',0),res),actor_label(a)+' 補'+res.upper()+' · 儲存槽 '+

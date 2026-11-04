@@ -56,7 +56,7 @@ HAS_KIVY = importlib.util.find_spec("kivy") is not None
 @unittest.skipUnless(HAS_KIVY and (os.environ.get("DISPLAY") or os.name == "nt"),
                      "Requires Kivy and a desktop display")
 class VisibleAndroidLoginGate(unittest.TestCase):
-    def test_android_starts_on_gate_and_only_mounts_login_after_double_check(self):
+    def test_android_stays_on_gate_until_user_enters_after_double_check(self):
         import android_app.app as module
         from kivy.uix.textinput import TextInput
         from kivy.clock import Clock
@@ -78,6 +78,9 @@ class VisibleAndroidLoginGate(unittest.TestCase):
             app.catalog_sync = SimpleNamespace(snapshot=lambda: local)
             app._update_verification_gate()
             self.assertFalse(app._login_visible)
+            self.assertTrue(app._verification_panel.enter_login.disabled)
+            app._verification_panel.enter_login.dispatch('on_release')
+            self.assertFalse(app._login_visible)
             self.assertIn(app._verification_view, root.children)
 
             service.update(status="ready", ready=True,
@@ -88,6 +91,12 @@ class VisibleAndroidLoginGate(unittest.TestCase):
 
             service["catalog_token"] = list(TOKEN)
             app._update_verification_gate()
+            self.assertFalse(app._login_visible)
+            self.assertIn(app._verification_view, root.children)
+            self.assertNotIn(app._login_view, root.children)
+            self.assertFalse(app._verification_panel.enter_login.disabled)
+            # User explicitly taps the new action at the previous service position.
+            app._verification_panel.enter_login.dispatch("on_release")
             self.assertTrue(app._login_visible)
             self.assertIn(app._login_view, root.children)
             self.assertNotIn(app._verification_view, root.children)

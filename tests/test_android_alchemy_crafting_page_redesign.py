@@ -139,8 +139,11 @@ class ProductionScreenKivy(unittest.TestCase):
             self.assertTrue(c.preview_action.disabled)
             c.preview_recipe(recipe)
             self.assertFalse(c.preview_action.disabled)
-            self.assertIn('測試原料：可用 3／需求 5',
-                          c.preview_info.text)
+            self.assertEqual(len(c.preview_ingredients.children), 1)
+            ingredient = c.preview_ingredients.children[0]
+            self.assertTrue(any(
+                getattr(child, 'text', '') == '3/5'
+                for child in ingredient.children))
             self.assertIn('尚未符合伺服器操作條件',
                           c.preview_info.text)
             self.assertEqual(sent, [])

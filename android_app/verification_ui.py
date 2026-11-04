@@ -175,11 +175,11 @@ class VerificationStep(BoxLayout):
 
     def __init__(self, index, title, description, **kwargs):
         super().__init__(orientation='horizontal', size_hint_y=None,
-                         height=dp(57), spacing=dp(8),
+                         height=dp(65), spacing=dp(8),
                          padding=[dp(8), dp(4), dp(8), dp(4)], **kwargs)
         surface(self, color=DARK_INNER, radius=14)
         self.index = _label(str(index), '14sp', color=ACCENT, bold=True,
-                            height=dp(44), horizontal='center')
+                            height=44, horizontal='center')
         self.index.size_hint_x = None
         self.index.width = dp(33)
         surface(self.index, color=(.032, .20, .29, .96),
@@ -190,9 +190,9 @@ class VerificationStep(BoxLayout):
         details.add_widget(_label(title, '14sp', bold=True,
                                   height=dp(25)))
         details.add_widget(_label(description, '11sp', color=MUTED,
-                                  height=dp(22)))
+                                  height=29))
         self.result = _label('待檢查', '12sp', color=MUTED,
-                             height=dp(44), horizontal='center')
+                             height=44, horizontal='center')
         self.result.size_hint_x = None
         self.result.width = dp(77)
         self.add_widget(self.result)

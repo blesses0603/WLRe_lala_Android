@@ -103,18 +103,24 @@ class AlchemyLevelBar(BoxLayout):
             style_button(
                 control, primary=(value == selected and value in permitted),
                 radius=12)
+            # style_button normalizes typography; short labels must still
+            # fit four columns on a 320dp phone.
+            control.font_size = '10sp'
 
 
 class MaterialSlot(BoxLayout):
     """Selectable source-backed icon, removable selection and live qty draft."""
 
-    def __init__(self, slot_index, on_choose, on_remove):
+    def __init__(self, slot_index, on_choose, on_remove,
+                 icon_factory=None):
         super().__init__(
             orientation='vertical', spacing=dp(2),
             padding=[dp(4), dp(3), dp(4), dp(4)],
             size_hint_y=None, height=dp(144))
         self.slot_index = slot_index
         self.item_id = None
+        self.icon_factory = icon_factory or (
+            lambda sid: item_image(sid, size=36))
         neon_surface(self, color=SOFT, border=BORDER, radius=12)
         header = BoxLayout(
             orientation='horizontal', size_hint_y=None, height=dp(22))
@@ -165,8 +171,10 @@ class MaterialSlot(BoxLayout):
             self.title.text = name if name is not None else str(sid)
             self.slot_label.text = '格位 #{}'.format(record['index'])
             self.remove_button.disabled = False
-            self.icon_holder.add_widget(item_image(sid, size=36))
-        self.pick_button.text = '更換材料' if record is not None else '選取材料'
+            self.icon_holder.add_widget(self.icon_factory(sid))
+        self.pick_button.text = (
+            '格位 #{}'.format(record['index']) if record is not None
+            else '材料 {}'.format(self.slot_index + 1))
         surface(self, color=SOFT,
                 border=ACCENT if record is not None else BORDER, radius=12)
 
@@ -174,14 +182,17 @@ class MaterialSlot(BoxLayout):
 class RecipeRow(ButtonBehavior, BoxLayout):
     """One tap selects a verified catalog row. No implicit craft command."""
 
-    def __init__(self, recipe, title, subtitle, on_select, favorite=False):
+    def __init__(self, recipe, title, subtitle, on_select, favorite=False,
+                 icon_factory=None):
         super().__init__(
             orientation='horizontal', size_hint_y=None,
             height=dp(64), spacing=dp(6),
             padding=[dp(5), dp(5), dp(5), dp(5)])
         self.item_id = recipe['item_id']
         surface(self, color=SOFT, border=BORDER, radius=12)
-        self.add_widget(item_image(self.item_id, size=45))
+        sprite = (icon_factory(self.item_id) if icon_factory
+                  else item_image(self.item_id, size=45))
+        self.add_widget(sprite)
         texts = BoxLayout(orientation='vertical', spacing=dp(1))
         top = tiny_label(title, height=27, font_size='12sp')
         bottom = tiny_label(subtitle, height=20, font_size='10sp',
@@ -205,13 +216,15 @@ class RecipeRow(ButtonBehavior, BoxLayout):
 class IngredientRow(BoxLayout):
     """Display only real material_rows values; unknown stock stays unknown."""
 
-    def __init__(self, record):
+    def __init__(self, record, icon_factory=None):
         super().__init__(
             orientation='horizontal', size_hint_y=None,
             height=dp(33), spacing=dp(6))
         sid = record.get('item_id')
         if sid is not None:
-            self.add_widget(item_image(sid, size=27))
+            self.add_widget(
+                icon_factory(sid) if icon_factory
+                else item_image(sid, size=27))
         name = tiny_label(record['name'], height=31,
                           font_size='11sp')
         self.add_widget(name)
@@ -258,7 +271,7 @@ class QueueEntry(BoxLayout):
     """Two compact rows keep queue controls touchable on narrow Android."""
 
     def __init__(self, item_id, name, count, index, remaining,
-                 progress, on_action):
+                 progress, on_action, icon_factory=None):
         super().__init__(
             orientation='vertical', size_hint_y=None,
             height=dp(109), spacing=dp(5),
@@ -267,7 +280,9 @@ class QueueEntry(BoxLayout):
         top = BoxLayout(
             orientation='horizontal', size_hint_y=None,
             spacing=dp(6), height=dp(39))
-        top.add_widget(item_image(item_id, size=36))
+        top.add_widget(
+            icon_factory(item_id) if icon_factory
+            else item_image(item_id, size=36))
         info = tiny_label(
             '#{} {} ×{}'.format(index, name, count),
             height=38, font_size='12sp')

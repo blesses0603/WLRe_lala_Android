@@ -126,7 +126,7 @@ class NavigationDock(BoxLayout):
         symbols = ('⌂', '◇', '☷', '⚙')
         for i, (title, page) in enumerate(NAV_ROUTES):
             view = style_button(Button(
-                text=symbols[i] + '\\n' + title, size_hint_y=None,
+                text=symbols[i] + '\n' + title, size_hint_y=None,
                 height=dp(54)), radius=16)
             # Two lines leave touch labels legible on 320dp phones.
             view.font_size = '11sp'

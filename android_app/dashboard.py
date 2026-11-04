@@ -10,7 +10,7 @@ from kivy.uix.popup import Popup
 from kivy.uix.spinner import Spinner
 from android_app.widgets import button, label, select, column, RoundedSpinnerOption
 from android_app.ui_shell import BrandHeader, NavigationDock
-from android_app.theme import TEXT, SURFACE, ACCENT, MUTED, SOFT, surface, style_button
+from android_app.theme import TEXT, SURFACE, ACCENT, MUTED, SOFT, surface, neon_surface, style_button
 from android_app.refresh_policy import RefreshPolicy
 
 PAGES = ('角色概況', '包包與特技', '小地圖', '戰場陣形', '聊天', '組隊',
@@ -52,19 +52,19 @@ class Dashboard:
         self._refresh_policy = RefreshPolicy()
         self._local_data_revision = 0
         session = app.manager.sessions[sid]
-        base = surface(BoxLayout(orientation='vertical', spacing=dp(10), padding=dp(12)),
-                       color=SURFACE, radius=24)
+        base = neon_surface(BoxLayout(orientation='vertical', spacing=dp(10), padding=dp(12)), 
+                       color=SURFACE, radius=24, bright=True)
         self.brand = BrandHeader(
             subtitle='角色功能',
             verified=bool(getattr(app.manager, 'available', True)
                           and getattr(app.manager, 'resource_status', {}).get('ready')
                           and self.catalog_ready))
         base.add_widget(self.brand)
-        self.status = surface(label('等待服務同步'), color=SOFT, radius=12)
+        self.status = neon_surface(label('等待服務同步'), color=SOFT, radius=12)
         self.status.color = MUTED
         base.add_widget(self.status)
         # Compact function chooser avoids a tall overlapping selector.
-        nav = surface(BoxLayout(orientation='horizontal', size_hint_y=None,
+        nav = neon_surface(BoxLayout(orientation='horizontal', size_hint_y=None,
                       height=dp(58), spacing=dp(8), padding=[dp(10), dp(7)]),
                       color=SOFT, radius=16)
         heading = label('功能', 44)

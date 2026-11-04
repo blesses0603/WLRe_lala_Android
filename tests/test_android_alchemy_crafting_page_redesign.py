@@ -29,10 +29,10 @@ class ProductionScreenOffline(unittest.TestCase):
         self.assertIn("def preview_recipe(self, recipe):", production)
         self.assertIn("def open_preview(self):", production)
         self.assertIn('class AlchemyAndCrafting(Page):', combined)
-        self.assertIn('self.select(\'煉金\')', combined)
+        self.assertIn('self.workbench.add_widget(view)', combined)
         self.assertIn('super().__init__(d, embedded=compact)', production)
-        self.assertIn("page_type(proxy, compact=True)", combined)
-        self.assertIn('section[\'view\'] = page_type(proxy, compact=True)', combined)
+        self.assertIn('getattr(module, cls_name)(proxy, compact=True)', combined)
+        self.assertIn('self.crafting_panes = GridLayout(', production)
 
     def test_all_protected_operations_remain_in_original_controller(self):
         production = (ROOT / "android_app/pages/production.py").read_text("utf-8")
@@ -72,6 +72,7 @@ class ProductionScreenKivy(unittest.TestCase):
             a = Alchemy(d, compact=True)
             self.assertEqual(len(a.slots), 5)
             self.assertEqual(len(a.material_grid.children), 5)
+            self.assertEqual(len(a.children), 1)  # one visible alchemy card
             self.assertEqual(a.material_grid.cols, 3)
             self.assertEqual(len(a.material_icons), 5)
             self.assertEqual(len(a.material_icons[0].children), 1)
@@ -113,6 +114,9 @@ class ProductionScreenKivy(unittest.TestCase):
                        size_hint=(None, None), size=(52, 52))):
             c = Crafting(d, compact=True)
             self.assertIsInstance(c.catalog, GridLayout)
+            self.assertEqual(c.catalog.cols, 1)
+            self.assertIsInstance(c.crafting_panes, GridLayout)
+            self.assertEqual(len(c.crafting_panes.children), 2)
             self.assertTrue(c.preview_action.disabled)
             c.refresh()
             self.assertEqual(len(c.catalog.children), 1)

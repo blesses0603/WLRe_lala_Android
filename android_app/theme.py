@@ -5,7 +5,7 @@ No networking or game state is handled by this module.
 """
 from pathlib import Path
 
-from kivy.graphics import Color, RoundedRectangle, Ellipse, InstructionGroup
+from kivy.graphics import Color, RoundedRectangle, Rectangle, Ellipse, InstructionGroup
 from kivy.metrics import dp
 
 BACKGROUND = (0.020, 0.038, 0.080, 1)
@@ -76,12 +76,31 @@ def _rounded(view, fill, border, radius, under_existing=False):
 
 
 def surface(view, color=SURFACE, radius=22, border=BORDER):
-    """Transparent-gap-friendly rounded cards, including resize on text wrap."""
+    """Reference-style card: bright rim, deep navy body, static edge sheen.
+
+    No animation, shaders, texture generation or timer per widget. Repeated
+    calls preserve the canvas and only recolor the existing instructions.
+    """
     if hasattr(view, '_lala_surface_colors'):
         outer, inside = view._lala_surface_colors
         outer.rgba, inside.rgba = border, color
         return view
     view._lala_surface_colors = _rounded(view, color, border, radius)
+
+    # The 2dp rim is the design reference's upper neon bevel, not a blur.
+    # Geometry is bound once and only follows actual layout changes.
+    group = InstructionGroup()
+    shine_color = Color(.36, .93, 1, .27)
+    shine = RoundedRectangle(radius=[dp(1)])
+    group.add(shine_color)
+    group.add(shine)
+    view.canvas.before.add(group)
+    def geometry(*_):
+        shine.pos = (view.x + dp(14), view.top - dp(2))
+        shine.size = (max(0, view.width - dp(28)), dp(1.5))
+    geometry()
+    view.bind(pos=geometry, size=geometry)
+    view._lala_surface_highlight = shine
     return view
 
 
@@ -98,6 +117,20 @@ def style_button(view, primary=False, danger=False, radius=18):
 
     if not hasattr(view, '_lala_button_colors'):
         view._lala_button_colors = _rounded(view, SOFT, BORDER, radius)
+        # One static upper-edge glint matches the reference's glowing pills.
+        # Keep it behind text; never re-create it when the variant changes.
+        glint_group = InstructionGroup()
+        glint_color = Color(.31, .92, 1, .32)
+        glint = RoundedRectangle(radius=[dp(1)])
+        glint_group.add(glint_color)
+        glint_group.add(glint)
+        view.canvas.before.add(glint_group)
+        def position_glint(*_):
+            glint.pos = (view.x + dp(16), view.top - dp(2))
+            glint.size = (max(0, view.width - dp(32)), dp(1.5))
+        view.bind(pos=position_glint, size=position_glint)
+        position_glint()
+        view._lala_button_glint_color = glint_color
         view.bind(size=lambda w, size: setattr(
             w, 'text_size', (max(0, size[0] - dp(16)), size[1])))
 
@@ -105,7 +138,11 @@ def style_button(view, primary=False, danger=False, radius=18):
             edge, fill = view._lala_button_colors
             variant = view._lala_button_variant
             pressed = getattr(view, 'state', 'normal') == 'down'
+            glint = view._lala_button_glint_color
+            glint.rgba = ((.31, .92, 1, .49) if variant == 'primary'
+                           else (.31, .92, 1, .23))
             if view.disabled:
+                glint.a = .04
                 fill.rgba, edge.rgba = DISABLED_FILL, (0.16, 0.27, 0.34, 0.45)
                 view.color = MUTED
             elif variant == 'primary':

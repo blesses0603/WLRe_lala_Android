@@ -173,6 +173,7 @@ class SocialButton(Button):
         super().__init__(text=title, size_hint_y=None, height=dp(height),
                          font_size=font, **kwargs)
         style_button(self, primary=primary, radius=12)
+        self.font_size=font
         self.halign='center'
         self.valign='middle'
         self.glyph=SocialIcon(icon, edge=19)

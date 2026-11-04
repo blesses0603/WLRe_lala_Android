@@ -140,7 +140,7 @@ class NavigationDock(BoxLayout):
         super().__init__(orientation='horizontal',
                          size_hint_y=None, height=dp(64),
                          spacing=dp(4), padding=[dp(5), dp(5)], **kwargs)
-        surface(self, color=SURFACE, radius=19, border=BORDER)
+        neon_surface(self, color=SURFACE, radius=19, border=BORDER, bright=True)
         self.buttons = {}
         for title, page in NAV_ROUTES:
             symbol = ('⌂', '▦', '◷', '⚙')[len(self.buttons)]

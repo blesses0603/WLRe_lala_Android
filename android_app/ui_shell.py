@@ -23,7 +23,8 @@ from android_app.version import ANDROID_VERSION
 class BrandHeader(BoxLayout):
     """Shared real-data mascot/sky header used by login and all workspaces."""
 
-    def __init__(self, subtitle='', verified=False, **kwargs):
+    def __init__(self, subtitle='', verified=False, alerts=None,
+                 settings=None, **kwargs):
         super().__init__(orientation='horizontal', size_hint_y=None,
                          height=dp(112), spacing=dp(9),
                          padding=[dp(10), dp(9), dp(10), dp(9)], **kwargs)
@@ -85,6 +86,18 @@ class BrandHeader(BoxLayout):
                 w, 'text_size', (max(0, size[0]-dp(6)), size[1])))
             labels.add_widget(item)
         self.add_widget(labels)
+        if callable(alerts) and callable(settings):
+            # Two actual navigable actions, drawn as vectors on Android.
+            from android_app.pages.social_visual import SocialButton
+            actions = BoxLayout(orientation='horizontal', size_hint_x=None,
+                                width=dp(78),spacing=dp(5))
+            bell = SocialButton('',alerts,icon='bell',height=36,
+                                font='10sp',pos_hint={'top':1})
+            gear = SocialButton('',settings,icon='settings',height=36,
+                                font='10sp',pos_hint={'top':1})
+            actions.add_widget(bell)
+            actions.add_widget(gear)
+            self.add_widget(actions)
         self.set_verified(verified)
 
     def _paint_sky(self, *_):

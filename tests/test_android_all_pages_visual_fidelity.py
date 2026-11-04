@@ -18,15 +18,24 @@ def source(path):
 
 class OfflineContract(unittest.TestCase):
     def test_every_page_is_mapped_and_has_reference_icon(self):
-        import android_app.dashboard as dashboard
-        from android_app.ui_shell import PAGE_SYMBOLS, NAV_ROUTES, PAGE_GROUPS
-        self.assertEqual(len(dashboard.PAGES), 18)
-        self.assertEqual(set(PAGE_SYMBOLS), set(dashboard.PAGES))
-        self.assertEqual(set(PAGE_GROUPS), set(dashboard.PAGES))
-        self.assertEqual(len(NAV_ROUTES), 4)
-        self.assertTrue(all(
-            type(v) is str and 1 <= len(v) <= 3
-            for v in PAGE_SYMBOLS.values()))
+        def constant(path, name):
+            tree = ast.parse(source(path), filename=path)
+            for item in tree.body:
+                if isinstance(item, ast.Assign):
+                    if any(isinstance(t, ast.Name) and t.id == name
+                           for t in item.targets):
+                        return ast.literal_eval(item.value)
+            raise AssertionError('Missing '+name)
+        pages = constant('android_app/dashboard.py', 'PAGES')
+        icons = constant('android_app/ui_shell.py', 'PAGE_SYMBOLS')
+        routes = constant('android_app/ui_shell.py', 'NAV_ROUTES')
+        groups = constant('android_app/ui_shell.py', 'PAGE_GROUPS')
+        self.assertEqual(len(pages), 18)
+        self.assertEqual(set(icons), set(pages))
+        self.assertEqual(set(groups), set(pages))
+        self.assertEqual(len(routes), 4)
+        self.assertTrue(all(type(v) is str and 1 <= len(v) <= 3
+                            for v in icons.values()))
 
     def test_shared_neon_is_applied_everywhere(self):
         required = {

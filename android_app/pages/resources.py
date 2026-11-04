@@ -129,6 +129,12 @@ class Resources(Page):
         """Do not leave image construction scheduled after closing a workspace."""
         self._cancel_render()
 
+    def pause_render(self):
+        """Stop offscreen image work; rebuild from current data on return."""
+        if self._render_event is not None:
+            self._cancel_render()
+            self.key = None
+
     def _cancel_render(self):
         self._render_generation += 1
         if self._render_event is not None:

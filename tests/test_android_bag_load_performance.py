@@ -109,8 +109,8 @@ class BagLoadLive(unittest.TestCase):
         actor = {"name": "角色", "pid": 1}
         skill = {"id": 100, "name": "已確認測試特技", "level": 1,
                  "sp": 3, "reasons": [], "source": "learned"}
-        with patch("android_app.pages.resources.actors", return_value=[actor]), \\
-             patch("android_app.pages.resources.skill_rows", return_value=[skill]), \\
+        with patch("android_app.pages.resources.actors", return_value=[actor]), \
+             patch("android_app.pages.resources.skill_rows", return_value=[skill]), \
              patch("android_app.pages.resources.prefetch_item_icons"):
             page = Resources(fake)
             page.kind.text = "已確認特技"
@@ -132,8 +132,8 @@ class BagLoadLive(unittest.TestCase):
                                live=False, message=SimpleNamespace(text=""))
         entries = [(str(n), state["inventory"]["items"][str(n)], "道具")
                    for n in range(24)]
-        with patch("android_app.pages.resources.visible_items", return_value=entries), \\
-             patch("android_app.pages.resources.prefetch_item_icons"), \\
+        with patch("android_app.pages.resources.visible_items", return_value=entries), \
+             patch("android_app.pages.resources.prefetch_item_icons"), \
              patch("android_app.pages.resources.item_image",
                    return_value=__import__("kivy.uix.widget", fromlist=["Widget"]).Widget()):
             page = Resources(fake)

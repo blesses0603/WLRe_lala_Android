@@ -23,7 +23,8 @@ class ProductionScreenOffline(unittest.TestCase):
         ast.parse(combined)
         self.assertIn("def __init__(self, d, compact=False):", production)
         self.assertIn("self.material_grid = GridLayout(", production)
-        self.assertIn("'cols', 2 if width < dp(245) else 3", production)
+        self.assertIn("2 if width < dp(245) else", production)
+        self.assertIn("3 if width < dp(342) else 5", production)
         self.assertIn("self._show_material_icon(index, None)", production)
         self.assertIn("self.catalog = GridLayout(", production)
         self.assertIn("def preview_recipe(self, recipe):", production)
@@ -74,6 +75,10 @@ class ProductionScreenKivy(unittest.TestCase):
             self.assertEqual(len(a.material_grid.children), 5)
             self.assertEqual(len(a.children), 1)  # one visible alchemy card
             self.assertEqual(a.material_grid.cols, 3)
+            a.material_grid.width = 380
+            self.assertEqual(a.material_grid.cols, 5)
+            a.material_grid.width = 270
+            self.assertEqual(a.material_grid.cols, 3)
             self.assertEqual(len(a.material_icons), 5)
             self.assertEqual(len(a.material_icons[0].children), 1)
             self.assertEqual(a.slots[0][1].text, '1')
@@ -81,6 +86,17 @@ class ProductionScreenKivy(unittest.TestCase):
             self.assertIn('格位 #7', a.slots[0][0].text)
             self.assertEqual(len(a.material_icons[0].children), 1)
             self.assertEqual(a.materials[0]['item_id'], 10001)
+            with patch('android_app.pages.production.prepare',
+                       return_value={'mode': '測試', 'runs': 1,
+                           'consumption': [{'index': 7, 'item_id': 10001,
+                                            'count': 1}]}):
+                a.preview_cost()
+                self.assertIn('僅供預覽，尚未發送', a.cost_preview.text)
+                self.assertEqual(sent, [])
+                a.set_runs(12)
+                self.assertIn('重新預覽', a.cost_preview.text)
+                a.set_runs(2000)
+                self.assertEqual(a.runs.text, '999')
             a.clear()
             self.assertEqual(a.materials, [None]*5)
             self.assertIn('材料 1', a.slots[0][0].text)

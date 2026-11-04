@@ -183,7 +183,8 @@ class SocialButton(Button):
         self._place_glyph()
 
     def _place_glyph(self, *_):
-        self.glyph.pos=(self.x+dp(6),
+        self.glyph.pos=(self.center_x-self.glyph.width/2
+                        if not self.text else self.x+dp(6),
                         self.center_y-self.glyph.height/2)
         self.text_size=(max(0,self.width-dp(16)),self.height)
 

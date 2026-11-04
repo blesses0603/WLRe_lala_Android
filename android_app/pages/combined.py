@@ -61,10 +61,20 @@ class PairedFeatures(Page):
         self.pair_name = pair_name
         self.sections = {}
 
-        guide = feature_card('功能整合操作',
-                             '同頁管理兩個原有功能；點選展開，不自動發送遊戲指令',
-                             variant='highlight')
-        self.hint = status_line('每個區塊的操作結果仍由遊戲服務與伺服器確認')
+        if pair_name == '煉金＋製作':
+            guide = feature_card(
+                '煉金／製作工作台',
+                '先選材料或配方，再明確確認消耗與排程',
+                variant='highlight')
+            self.hint = status_line(
+                '材料為本地草稿；可查看製作配方，所有操作仍等伺服器確認')
+        else:
+            guide = feature_card(
+                '功能整合操作',
+                '同頁管理兩個原有功能；點選展開，不自動發送遊戲指令',
+                variant='highlight')
+            self.hint = status_line(
+                '每個區塊的操作結果仍由遊戲服務與伺服器確認')
         guide.add_widget(self.hint)
         self.add_widget(guide)
 
@@ -97,8 +107,13 @@ class PairedFeatures(Page):
             page_type = getattr(module, section['class'])
             # "副本／協力" is deliberately not "副本資料": the standalone
             # InstanceCatalog.refresh() auto-query must not run here.
-            proxy = _SectionDashboard(self.d, title)
-            section['view'] = page_type(proxy)
+            # Only this one paired screen uses the new compact production
+            # presentation. Standalone Alchemy/Crafting and the other two
+            # paired screens retain their existing widget trees.
+            compact = self.pair_name == '煉金＋製作'
+            proxy = _SectionDashboard(self.d, '' if compact else title)
+            section['view'] = (page_type(proxy, compact=True)
+                               if compact else page_type(proxy))
         section['slot'].add_widget(section['view'])
         section['expanded'] = True
         section['toggle'].text = '收合' + title

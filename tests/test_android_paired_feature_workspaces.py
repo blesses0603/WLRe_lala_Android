@@ -31,7 +31,8 @@ class PairedOfflineContract(unittest.TestCase):
         self.assertIn("'遠征＋副本': ('combined', 'ExpeditionAndInstances')", code)
         self.assertIn("'煉金＋製作': ('combined', 'AlchemyAndCrafting')", code)
         self.assertIn("lambda name=title: self.toggle(name)", paired)
-        self.assertIn("section['view'] = page_type(proxy)", paired)
+        self.assertIn("if compact else page_type(proxy)", paired)
+        self.assertIn("page_type(proxy, compact=True)", paired)
         self.assertIn("section['slot'].remove_widget(view)", paired)
         self.assertIn("section['view'].refresh()", paired)
 
@@ -126,10 +127,11 @@ class PairedKivyBehavior(unittest.TestCase):
             ChatAndParty, ExpeditionAndInstances, AlchemyAndCrafting)
 
         class StubFeature(BoxLayout):
-            def __init__(self, dashboard):
+            def __init__(self, dashboard, compact=False):
                 super().__init__(orientation="vertical",
                                  size_hint_y=None, height=dp(48))
                 self.d = dashboard
+                self.compact = compact
                 self.refresh_count = 0
                 self.close_count = 0
 
@@ -164,6 +166,13 @@ class PairedKivyBehavior(unittest.TestCase):
                     self.assertEqual(len(second["slot"].children), 1)
                     self.assertTrue(second["expanded"])
                     self.assertNotEqual(second["view"].d.page_name, name)
+                    if name == "煉金＋製作":
+                        self.assertTrue(first["view"].compact)
+                        self.assertTrue(second["view"].compact)
+                        self.assertEqual(first["view"].d.page_name, "")
+                        self.assertEqual(second["view"].d.page_name, "")
+                    else:
+                        self.assertFalse(second["view"].compact)
                     if name == "遠征＋副本":
                         # Prevent standalone auto-room query in paired view.
                         self.assertNotEqual(second["view"].d.page_name, "副本資料")

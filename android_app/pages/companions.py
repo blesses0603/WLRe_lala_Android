@@ -1,4 +1,5 @@
 """Touch-first manual partner deployment; game server owns final state."""
+from kivy.metrics import dp
 from android_app.pages.general import Page
 from android_app.widgets import label, button, row
 from wlre.services.battle.companions import problem
@@ -98,7 +99,9 @@ class Companions(Page):
                 lambda p=item:self.change(p,'rest'),56)
             deploy.disabled=bool(item['reasons']['deploy']) or not self.d.live
             rest.disabled=bool(item['reasons']['rest']) or not self.d.live
-            card.add_widget(row(deploy,rest))
+            actions=row(deploy,rest)
+            actions.height=dp(56)
+            card.add_widget(actions)
             reasons=[v for v in item['reasons'].values() if v]
             if reasons:
                 card.add_widget(status_line(

@@ -304,7 +304,11 @@ class Battle(Page):
         self.info.text = ('戰鬥中' if battle.get('active') else '末次戰場')+f"｜第 {battle.get('round', 0)} 回合\n點選自己的單位設定行動；點選敵方指定目標。"
         for key, view in self.buttons.items():
             u = units.get(key)
-            if not u: view.text = key+' 空位'; continue
+            if not u:
+                view.text = key+' 空位'
+                from android_app.theme import style_button
+                style_button(view, primary=False)
+                continue
             status = '已離場' if u.get('exited') else '已陣亡' if u.get('hp', 0) <= 0 else f"{u.get('hp', '—')}/{u.get('max_hp', '—')}"
             name = u.get('name', '?'); element = {0:'無',1:'地',2:'水',3:'火',4:'風'}.get(u.get('element'), '?')
             view.text = ('◎ ' if self.target == key else '')+element+' '+name+'\n'+status

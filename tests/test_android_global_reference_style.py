@@ -91,7 +91,7 @@ class GlobalReferenceKivyTests(unittest.TestCase):
         self.assertIn('已驗證', name.status.text)
         route = NavigationDock(lambda *_: None)
         self.assertEqual(len(route.buttons), 4)
-        self.assertTrue(all('\\n' in control.text for control in route.buttons.values()))
+        self.assertTrue(all('\n' in control.text for control in route.buttons.values()))
         title = section_title('包包與特技', '搜尋物品')
         self.assertEqual(len(title.children), 2)
 

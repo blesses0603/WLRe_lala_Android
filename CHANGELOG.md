@@ -7,6 +7,7 @@
 - 新增 `android_app/verification_presenter.py` 以原有 `verified_for_login` 安全判定為唯一七項全綠成功條件；分階段綠勾只取自背景服務已明確核對的里程碑，失聯、版本號出現或快取存在不能假裝 Runtime／SQLite 通過。
 - `android_app/resource_sync.py` 只增列安全展示用的 `progress_phase`、可驗證的 `package_versions` 與 `checked_at`，啟動／重置時會清除舊狀態，其他後端下載／帳號及伺服器操作不更動。
 - 經雙服務與本機 Catalog SHA-256 身分均通過，使用者可看到短暫成功進度，約 1.2 秒後**自動進入原登入頁**；進入前再次檢查授權，未通過不得跳過。
+- 為讓**登入與所有其他功能畫面也維持相同設計標準**，同步修改共用 `theme.py`：卡片和按鈕採用細緻上緣高光與靜態霓虹效果；共用 `ui_shell.py` 的登入／角色標頭疊加城堡裝飾、真實驗證徽章，全部 18 個分頁的標題與四區導覽統一圖示字體及樣式。新增 `tests/test_android_global_reference_style.py` 回歸全域共用元件的畫布重用與實際互動。
 - 城堡素材是從使用者本次提供圖片中裁出的純美術局部，不含姓名、範例時間、錯誤版本或綠勾狀態；原 LaLa 角色標誌使用專案既有 `app.png`。
 - Android 預計 v7.1.11 → **v7.1.12**，同步 Buildozer／版本常數與文件；桌面版不變，沒有新 Release／Tag。新增真實狀態模型和 Kivy 回歸測試。實機畫面相似度、原生 APK 及正式服連線仍待獨立驗收。
 

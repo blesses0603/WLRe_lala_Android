@@ -66,6 +66,43 @@ class ProductionPanel(BoxLayout):
             self.add_widget(note)
 
 
+class AlchemyLevelBar(BoxLayout):
+    """Maps visible beginner/mid/advanced names to verified core modes.
+
+    The game's original command modes remain unchanged. Locked or unknown
+    skills cannot be selected just because a mockup contains that button.
+    """
+
+    LEVELS = (
+        ('無技能', '無技能'),
+        ('一般', '初級'),
+        ('中階', '中級'),
+        ('高階', '高級'),
+    )
+
+    def __init__(self, on_choose):
+        super().__init__(
+            orientation='horizontal', spacing=dp(5),
+            size_hint_y=None, height=dp(42))
+        self.buttons = {}
+        for core_mode, display in self.LEVELS:
+            control = action_button(
+                display, lambda value=core_mode: on_choose(value),
+                height=40)
+            control.font_size = '11sp'
+            self.buttons[core_mode] = control
+            self.add_widget(control)
+        self.set_available(('無技能',), '無技能')
+
+    def set_available(self, allowed, selected):
+        permitted = set(allowed)
+        for value, control in self.buttons.items():
+            control.disabled = value not in permitted
+            style_button(
+                control, primary=(value == selected and value in permitted),
+                radius=12)
+
+
 class MaterialSlot(BoxLayout):
     """Selectable source-backed icon, removable selection and live qty draft."""
 
@@ -127,6 +164,7 @@ class MaterialSlot(BoxLayout):
             self.slot_label.text = '格位 #{}'.format(record['index'])
             self.remove_button.disabled = False
             self.icon_holder.add_widget(item_image(sid, size=36))
+        self.pick_button.text = '更換材料' if record is not None else '選取材料'
         surface(self, color=SOFT,
                 border=ACCENT if record is not None else BORDER, radius=12)
 

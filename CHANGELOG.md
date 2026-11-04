@@ -1,5 +1,15 @@
 # 版本紀錄
 
+## 7.1.12 Android 資源驗證入口與參考圖一致性修補（2026-11-04，開發候選）
+
+- 依使用者提供的實際 v7.1.10 Android 截圖及高質感霓虹驗證頁參考，修正前版只有三個固定驗證說明框、欠缺動態檢查進度及版本／結果資訊，與設計交付落差明顯的問題。
+- 新增 `android_app/verification_ui.py`：城堡及原有角色標頭、七項真實驗證狀態列、雙版本卡、最近結果與真實時間、可操作的重新檢查／啟動服務按鈕、輕量靜態 Canvas 光暈；以 ScrollView 確保窄螢幕操作可讀。
+- 新增 `android_app/verification_presenter.py` 以原有 `verified_for_login` 安全判定為唯一七項全綠成功條件；分階段綠勾只取自背景服務已明確核對的里程碑，失聯、版本號出現或快取存在不能假裝 Runtime／SQLite 通過。
+- `android_app/resource_sync.py` 只增列安全展示用的 `progress_phase`、可驗證的 `package_versions` 與 `checked_at`，啟動／重置時會清除舊狀態，其他後端下載／帳號及伺服器操作不更動。
+- 經雙服務與本機 Catalog SHA-256 身分均通過，使用者可看到短暫成功進度，約 1.2 秒後**自動進入原登入頁**；進入前再次檢查授權，未通過不得跳過。
+- 城堡素材是從使用者本次提供圖片中裁出的純美術局部，不含姓名、範例時間、錯誤版本或綠勾狀態；原 LaLa 角色標誌使用專案既有 `app.png`。
+- Android 預計 v7.1.11 → **v7.1.12**，同步 Buildozer／版本常數與文件；桌面版不變，沒有新 Release／Tag。新增真實狀態模型和 Kivy 回歸測試。實機畫面相似度、原生 APK 及正式服連線仍待獨立驗收。
+
 ## 7.1.11 Android 霓虹介面第三階段：進階操作畫面（2026-11-04，開發修補候選）
 
 - 基於已合併 Android main 的 v7.1.10 第一階段 PR #51 與第二階段 PR #52，第三階段只修改 Android UI 模組；電腦版 Repository 與版本號不變。Android 預計版本 v7.1.10 → **v7.1.11**，同步 buildozer、版本常數、README、Android 指南。

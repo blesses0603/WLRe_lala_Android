@@ -111,7 +111,7 @@ class OfflineContract(unittest.TestCase):
             file = ROOT / 'android_app/assets' / name
             self.assertTrue(file.is_file(), name)
             self.assertLess(file.stat().st_size, 16*1024)
-            self.assertTrue(file.read_bytes().startswith(b'\\xff\\xd8\\xff'))
+            self.assertTrue(file.read_bytes().startswith(b'\xff\xd8\xff'))
         self.assertNotIn('1286', source('android_app/ui_shell.py'))
         self.assertNotIn('官方版本驗證成功', source('android_app/ui_shell.py'))
 

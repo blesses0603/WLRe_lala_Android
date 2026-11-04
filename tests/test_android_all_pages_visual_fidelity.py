@@ -1,4 +1,4 @@
-"""Regression contract for reference-style Android design on all 18 pages.
+"""Regression contract for 18 original plus three paired Android pages.
 
 This validates shared real Kivy components and source usage, NOT phone-pixel
 identity or official login, which still requires an actual ARM64 device.
@@ -30,7 +30,8 @@ class OfflineContract(unittest.TestCase):
         icons = constant('android_app/ui_shell.py', 'PAGE_SYMBOLS')
         routes = constant('android_app/ui_shell.py', 'NAV_ROUTES')
         groups = constant('android_app/ui_shell.py', 'PAGE_GROUPS')
-        self.assertEqual(len(pages), 18)
+        self.assertEqual(len(pages), 21)
+        self.assertTrue({'聊天＋組隊', '遠征＋副本', '煉金＋製作'}.issubset(pages))
         self.assertEqual(set(icons), set(pages))
         self.assertEqual(set(groups), set(pages))
         self.assertEqual(len(routes), 4)

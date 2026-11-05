@@ -59,6 +59,8 @@ class MobileFeatures(unittest.TestCase):
         self.assertEqual(self.manager.session_detail(session.session_id)['chat'][-1]['target_id'],456)
 
     def test_preferences_are_private_and_scoped_without_auto_start(self):
+        from crafting_fixtures import recipes
+        self.enterContext(patch.dict(RECIPES,recipes(),clear=True))
         with tempfile.TemporaryDirectory() as base:
             self.manager.settings_base=base
             session=self.start()
@@ -126,6 +128,8 @@ class MobilePages(unittest.TestCase):
         self.assertEqual(self.session.ai_settings['profiles']['player']['orderAction'][0]['id'],60021)
         self.assertTrue(self.session.commands.empty())
     def test_recipe_and_plan_preview_do_not_send(self):
+        from crafting_fixtures import recipes
+        self.enterContext(patch.dict(RECIPES,recipes(),clear=True))
         from android_app.dashboard import Dashboard
         d=Dashboard(self.app,'fixture');self.addCleanup(d.dismissed)
         d.data=self.app.manager.session_detail('fixture');d.show('製作')

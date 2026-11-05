@@ -1,14 +1,14 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "0a22961bae1911bbb6880611ec94a94e67e03c88",
+  "desktop_source": "623c62c6084213868806c25c4022d40f9b7bb681",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
   "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
-    "size": 95920128,
-    "sha256": "d6b74c3b4558560b64ae4f16883af9099d556a940f39be74775c0a31f3aab973"
+    "size": 95612928,
+    "sha256": "5a03076c7a31a70c414c012e97cbb045599f247f9eb48f9fa1166a5528e72fba"
   },
   "source_files": {
     "wlre/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -75,7 +75,7 @@
     "wlre/services/items/catalog.py": "0d77be0479fbd88663b0010f96d9b37da9221c37323060c4edec152bd896eacf",
     "wlre/services/items/combat_resources.py": "d045e1462dee84c83a4fdf01a9f45b4e6c4f52cc5daf55c451faf7e3723821f4",
     "wlre/services/items/crafting.py": "22f5e157a862527184a7d48327143031853adb53cffeec895a9552c2b2bc3f19",
-    "wlre/services/items/crafting_browser_model.py": "18089d6fcb32a84aa7905346844dbc57cc81b66a6a1217e38da59829077860e9",
+    "wlre/services/items/crafting_browser_model.py": "8e1f7b9e5b29533817242456938356199ad432c9d14d7909de365d88062ce91c",
     "wlre/services/items/crafting_official_v1286.py": "67f465c3e5e50ab818a61b2edf58424caa0cc103eacbc39618857997095dc5a6",
     "wlre/services/items/crafting_plan.py": "85f0a0b32a83c2cb84c77872ae6bfcd1e86c67c8356e2337d2b6a780b747cf83",
     "wlre/services/items/field_supply.py": "ea8b3b256fbc3949c858f9bb8f27f05244a5ce9989750ccab62c5bed690e4447",
@@ -203,7 +203,7 @@
     },
     "wlre/services/items/crafting.py": {
       "reason": "同步暫停原因至手機狀態",
-      "sha256": "ad02c556a41dcfc39e44a674d71d9ef56c7bdbc9f6b574e02adc36d0fb24780b"
+      "sha256": "60de4f77d6e91e3ce17b77177c1087c44a866d1e8446d5c8336cf4596512a5e2"
     },
     "wlre/services/official_version.py": {
       "reason": "Android 官方資源 HTTPS 以選定 CA 明確驗證並區分 SSL 憑證與握手錯誤；桌面版本核心來源 SHA 不變，僅追蹤平台差異 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。",
@@ -267,7 +267,7 @@
     },
     "wlre/storage/resource_seed_manifest.py": {
       "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
-      "sha256": "52b8b3b05b8158bbbbc9b8b7925df282cf7d58074efacc1fcde5fbe3c6f20b22"
+      "sha256": "b64e12849690ebad18a5182553f7cfd8782c97382aa51db4240a7aa9526bf9c8"
     },
     "wlre/configuration.py": {
       "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
@@ -275,5 +275,5 @@
     }
   },
   "desktop_core_sync_ref": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_core_sync_note": "Official bootstrap migration: desktop_source pins the reduced 23-entry seed; publish that desktop commit before Android seed retrieval. Existing module-specific Android adaptations are preserved."
+  "desktop_core_sync_note": "Official bootstrap and crafting migration: desktop_source pins the reduced 22-entry seed; publish that desktop commit before Android seed retrieval. Existing module-specific Android adaptations are preserved."
 }

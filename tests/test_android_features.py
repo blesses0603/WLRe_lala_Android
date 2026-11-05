@@ -247,6 +247,12 @@ class MobilePages(unittest.TestCase):
         self.assertIn("結果未知", d.message.text)
 
     def test_chat_emoji_selection_preserves_draft_and_sends_token(self):
+        from tests.emoji_fixtures import catalog
+        from types import SimpleNamespace
+        folder=tempfile.TemporaryDirectory();self.addCleanup(folder.cleanup)
+        current=SimpleNamespace(emoji_catalog=catalog(Path(folder.name)/'emoji.sqlite3'),catalog_identity=SimpleNamespace(key='test'))
+        source=patch('wlre.services.world.dynamic_bundle_runtime.current_runtime',return_value=current)
+        source.start();self.addCleanup(source.stop)
         from android_app.dashboard import Dashboard
         from kivy.uix.button import Button
         from kivy.uix.image import Image

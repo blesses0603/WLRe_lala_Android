@@ -373,26 +373,8 @@ class Chat(Page):
 
         reactions=BoxLayout(size_hint_y=None,height=dp(38),spacing=dp(5))
         neon_surface(reactions,color=SOFT,radius=13)
-        # Batch read the verified emoji archive once. AnchorLayout positions
-        # genuine sprites without manual center bindings or overlapping icons.
-        try:
-            from android_app.assets import emoji_entries, prefetch_emoji_textures
-            from android_app.pages.social_visual import EmojiQuickButton
-            keys=[
-                int(key) for key,row in emoji_entries().items()
-                if str(key).isdigit() and isinstance(row,dict)
-                and row.get('available',True)
-            ][:6]
-            sprites=prefetch_emoji_textures(keys) if keys else {}
-            for key in keys:
-                sprite=sprites.get(key)
-                if sprite is not None:
-                    reactions.add_widget(EmojiQuickButton(
-                        sprite, lambda idx=key:self._insert_emoji(idx)))
-        except (OSError,KeyError,ValueError,ImportError,TypeError):
-            pass
-        reactions.add_widget(SocialButton(
-            '更多',self.emojis,icon='smile',height=34,font='10sp'))
+        self.emoji_reactions=reactions
+        self.refresh_emoji_reactions()
         panel.add_widget(reactions)
 
         send_header=BoxLayout(size_hint_y=None,height=dp(37),
@@ -509,6 +491,30 @@ class Chat(Page):
         # Outer dashboard scroll preserves the user's position.
 
     def cancel_quote(self): self.quote = None; self.quote_label.text = '未引用訊息'
+    def refresh_emoji_reactions(self):
+        from android_app.pages.social_visual import SocialButton
+        reactions=getattr(self,'emoji_reactions',None)
+        if reactions is None:return
+        reactions.clear_widgets()
+        try:
+            from android_app.assets import emoji_entries, prefetch_emoji_textures
+            from android_app.pages.social_visual import EmojiQuickButton
+            keys=[
+                int(key) for key,row in emoji_entries().items()
+                if str(key).isdigit() and isinstance(row,dict)
+                and row.get('available',True)
+            ][:6]
+            sprites=prefetch_emoji_textures(keys) if keys else {}
+            for key in keys:
+                sprite=sprites.get(key)
+                if sprite is not None:
+                    reactions.add_widget(EmojiQuickButton(
+                        sprite, lambda idx=key:self._insert_emoji(idx)))
+        except (OSError,KeyError,ValueError,ImportError,TypeError):
+            pass
+        reactions.add_widget(SocialButton(
+            '更多',self.emojis,icon='smile',height=34,font='10sp'))
+
     def emojis(self):
         from android_app.assets import emoji_entries, emoji_texture
         from kivy.uix.image import Image
@@ -517,7 +523,7 @@ class Chat(Page):
         def icon(index):
             value = emoji_texture(index)
             return Image(texture=value, size_hint=(None, None), size=(dp(40),dp(40))) if value else None
-        pick('選擇表情', entries, lambda i: setattr(self.text, 'text', self.text.text + f'[Emoji{i}]'), icon=icon)
+        self.emoji_popup=pick('選擇表情' if entries else '官方表情尚未就緒', entries, lambda i: setattr(self.text, 'text', self.text.text + f'[Emoji{i}]'), icon=icon)
     def send(self):
         if self.pending: return
         import uuid
@@ -610,6 +616,14 @@ class Chat(Page):
             if images: self.messages.add_widget(row(*images))
         self.messages.add_widget(label(f'{self.offset+1}/{pages} 頁 · 保留最近 200 則'))
     def refresh(self):
+        from wlre.services.world.emoji_database import source_token
+        token=source_token()
+        if token!=getattr(self,'_emoji_source',None):
+            self._emoji_source=token
+            self.key=None
+            popup=getattr(self,'emoji_popup',None)
+            if popup is not None:popup.dismiss();self.emoji_popup=None
+            self.refresh_emoji_reactions()
         if self.pending:
             import time
             if not self.d.live:

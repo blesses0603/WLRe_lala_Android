@@ -76,55 +76,36 @@ def item_image(sid, size=40):
 
 
 def emoji_entries():
-    if not hasattr(emoji_entries, 'catalog'):
-        from wlre.storage.bundled_database import load_bundled_json
-        emoji_entries.catalog = load_bundled_json('emoji_catalog.json')['entries']
-    return emoji_entries.catalog
+    from wlre.services.world.emoji_database import current_entries
+    return current_entries()
+
+
+_EMOJI_SOURCE = None
 
 
 def emoji_texture(index):
-    data = emoji_entries().get(str(index))
-    if not data or not data.get('available', True): return None
-    try: return texture('emoji_images.zip', data['sprite']+'.png')
-    except (KeyError, OSError, ValueError): return None
+    global _EMOJI_SOURCE
+    from wlre.services.world.emoji_database import source_token, current_png
+    token=source_token()
+    if token!=_EMOJI_SOURCE:
+        for key in list(_CACHE):
+            if key[0]=='official_emoji':_CACHE.pop(key,None)
+        _EMOJI_SOURCE=token
+    key=('official_emoji',str(index))
+    try:
+        raw=current_png(str(index))
+        if raw is None:return None
+        if key not in _CACHE:_CACHE[key]=CoreImage(io.BytesIO(raw),ext='png',nocache=True)
+        _CACHE.move_to_end(key);_trim_texture_cache()
+        return _CACHE[key].texture
+    except (KeyError,OSError,ValueError,TypeError):return None
 
 
 def prefetch_emoji_textures(indices):
-    """Load several preview emojis with ONE verified resource read and ZIP open.
-
-    Previously a row of seven emoji buttons reopened and SHA-256 verified
-    the entire SQLite ZIP BLOB seven times on Kivy's UI thread. Only request
-    a small set, and preserve the shared bounded texture cache.
-    """
-    catalog = emoji_entries()
-    pending = []
-    results = {}
+    results={}
     for index in dict.fromkeys(indices):
-        data = catalog.get(str(index))
-        if not isinstance(data, dict) or not data.get('available', True):
-            continue
-        sprite = data.get('sprite')
-        if not isinstance(sprite, str) or not sprite:
-            continue
-        key = ('emoji_images.zip', sprite + '.png')
-        cached = _CACHE.get(key)
-        if cached is not None:
-            _CACHE.move_to_end(key)
-            results[index] = cached.texture
-        else:
-            pending.append((index, key))
-    if pending:
-        from wlre.storage.bundled_database import load_bundled_bytes
-        raw = load_bundled_bytes('emoji_images.zip', root=RESOURCE_ROOT)
-        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-            for index, key in pending:
-                try:
-                    value = CoreImage(io.BytesIO(archive.read(key[1])), ext='png')
-                except (KeyError, OSError, ValueError):
-                    continue
-                _CACHE[key] = value
-                results[index] = value.texture
-        _trim_texture_cache()
+        value=emoji_texture(index)
+        if value is not None:results[index]=value
     return results
 
 

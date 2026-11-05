@@ -502,6 +502,16 @@ def load_verified_bundle_runtime(*, sync_root=None, _verified_context=None):
             },
         }
 
+        emoji_catalog = None
+        emoji_status = '表情需要當次官方資料'
+        if dynamic:
+            try:
+                from wlre.services.world.emoji_database import load_verified_catalog as load_emoji
+                emoji_catalog = load_emoji(verified_data,manifests['MainPackage'],bundle_root,root,identity,load_container)
+                emoji_status = '官方表情已由同版資料庫載入'
+            except (OSError,ValueError,TypeError,KeyError,RuntimeError,sqlite3.Error) as error:
+                emoji_status = '表情未通過驗證：' + str(error)
+
         smallmaps = None
         smallmap_status = '小地圖需要當次官方資料'
         if dynamic:
@@ -560,6 +570,7 @@ def load_verified_bundle_runtime(*, sync_root=None, _verified_context=None):
             portal_metadata_status=portal_metadata_status,
             portal_schema_report=portal_schema_report,
             portal_coverage=coverage,
+            emoji_catalog=emoji_catalog, emoji_status=emoji_status,
             smallmaps=smallmaps, smallmap_status=smallmap_status,
             battle_talk=battle_talk, battle_talk_status=battle_talk_status,
             instances=instances, instance_status=instance_status,

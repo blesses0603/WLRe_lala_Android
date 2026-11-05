@@ -148,6 +148,8 @@ class Preview1275:
     portal_metadata_status: str = 'missing_stage_map'
     portal_schema_report: dict = field(default_factory=dict)
     portal_coverage: dict = field(default_factory=dict)
+    emoji_catalog: dict | None = None
+    emoji_status: str = '表情尚未同步'
     smallmaps: object = None
     smallmap_status: str = '官方小地圖尚未同步'
     battle_talk: dict | None = None

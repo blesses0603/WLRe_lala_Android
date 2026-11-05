@@ -131,27 +131,15 @@ class LiveSocialPerformance(unittest.TestCase):
                              for x in chat.messages.children),1)
         pair.close()
 
-    def test_batch_emoji_reads_archive_only_once(self):
+    def test_batch_emoji_uses_current_database_and_deduplicates(self):
         from android_app import assets
-        zip_bytes=io.BytesIO()
-        with ZipFile(zip_bytes,"w") as archive:
-            archive.writestr("perf_test_a.png",b"data-a")
-            archive.writestr("perf_test_b.png",b"data-b")
         class FakeCore:
-            def __init__(self,source,ext):
-                self.texture=source.getvalue()
-        catalog={"99101":{"sprite":"perf_test_a","available":True},
-                 "99102":{"sprite":"perf_test_b","available":True}}
-        with patch("android_app.assets.emoji_entries",return_value=catalog),\
-             patch("android_app.assets.CoreImage",FakeCore),\
-             patch("wlre.storage.bundled_database.load_bundled_bytes",
-                   return_value=zip_bytes.getvalue()) as read:
-            result=assets.prefetch_emoji_textures([99101,99102])
-            self.assertEqual(len(result),2)
-            read.assert_called_once()
-        for key in (("emoji_images.zip","perf_test_a.png"),
-                    ("emoji_images.zip","perf_test_b.png")):
-            assets._CACHE.pop(key,None)
+            def __init__(self,source,ext,**kwargs):self.texture=source.getvalue()
+        with patch('wlre.services.world.emoji_database.source_token',return_value=('test',1)), patch('wlre.services.world.emoji_database.current_png',side_effect=lambda i: str(i).encode()) as read, patch('android_app.assets.CoreImage',FakeCore), patch('wlre.storage.bundled_database.load_bundled_bytes',side_effect=AssertionError('legacy')):
+            result=assets.prefetch_emoji_textures([99101,99102,99101])
+            self.assertEqual(len(result),2);self.assertEqual(read.call_count,2)
+        for key in list(assets._CACHE):
+            if key[0]=='official_emoji':assets._CACHE.pop(key)
 
 
 if __name__=="__main__":

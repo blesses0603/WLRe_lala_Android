@@ -158,7 +158,8 @@ def prepare_dynamic_runtime(*, sync=False, sync_root=None, observe=None,
                             retrieve=None, execute=None,
                             max_download_bytes=32 * 1024 * 1024,
                             max_downloads=24, max_image_download_bytes=64*1024*1024,
-                            max_image_downloads=4):
+                            max_image_downloads=4, max_emoji_download_bytes=32*1024*1024,
+                            max_emoji_downloads=8):
     """Official observation -> verified manifests/Bundles -> complete runtime.
 
     Verification is performed on every load, including cache hits. Downloading
@@ -186,12 +187,16 @@ def prepare_dynamic_runtime(*, sync=False, sync_root=None, observe=None,
     if (type(max_image_download_bytes) is not int or not 0 <= max_image_download_bytes <= 64*1024*1024
             or type(max_image_downloads) is not int or not 0 <= max_image_downloads <= 4):
         raise DynamicRuntimeUnavailable('Invalid image download budget')
+    if (type(max_emoji_download_bytes) is not int or not 0 <= max_emoji_download_bytes <= 32*1024*1024
+            or type(max_emoji_downloads) is not int or not 0 <= max_emoji_downloads <= 8):
+        raise DynamicRuntimeUnavailable('Invalid emoji download budget')
     before = validate_snapshot(observe())
     manifests = {p: retrieve(spec_from_snapshot(before, p), cache_root=root / 'manifests')
                  for p in PACKAGES}
     identity = identity_from_verified_manifests(before, manifests)
     from wlre.services.world.instance_runtime import TABLES as INSTANCE_TABLES
     from wlre.services.world.npc_battle_catalog import TABLES as BATTLE_TALK_TABLES
+    from wlre.services.world.emoji_database import TABLES as EMOJI_TABLES
     if sync:
         pre_download = validate_snapshot(observe())
         if any(before[k] != pre_download[k] for k in ('data_ver', 'exe_version', 'packages')):
@@ -204,7 +209,7 @@ def prepare_dynamic_runtime(*, sync=False, sync_root=None, observe=None,
         # Optional metadata cannot prevent the core runtime from loading.
         left_bytes = max_download_bytes - plan.download_bytes
         left_files = max_downloads - plan.download_count
-        for table in BATTLE_TALK_TABLES + INSTANCE_TABLES + _PORTAL_TABLES + _OPTIONAL_ROUTE_TABLES:
+        for table in BATTLE_TALK_TABLES + INSTANCE_TABLES + _PORTAL_TABLES + _OPTIONAL_ROUTE_TABLES + EMOJI_TABLES:
             try:
                 optional = build_update_plan(manifests['DataPackage'],
                     asset_paths=(_ASSET_ROOT + table + '.bytes',), cache_root=root / 'bundles')
@@ -228,6 +233,14 @@ def prepare_dynamic_runtime(*, sync=False, sync_root=None, observe=None,
                     max_download_bytes=max_image_download_bytes,max_downloads=max_image_downloads)
         except (OSError,ValueError,RuntimeError):
             pass  # Core tables remain available; image loader reports absence.
+    if sync:
+        try:
+            from wlre.services.world.emoji_database import ASSET
+            emojis = build_update_plan(manifests['MainPackage'],asset_paths=(ASSET,),cache_root=root/'bundles')
+            execute(emojis,cache_root=root/'bundles',download=True,
+                    max_download_bytes=max_emoji_download_bytes,max_downloads=max_emoji_downloads)
+        except (OSError,ValueError,RuntimeError):
+            pass
     runtime = load_verified_bundle_runtime(sync_root=root,
                         _verified_context=(before, manifests, identity))
     after = validate_snapshot(observe())

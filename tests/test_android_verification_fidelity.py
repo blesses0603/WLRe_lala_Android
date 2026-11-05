@@ -121,7 +121,7 @@ class ModelTests(unittest.TestCase):
         self.assertIn("class CosmicHeader(FloatLayout)", code)
         self.assertIn("class CheckRow(BoxLayout)", code)
         self.assertIn("class NeonAction(Button)", code)
-        self.assertIn("self.scroller=ScrollView(", code)
+        self.assertIn("self.viewport=BoxLayout(", code)
         self.assertIn("self.rows[key]=item", code)
         self.assertIn("self.version_labels[name]=value", code)
         self.assertNotIn("DataPackage 1286", code)
@@ -129,17 +129,20 @@ class ModelTests(unittest.TestCase):
         self.assertNotIn("verify=False", code)
         self.assertNotIn("Clock.schedule_interval", code)
 
-    def test_artwork_is_decorative_only_and_small(self):
-        import struct
-        for name in ("verification_mascot.jpg", "verification_castle.jpg"):
-            path = ROOT / "android_app/assets" / name
+    def test_artwork_is_decorative_raster_from_reference(self):
+        from PIL import Image
+        assets = ROOT / "android_app/assets"
+        for name in ("verification_reference.png", "verification_header_art.png"):
+            path = assets / name
             self.assertTrue(path.is_file(), name)
-            self.assertLess(path.stat().st_size, 12 * 1024)
-            self.assertTrue(path.read_bytes().startswith(b"\xff\xd8\xff"))
-            self.assertTrue(path.read_bytes().endswith(b"\xff\xd9"), name)
+            with Image.open(path) as image:
+                self.assertGreaterEqual(image.width, 941)
+                image.verify()
         code = (ROOT / "android_app/verification_ui.py").read_text("utf-8")
-        self.assertIn("mascot = _ASSETS / 'verification_mascot.jpg'", code)
-        self.assertIn("castle = _ASSETS / 'verification_castle.jpg'", code)
+        self.assertIn("class ReferenceGlyph(Image)", code)
+        self.assertIn("_reference_region", code)
+        self.assertIn("verification_header_art.png", code)
+        self.assertNotIn("Clock.schedule_interval", code)
 
     def test_app_still_uses_original_fail_closed_login_gate(self):
         source = (ROOT / "android_app/app.py").read_text("utf-8")
@@ -168,7 +171,7 @@ class RealKivyTests(unittest.TestCase):
         view.apply_state({"status": "checking"}, {},
                          connected=True, detail="正核對資源")
         self.assertEqual(view.rows["official"]._current, "checking")
-        self.assertEqual(view.version_labels["DataPackage"].text, "— 尚未取得")
+        self.assertEqual(view.version_labels["DataPackage"].text, "尚未取得")
         view.apply_state({"status": "blocked",
                           **safe_display_receipt(observed_result(
                               failure="manifest_download_failed"))}, {},
@@ -182,7 +185,7 @@ class RealKivyTests(unittest.TestCase):
         view.service_button.dispatch("on_release")
         self.assertEqual(called, ["retry", "service"])
 
-    def test_genuine_completion_and_scroll_view(self):
+    def test_genuine_completion_and_fixed_viewport(self):
         from android_app.verification_ui import VerificationDashboard
         view = VerificationDashboard(lambda:None,lambda:None)
         service = {"status":"ready","ready":True,"catalog_token":TOKEN}

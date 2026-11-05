@@ -1,14 +1,14 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "bb3b162119a8f755e697de354b683c1d4ff61a21",
+  "desktop_source": "f23ececf4605fbd376aedb05271217c997f2a1e0",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
   "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
-    "size": 95096832,
-    "sha256": "731e8711dbdc86eb754629f675a0863c54bfc9f3d76bee7878ec0c61b5abd9f5"
+    "size": 93302784,
+    "sha256": "9f28bd2b800d373af294e5196c69a586d7ca3815278b578a0c595d7c6d0c6e53"
   },
   "source_files": {
     "wlre/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -126,14 +126,14 @@
     "wlre/services/world/npc_1275_eve.py": "909e349b46cdec19919123285448ec9b9e3dd45c799c6d86c2f895a3db38ed46",
     "wlre/services/world/npc_approach.py": "3ecb0cf3f4aec54714be2ef8d10c8cd0acdc6d453f7442b1dcdfb1418f453a67",
     "wlre/services/world/npc_asset_install.py": "14ee79689e99f746f12262561ecc1371b0d71b5c7ac9bf8c40c20f8450e1882c",
-    "wlre/services/world/npc_catalog.py": "f8c4bc2885175606d4a0809f3a38b8cf915bee5586dba5ef2aed18a213e7e6f0",
-    "wlre/services/world/npc_interact.py": "3f955fcb1143ad5f43858f254ebd8b658cb95c7cfe12b850ddef1a0e7ec07134",
+    "wlre/services/world/npc_catalog.py": "ecf7123dd50f76e908fb2bcf710c78d471075c6b7da3357dd74363b428df20f7",
+    "wlre/services/world/npc_interact.py": "8c5758f2cc748666d7ab1f117d8847ad8c71e555b41f1be1f041c12f36ccd158",
     "wlre/services/world/npc_item_data.py": "73c3a92d056ce39dc91b0a8cd79ac6484e8e4dfa794fe5e3ea70c0fadbeafdc6",
-    "wlre/services/world/npc_localization.py": "8121286e1bc07ce1e6cd8be0ea65f1fd44b3b6aeceb0b3ca9806f1ed1db3061a",
+    "wlre/services/world/npc_localization.py": "7542af516781e2b2758ccdbb10ca79d4fcd0ed4a2b9d5c7346799ca100bac5f8",
     "wlre/services/world/npc_position.py": "0100e9f8bdcd7bd86913a92e25c76068396a2b5d5a268fb459f907b11eb3faea",
     "wlre/services/world/npc_shop.py": "82ff5dec5a547844e023b411d4886a11683e813b4d71e6a548042dd520c6f806",
     "wlre/services/world/npc_shop_evidence.py": "6a9d33f8e5a9904e5f13c9928461992a8fd8ebbd08d650d8e4371d1bdb2682f8",
-    "wlre/services/world/npc_talk.py": "50ec0a3a22af8f60329f924875140bb012e49711ac72386d0da78cf1fab285ab",
+    "wlre/services/world/npc_talk.py": "2195873adc9d57d0b68f9bc6f3c7cb796cbbf73e5fdef37493e8f6231027b0eb",
     "wlre/services/world/obstacle_scope.py": "d23f596b6eed196ec719cda2ffe1056a4a8f408a9ad57917eff11fba42623bce",
     "wlre/services/world/official_catalog_pipeline.py": "99052b3457273e59977fea97be85e5859c270ef56d516ba496b78f4e9ab4b94a",
     "wlre/services/world/official_catalog_store.py": "f141e0865b5ac99bcd8d795626757414f0a76ac6d97d586a892395c733ce9ab9",
@@ -166,7 +166,7 @@
     "wlre/storage/defaults.py": "298c3b6b9b812a9496fbe5e973b31363abd21eb2eefbe5032c0f719453cefaa4",
     "wlre/storage/expedition_settings.py": "4c88245fd838e47682caa9837512dd8b93a367700b77d8ad8ca3f194ea86ec0b",
     "wlre/storage/full_resource_seed.py": "60015cae04dd1b262273002d29ff5a6ecb98b3c051e3b5193a6ee35bc9b8174b",
-    "wlre/storage/initial_catalog.py": "b3dc01783dc936d51a295e34fab8d0e60d464c2ee18729502389b12da819fbdd",
+    "wlre/storage/initial_catalog.py": "d85e2d7386f3017c4095867806ae92ef97b60be0dc09f61795696d91dd6bb0a6",
     "wlre/storage/login_memory.py": "c1a27c1b8ec23267ad762cefa0582f97491629ba72a2793ea1871bbc0fab9085",
     "wlre/storage/paths.py": "94d488d6e66e4b301916f69ac5a5aac452d1151477aba1e6dfb659487c38921f",
     "wlre/storage/resource_migration.py": "9cfe3f193a8440b004e2c7bb8ab9445500669160601617de994ea86db77dcb68",
@@ -267,7 +267,7 @@
     },
     "wlre/storage/resource_seed_manifest.py": {
       "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
-      "sha256": "c42211ed8e438702736c6b4e3fdd9e4a0cc2d6f7fef20ddeb0949f3f39e66111"
+      "sha256": "d070f8fdd60ae304ba2ea780d095dcc989bacd0b0f5dbb41d03d18888985a094"
     },
     "wlre/configuration.py": {
       "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
@@ -275,5 +275,5 @@
     }
   },
   "desktop_core_sync_ref": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_core_sync_note": "Official bootstrap, crafting and expedition migration: desktop_source pins the reduced 21-entry seed; publish that desktop commit before Android seed retrieval. Existing Android adaptations are preserved."
+  "desktop_core_sync_note": "Official bootstrap, crafting, expedition and NPC migration: desktop_source pins the reduced 17-entry seed; publish that desktop commit before Android seed retrieval. Existing Android adaptations are preserved."
 }

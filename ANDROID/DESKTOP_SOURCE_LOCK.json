@@ -212,6 +212,22 @@
     "wlre/services/world/launcher_catalog.py": {
       "reason": "Android 專屬 Runtime 失敗階段與下載額度診斷（保留登入驗證）",
       "sha256": "80c7943ebfc5db5f6b6196f4dc323070ca8d9d15a7483d1389159936681443c7"
+    },
+    "wlre/services/world/itemdata_v1.py": {
+      "reason": "移植桌面 09f6707d449708dbc09e6ead8351c633e6e22191 的精確 ItemData 1296 SHA-256／完整版本核對及未知尾端 bytes 保留；Android 不引入尚未移植的 parser_diagnostics，並拒絕非字串版本。",
+      "sha256": "2860ebf6a53492c82f5ab99b6da544d6fc9d4ed4ab65198c18409335cd32c72e"
+    },
+    "wlre/services/world/bundle_runtime_1275.py": {
+      "reason": "將已驗證 DataPackage 完整版本傳給 ItemData parser；保留既有 Manifest、Bundle、跨表驗證及登入安全閘門。",
+      "sha256": "e2e02813d5b5e5724d6823f6112dfce55c50e3f18b8fed07cb3c2390627cd05a"
+    },
+    "wlre/services/world/catalog_adapters.py": {
+      "reason": "ItemData adapter 傳遞 SourceContract 的完整 package_version，禁止 1296 bytes 配上其他版本。",
+      "sha256": "7530335333541d51305f18fc57c89f05ac7a554d890a0db3ab681cf54613a8a3"
+    },
+    "wlre/services/world/catalog_source_extractor.py": {
+      "reason": "唯讀商店 ItemData 相依來源使用同一 SourceContract 的完整 package_version；未知尾端欄位不參與交易判斷。",
+      "sha256": "d2ab3de688d8125d358888804b06b1523c79519192761bff818f9b58c7a77abf"
     }
   },
   "desktop_core_sync_ref": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",

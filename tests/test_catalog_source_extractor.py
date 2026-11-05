@@ -79,8 +79,9 @@ class CatalogSourceExtractorTests(unittest.TestCase):
               patch('wlre.services.world.catalog_source_extractor.parse_itemdata',
                     return_value={3874: {'name': '物品', 'price': 100,
                                          'sell_price': 40, 'restrict': 0,
-                                         'open_used': 0, 'need_level': 5}})):
+                                         'open_used': 0, 'need_level': 5}}) as parse):
             result = json.loads(extract_catalog_source(item, ()))
+            parse.assert_called_once_with(b'raw-items', package_version=REV)
         self.assertTrue(result['itemdata_verified'])
         self.assertEqual(result['itemdata_count'], 1)
         offer = result['scenes']['500'][0]['items'][0]

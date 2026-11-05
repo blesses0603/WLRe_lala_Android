@@ -26,7 +26,7 @@ def _shop_index(binding, bundle_paths, raw):
         raise UnityTextAssetError('Shop requires one exact reviewed ItemData_C AssetPath')
     related_binding = AssetBinding(extras[0], binding.contract)
     item_raw = extract_textasset(related_binding, bundle_paths)
-    items = parse_itemdata(item_raw)
+    items = parse_itemdata(item_raw, package_version=binding.contract.package_version)
     doc = json.loads(document.decode('utf-8'))
     for rows in doc['scenes'].values():
         for interact in rows:

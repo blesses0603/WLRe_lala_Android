@@ -99,6 +99,46 @@ class DynamicBundleRuntimeTests(unittest.TestCase):
         return dict(sync_root=self.root, observe=lambda: deepcopy(self.snapshot),
                     retrieve=lambda spec, cache_root: self.manifests[spec.package])
 
+    def test_1296_itemdata_version_tail_and_failed_refresh_invalidate_runtime(self):
+        from dataclasses import replace
+        from wlre.services.official_bundle_download import spec_from_manifest
+        from wlre.services.world import itemdata_v1
+        version = '1296_2026_11_04_13_34_19_13'
+        old = self.manifests['DataPackage']
+        index = deepcopy(old.index)
+        index['header']['package_version'] = version
+        current = replace(old, spec=replace(old.spec, package_version=version), index=index)
+        for row in current.index['bundles']:
+            previous = spec_from_manifest(data_ver=old.spec.data_ver, package='DataPackage',
+                index=old.index, name=row['name']).cache_path(self.fixture.bundle_root)
+            target = spec_from_manifest(data_ver=current.spec.data_ver, package='DataPackage',
+                index=current.index, name=row['name']).cache_path(self.fixture.bundle_root)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(previous.read_bytes())
+        self.manifests['DataPackage'] = current
+        self.snapshot['packages']['DataPackage'] = version
+        self.remote['packages']['DataPackage']['remote'] = version
+        self.raw['ItemData_C'] = (struct.pack('<I', 2) + item_record(3874) + b'\x00\xff'
+                                 + item_record(3875) + b'\x12\x34')
+        with patch.object(itemdata_v1, 'ITEMDATA_1296_SHA256',
+                          hashlib.sha256(self.raw['ItemData_C']).hexdigest()), patch.object(
+                itemdata_v1, 'parse_itemdata', wraps=itemdata_v1.parse_itemdata) as parse:
+            runtime = dynamic.activate_for_official(self.remote, **self.kwargs())
+            parse.assert_called_once_with(self.raw['ItemData_C'], package_version=version)
+            self.assertEqual(runtime.revision, 1296)
+            self.assertEqual(runtime.record_counts['items'], 2)
+            self.assertEqual(runtime.items[3874]['unknown_tail_1296_hex'], '00ff')
+            self.assertEqual(runtime.items[3875]['unknown_tail_1296_hex'], '1234')
+            self.assertEqual(self.snapshot['packages']['MainPackage'],
+                             '1284_2026_10_28_19_50_04_11')
+            self.assertFalse(runtime.can_send_packets)
+            self.raw['ItemData_C'] = self.raw['ItemData_C'][:-1] + b'\x35'
+            with self.assertRaisesRegex(ValueError, 'ItemData_C'):
+                dynamic.activate_for_official(self.remote, **self.kwargs())
+            self.assertIsNone(dynamic.current_runtime())
+            from wlre.services.items.crafting import RECIPES
+            self.assertEqual(RECIPES, {})
+
     def test_full_parsing_activation_and_all_consumers_use_current_data(self):
         runtime = dynamic.activate_for_official(self.remote, **self.kwargs())
         self.assertEqual(runtime.revision, 1286)

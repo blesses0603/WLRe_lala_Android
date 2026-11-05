@@ -139,7 +139,7 @@ def _decode(contract: SourceContract, raw: bytes):
         return _decode(replace(contract, schema_id=f'smith-new-{size}-v1'), raw)
     if schema == 'itemdata-v1':
         from wlre.services.world.itemdata_v1 import parse_itemdata
-        rows = parse_itemdata(raw)
+        rows = parse_itemdata(raw, package_version=contract.package_version)
         return rows, len(rows)
     if schema == 'eve-npc-json-v1':
         return _json_scenes(raw, source='EventData.NewNpc',

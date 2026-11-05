@@ -8,10 +8,11 @@ from pathlib import Path
 
 from kivy.animation import Animation
 from kivy.app import App
-from kivy.graphics import Color, Ellipse, Line, Rectangle, RoundedRectangle
+from kivy.graphics import Color, Ellipse, Line, Rectangle, RoundedRectangle, PushMatrix, PopMatrix, Rotate
 from kivy.graphics.texture import Texture
 from kivy.core.image import Image as CoreImage
 from kivy.metrics import dp, Metrics
+from kivy.properties import NumericProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.widget import Widget
@@ -141,23 +142,39 @@ def _reference_region(region):
 
 class ReferenceGlyph(Image):
     """Raster artwork from the supplied design, not Canvas/vector pictograms."""
+    rotation_angle=NumericProperty(0)
+
     def __init__(self, icon, *, tint=None, edge=24, **kwargs):
         self.icon=icon
         self.tint=tint
         self._animation=None
         super().__init__(size_hint=(None,None),size=(dp(edge),dp(edge)),
                          fit_mode='contain',**kwargs)
+        # Rotate the bitmap texture itself, never redraw a vector pictogram.
+        with self.canvas.before:
+            PushMatrix()
+            self._rotation=Rotate(angle=0,origin=self.center)
+        with self.canvas.after:
+            PopMatrix()
+        self.bind(rotation_angle=self._update_rotation,pos=self._update_rotation,size=self._update_rotation)
         self._paint()
     def set_animating(self,enabled):
         enabled=bool(enabled and self.texture is not None)
         if enabled and self._animation is None:
-            self._animation=Animation(opacity=.3,duration=.45)+Animation(opacity=1,duration=.45)
+            self.rotation_angle=0
+            self._animation=(Animation(rotation_angle=-360,duration=.9,t='linear')
+                             + Animation(rotation_angle=0,duration=0))
             self._animation.repeat=True
             self._animation.start(self)
         elif not enabled and self._animation is not None:
             self._animation.cancel(self)
             self._animation=None
+            self.rotation_angle=0
             self._paint()
+
+    def _update_rotation(self,*_):
+        self._rotation.angle=self.rotation_angle
+        self._rotation.origin=self.center
 
     def set_tint(self,tint):
         self.tint=tint

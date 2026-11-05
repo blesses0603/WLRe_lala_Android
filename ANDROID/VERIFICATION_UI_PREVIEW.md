@@ -23,7 +23,7 @@ changed. This is a UI-first candidate, not an Android-device acceptance result.
   versions, current status and actions fit on the first screen. Small screens
   use single-line checks; tap the status card for complete descriptions,
   diagnostics and timestamps in a separate scrollable dialog.
-- Only a check whose true state is `checking` pulses its image opacity. All
+- Only a check whose true state is `checking` continuously rotates its bitmap 360 degrees. All
   other states and action icons remain static. Animations stop on pause, stop,
   state changes, direct removal or ancestor/root removal from the Window.
 

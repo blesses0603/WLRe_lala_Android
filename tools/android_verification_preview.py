@@ -81,8 +81,12 @@ def main():
             for path in self._frame_paths:
                 with Image.open(path) as frame:frames.append(frame.convert('RGB'))
             args.animation_output.parent.mkdir(parents=True,exist_ok=True)
-            frames[0].save(args.animation_output,save_all=True,append_images=frames[1:],duration=100,loop=0)
-            for frame in frames:frame.close()
+            # One shared palette prevents static artwork changing colour between GIF frames.
+            palette=frames[0].quantize(colors=256,dither=Image.Dither.NONE)
+            indexed=[frame.quantize(palette=palette,dither=Image.Dither.NONE) for frame in frames]
+            indexed[0].save(args.animation_output,save_all=True,append_images=indexed[1:],duration=100,loop=0)
+            for frame in frames+indexed:frame.close()
+            palette.close()
             self._frames.cleanup()
             print('ANIMATION',args.animation_output,'actual Kivy frames',len(self._frame_paths),flush=True)
             self.stop()

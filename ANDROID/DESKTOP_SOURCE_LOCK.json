@@ -1,14 +1,14 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "fc9094eae3146026e5cb5ea62234a99ce493ee6e",
+  "desktop_source": "a14bbc8f9a42577c695368b44292e1aaa9bb142b",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
   "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
-    "size": 68431872,
-    "sha256": "0dc5f3e14c4b7bef77dc3ce576f9576c6384288fb767cd31cc948528f63afa11"
+    "size": 68395008,
+    "sha256": "e9f3688d3a59e77f580dfd91d5be64c73c8108023157487f1aa553c4a7c775f2"
   },
   "source_files": {
     "wlre/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -170,7 +170,7 @@
     "wlre/storage/login_memory.py": "c1a27c1b8ec23267ad762cefa0582f97491629ba72a2793ea1871bbc0fab9085",
     "wlre/storage/paths.py": "94d488d6e66e4b301916f69ac5a5aac452d1151477aba1e6dfb659487c38921f",
     "wlre/storage/resource_migration.py": "9cfe3f193a8440b004e2c7bb8ab9445500669160601617de994ea86db77dcb68",
-    "wlre/storage/resource_seed_manifest.py": "8d37fa6b7db89342a0ad6f8f82b6a7669b3466fbb51aab8a91601d6f1113eeef",
+    "wlre/storage/resource_seed_manifest.py": "c01265531bc8e26c4b059d30633d2bbdf16331336bd5dcbc6218334651b4b8c1",
     "wlre/storage/server_lines.py": "f166cb87ec14a7d74e36b0e0113c90cb878afe3853032db9bd244a243fea0d44",
     "wlre/services/world/event_portals.py": "0bed2a5f1d2eb7b2127358b5664e5f265bc80b55efd08044194332137ed2865f",
     "wlre/storage/normalized_resources.py": "9fadde69313578fb16c84dac4f4de3efe8092650b234d1cf9658f9ed79180e60",

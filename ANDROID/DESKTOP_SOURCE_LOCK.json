@@ -1,14 +1,14 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "910693764e2cee8385fb478145b428aef81a9275",
+  "desktop_source": "a748b7fe4304223991c0897e78abc6128dcc2876",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
   "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
-    "size": 68395008,
-    "sha256": "e9f3688d3a59e77f580dfd91d5be64c73c8108023157487f1aa553c4a7c775f2"
+    "size": 17825792,
+    "sha256": "c94f47fe83b69b52546924168febfc8780d8f29424c2ad8e7cb72289b83bcb49"
   },
   "source_files": {
     "wlre/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -102,7 +102,7 @@
     "wlre/services/world/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "wlre/services/world/auto_catalog.py": "ec498e4176d3376f24a248e48001e59af11e1c0ecd2b9f7f04e976c25ed0550e",
     "wlre/services/world/boundary_portals.py": "47ba6e52bbc9a7b7da67c64c3fd6fd43e576735231f410cfbbbf1a692c94ddb9",
-    "wlre/services/world/bundle_runtime_1275.py": "448069a2c6c5f7f5f6f2142872b35d26dfb9b2c5e2cb01c67c175ae31177580a",
+    "wlre/services/world/bundle_runtime_1275.py": "b45d7f894c0e12cc651fa1692874515790c9a693755c3329eb3b76bae3233d42",
     "wlre/services/world/catalog_adapters.py": "9fad8efc2e6b45976f3d6c56ee91e8ed5ff3680182513456e920ccf8e550815f",
     "wlre/services/world/catalog_identity.py": "a620f441f2f7c497316db47f7f77560f04f2e5d5773f8d292285c6988a9724f3",
     "wlre/services/world/catalog_runtime.py": "ff7dd914a08b49947b1156eb77236422af3b09aecf25b3930286fd218ac445c7",
@@ -112,7 +112,7 @@
     "wlre/services/world/daily_task_1275.py": "0a25ad80edab54070e1705b238d462f0ef85f081c5d570e45c8abf2a4273df45",
     "wlre/services/world/display_position.py": "200b61ffb7f969d6ef4fd67069c2b0dbac52776ae0625bde4957f45654e1c97c",
     "wlre/services/world/doors_1275.py": "76c0a03c12658bc183d46789e6007ee074ca47af3e890469e5362b72f9c25f13",
-    "wlre/services/world/dynamic_bundle_runtime.py": "102dac101f3698b38363b02f6a069a99cd00eabcc6932ec67d228b3a516ac5eb",
+    "wlre/services/world/dynamic_bundle_runtime.py": "12db84c0cb922af40c77dca2e8554f8608efcf5d1e8928858e84a2d677aaa586",
     "wlre/services/world/eve_v115.py": "71617ac3b1d53a347d86245ce5231ad18a42ab7fd7bfd7a721b2665378189fb1",
     "wlre/services/world/feature_resource_index.py": "a83f8bd276d2779bfc59d8a096f083f8e0250971dbc3a3e2c8e0a10db7ecb444",
     "wlre/services/world/formal_candidate_bridge.py": "226337f21708c2c5403b1e2f357ecb1148e568e3eac4b89759df202948d3ccf5",
@@ -146,7 +146,7 @@
     "wlre/services/world/portal_schema.py": "cb6815fb51a76b246af6d909e8402a2bd314cf6ab51e7024d31de60162562aef",
     "wlre/services/world/portal_travel.py": "dba0d0004dafe8dbd6be16e5ea215cd47ad010af531969c48f2aaaa8cb49c736",
     "wlre/services/world/portals.py": "25ec0d2545a77e1dcf9dd2e83dd00fc99cdec813dc183d4e290fe3704a84a4a0",
-    "wlre/services/world/preview_1275.py": "adbe30b12cf467681074a441fd6bda66b9c1c90ecc9f8b073e62abbe60c0ce62",
+    "wlre/services/world/preview_1275.py": "d2a0f2b9039ae2c3bcf5bdca9089af3a89650d8a3a41412bb9573cbbae713d9d",
     "wlre/services/world/resource_classification.py": "62516268671ba9c7f6757fb2bd825d848a35ea78f0658d046951c0551ded7a6d",
     "wlre/services/world/resource_database.py": "6cbed2423b7d8fd1fcf5bd9de19530851f951e88bf163fe03b465e20da29774c",
     "wlre/services/world/resource_gap_diagnostics.py": "5241d64f776dca74559c5b83813fcfdfccea3f8305d261a7a2aade79efcad11b",
@@ -170,7 +170,7 @@
     "wlre/storage/login_memory.py": "c1a27c1b8ec23267ad762cefa0582f97491629ba72a2793ea1871bbc0fab9085",
     "wlre/storage/paths.py": "94d488d6e66e4b301916f69ac5a5aac452d1151477aba1e6dfb659487c38921f",
     "wlre/storage/resource_migration.py": "9cfe3f193a8440b004e2c7bb8ab9445500669160601617de994ea86db77dcb68",
-    "wlre/storage/resource_seed_manifest.py": "c01265531bc8e26c4b059d30633d2bbdf16331336bd5dcbc6218334651b4b8c1",
+    "wlre/storage/resource_seed_manifest.py": "afe96d47a3af26ad3f45d55a00552ebf67da4a09938db4dcb6f683a76c2bb5c2",
     "wlre/storage/server_lines.py": "f166cb87ec14a7d74e36b0e0113c90cb878afe3853032db9bd244a243fea0d44",
     "wlre/services/world/event_portals.py": "0bed2a5f1d2eb7b2127358b5664e5f265bc80b55efd08044194332137ed2865f",
     "wlre/storage/normalized_resources.py": "9fadde69313578fb16c84dac4f4de3efe8092650b234d1cf9658f9ed79180e60",
@@ -180,7 +180,8 @@
     "wlre/services/world/instance_runtime.py": "fda023b43c105e42dc85d0e6d788736c83e0a63f5aa7b7f4c91a22225dec289c",
     "wlre/services/world/npc_battle_catalog.py": "4985580662d8f19ff604ae49f83ffdd611e4a3bea22099f9551d752d8e51c954",
     "wlre/services/world/smallmap_database.py": "d8f78fbb07f8470e97181e91f962ac6370c0270bec679781409bba3aac90904d",
-    "wlre/services/world/emoji_database.py": "38a91483b3519fc2b146805d41d4c3d0d9f3d4c8b771f6466c3fe4e46c1b8a14"
+    "wlre/services/world/emoji_database.py": "38a91483b3519fc2b146805d41d4c3d0d9f3d4c8b771f6466c3fe4e46c1b8a14",
+    "wlre/services/world/item_image_database.py": "bd0295fd02a21e158d809236e5016915b42891535fa0a067cefe5cc8f04030a5"
   },
   "desktop_checked_head": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",
@@ -227,7 +228,7 @@
     },
     "wlre/services/world/bundle_runtime_1275.py": {
       "reason": "將已驗證 DataPackage 完整版本傳給 ItemData parser；保留既有 Manifest、Bundle、跨表驗證及登入安全閘門。 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。 官方 Lua 已驗證之 1296 欄位與 runtime-v2 物品快照；保留兩端既有診斷差異。",
-      "sha256": "764bcc3132694fa59ad231132a98013aedc7e205d15031f1f5f71b6acff53ac3"
+      "sha256": "2aa7255a11c43de8a39e411023d0484ad62c4b21882827727cf40d26659e8354"
     },
     "wlre/services/world/catalog_adapters.py": {
       "reason": "ItemData adapter 傳遞 SourceContract 的完整 package_version，禁止 1296 bytes 配上其他版本。",
@@ -279,11 +280,11 @@
     },
     "wlre/services/world/dynamic_bundle_runtime.py": {
       "reason": "Android 保留既有 Runtime 功能範圍；表情來源、版本、交易與校驗流程相同。",
-      "sha256": "40cf468dd4f64335013778b69641446a30bdcc0ac8390eb3c4311c2d473d48e2"
+      "sha256": "f145c287b1481da234d25b808c36c7cabaf015848722f362992b226ba60dc067"
     },
     "wlre/services/world/preview_1275.py": {
       "reason": "Android 保留既有 Runtime 功能範圍；表情來源、版本、交易與校驗流程相同。",
-      "sha256": "55d04b3a0fd2e79171a54904a9f62a0c73d74293d141dd2502ebea7d860a4378"
+      "sha256": "8adda43ad927662f537202fc76b7e28c7a4a63b321427876d3cea0deed682e66"
     },
     "wlre/services/world/emoji_database.py": {
       "reason": "Android 未包含桌面 parser_diagnostics decorator/checkpoint；表情解析、資料庫及校驗相同。",

@@ -20,41 +20,52 @@ def _trim_texture_cache():
         _CACHE.popitem(last=False)
 
 
+_ITEM_SOURCE = None
+_ITEM_WIDGETS = None
+_ITEM_TIMER = None
+_ITEM_WIDGET_SOURCE = None
+
+
 def _item_entry(sid):
-    if not hasattr(item_image, 'mapping'):
-        from wlre.storage.bundled_database import load_bundled_json
-        item_image.mapping = load_bundled_json('item_icon_map.json')['items']
-    return item_image.mapping.get(str(sid), {}).get('icon', 's1000') + '.png'
+    from wlre.services.world.item_image_database import current_catalog
+    catalog=current_catalog()
+    return 's%04d.png'%(catalog.icon(sid) if catalog else 1000)
+
+
+def item_texture(sid):
+    global _ITEM_SOURCE
+    from wlre.services.world.item_image_database import current_catalog, source_token
+    token=source_token()
+    if token!=_ITEM_SOURCE:
+        for key in list(_CACHE):
+            if key[0]=='official_items':_CACHE.pop(key,None)
+        _ITEM_SOURCE=token
+    catalog=current_catalog()
+    if catalog is None:return None
+    key=('official_items',catalog.icon(sid))
+    try:
+        if key not in _CACHE:
+            raw=catalog.png(sid)
+            if raw is None:return None
+            _CACHE[key]=CoreImage(io.BytesIO(raw),ext='png',nocache=True)
+        _CACHE.move_to_end(key);_trim_texture_cache()
+        return _CACHE[key].texture
+    except (KeyError,OSError,ValueError,TypeError):return None
 
 
 def prefetch_item_icons(item_ids):
-    """Decode one bounded UI batch with a single archive read.
+    before=set(_CACHE)
+    for sid in dict.fromkeys(item_ids):item_texture(sid)
+    return len(set(_CACHE)-before)
 
-    Always called from Kivy's UI thread; textures must not be created in a
-    worker thread. Only uncached icons are decoded. The caller limits a batch
-    to the currently visible slice so no full-inventory warmup occurs.
-    """
-    pending = []
-    seen = set()
-    for sid in item_ids:
-        entry = _item_entry(sid)
-        key = ('item_icons.zip', entry)
-        if key not in _CACHE and entry not in seen:
-            pending.append(entry)
-            seen.add(entry)
-    if not pending:
-        return 0
-    from wlre.storage.bundled_database import load_bundled_bytes
-    with zipfile.ZipFile(io.BytesIO(load_bundled_bytes(
-            'item_icons.zip', root=RESOURCE_ROOT))) as source:
-        for entry in pending:
-            try:
-                raw = source.read(entry)
-            except KeyError:
-                raw = source.read('s1000.png')
-            _CACHE['item_icons.zip', entry] = CoreImage(io.BytesIO(raw), ext='png')
-    _trim_texture_cache()
-    return len(pending)
+
+def _refresh_item_widgets(_dt):
+    from wlre.services.world.item_image_database import source_token
+    global _ITEM_WIDGET_SOURCE
+    token=source_token()
+    if token!=_ITEM_WIDGET_SOURCE and _ITEM_WIDGETS:
+        for widget in tuple(_ITEM_WIDGETS):widget.texture=item_texture(widget.official_item_id)
+        _ITEM_WIDGET_SOURCE=token
 
 
 def texture(archive, entry):
@@ -69,10 +80,14 @@ def texture(archive, entry):
 
 
 def item_image(sid, size=40):
-    entry = _item_entry(sid)
-    try: value = texture('item_icons.zip', entry)
-    except (KeyError, OSError, ValueError): value = texture('item_icons.zip', 's1000.png')
-    return Image(texture=value, size_hint=(None, None), size=(dp(size), dp(size)))
+    global _ITEM_WIDGETS,_ITEM_TIMER
+    from weakref import WeakSet
+    from kivy.clock import Clock
+    if _ITEM_WIDGETS is None:_ITEM_WIDGETS=WeakSet()
+    widget=Image(texture=item_texture(sid),size_hint=(None,None),size=(dp(size),dp(size)))
+    widget.official_item_id=sid;_ITEM_WIDGETS.add(widget)
+    if _ITEM_TIMER is None:_ITEM_TIMER=Clock.schedule_interval(_refresh_item_widgets,1)
+    return widget
 
 
 def emoji_entries():

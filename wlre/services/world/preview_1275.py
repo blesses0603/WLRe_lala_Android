@@ -149,6 +149,8 @@ class Preview1275:
     portal_schema_report: dict = field(default_factory=dict)
     portal_coverage: dict = field(default_factory=dict)
     emoji_catalog: dict | None = None
+    item_images: object = None
+    item_image_status: str = '官方物品圖示尚未同步'
     emoji_status: str = '表情尚未同步'
     smallmaps: object = None
     smallmap_status: str = '官方小地圖尚未同步'

@@ -1,14 +1,14 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "623c62c6084213868806c25c4022d40f9b7bb681",
+  "desktop_source": "bb3b162119a8f755e697de354b683c1d4ff61a21",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
   "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
-    "size": 95612928,
-    "sha256": "5a03076c7a31a70c414c012e97cbb045599f247f9eb48f9fa1166a5528e72fba"
+    "size": 95096832,
+    "sha256": "731e8711dbdc86eb754629f675a0863c54bfc9f3d76bee7878ec0c61b5abd9f5"
   },
   "source_files": {
     "wlre/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -53,7 +53,7 @@
     "wlre/services/battle/party_guard.py": "007c3a71386e431e7b2b7711a15a589e5ed2b5e1c9b8ea86b07c14bc64ed068e",
     "wlre/services/coordination.py": "41507c9ee9cdc4d24ab911aad2d0294f730b53a298526e1aa8c4cdf351e9e9d8",
     "wlre/services/expedition/__init__.py": "77c3c9c5f8148538e7269db27aea223f6cbad784b173e889ef075a33b8ec3848",
-    "wlre/services/expedition/data.py": "c50739413a04cbc3443da35e882810c46f516aace0c22a2cf63c4eb5b0dcece9",
+    "wlre/services/expedition/data.py": "8421065d5381c1c06c6572193bbb216c2a6ef0c194bc87cb14aedae4eacb2faa",
     "wlre/services/expedition/manager.py": "282283307d720121cd2ea3d4b51ea7e8ce76620c8b7c736db95c1aadaa59f611",
     "wlre/services/expedition/teams.py": "fd1678a58a015ea09c3057742ab7875be217e9bce05d1f7423638bbcbe3aec37",
     "wlre/services/expedition_data.py": "0eae7846da14c4ea5c739474aa90857b246b02c3f250090ad7f774dca910a2cb",
@@ -267,7 +267,7 @@
     },
     "wlre/storage/resource_seed_manifest.py": {
       "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
-      "sha256": "b64e12849690ebad18a5182553f7cfd8782c97382aa51db4240a7aa9526bf9c8"
+      "sha256": "c42211ed8e438702736c6b4e3fdd9e4a0cc2d6f7fef20ddeb0949f3f39e66111"
     },
     "wlre/configuration.py": {
       "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
@@ -275,5 +275,5 @@
     }
   },
   "desktop_core_sync_ref": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_core_sync_note": "Official bootstrap and crafting migration: desktop_source pins the reduced 22-entry seed; publish that desktop commit before Android seed retrieval. Existing module-specific Android adaptations are preserved."
+  "desktop_core_sync_note": "Official bootstrap, crafting and expedition migration: desktop_source pins the reduced 21-entry seed; publish that desktop commit before Android seed retrieval. Existing Android adaptations are preserved."
 }

@@ -1,6 +1,8 @@
 """Android-specific integration checks for WLRe_lala main's shared features."""
 import copy
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
 
 from android_app import features, preferences
 from android_app.bag_model import PAGE_SIZE, COLUMNS, visible_items, item_details
@@ -13,11 +15,10 @@ from wlre.services.battle.auto_battle import defaults as ai_defaults
 
 
 class LatestDesktopCoreOnAndroid(unittest.TestCase):
-    def test_official_expedition_catalog_and_settings_are_bundled(self):
-        data = load_catalog()
-        self.assertEqual(len(data["tasks"]), 260)
-        self.assertEqual(len(data["levels"]), 10)
-        self.assertTrue(data["npcs"])
+    def test_official_expedition_catalog_and_settings_use_active_runtime(self):
+        fixture={'tasks':{'1':{'id':1}},'levels':{'1':{'teams':1}},'npcs':{'1':{}}}
+        with patch('wlre.services.world.dynamic_bundle_runtime.current_runtime',return_value=SimpleNamespace(expedition=fixture)):
+            self.assertEqual(load_catalog(),fixture)
         checked = validate_expedition(preferences.defaults()["expedition"])
         self.assertEqual(checked["min_success"], 75)
         self.assertEqual(checked["faith_min"], 80)

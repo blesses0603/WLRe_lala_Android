@@ -1,4 +1,4 @@
-"""Android expedition controls driven solely by the official 1262 shared core."""
+"""Android expedition controls driven by verified current official runtime."""
 import copy
 import time
 
@@ -6,7 +6,8 @@ from android_app.pages.general import Page
 from android_app.widgets import label, button, row, field, check, column, pick
 from wlre.services.expedition import (preferences as expedition_defaults,
                                       validate, recovery_stock, faith_gain, duration)
-from wlre.services.expedition_data import load_catalog
+from wlre.services.expedition_data import load_active_catalog as load_catalog
+from wlre.services.world.dynamic_bundle_runtime import current_catalog_token
 from wlre.services.items.combat_resources import CAT, item_name
 from android_app.expedition_display import task_name, time_text, rewards_text
 
@@ -27,11 +28,28 @@ def available_quests(state, catalog, min_hours=0):
 
 
 class Expedition(Page):
+    @staticmethod
+    def _load_catalog():
+        try:
+            return load_catalog()
+        except (OSError,ValueError,KeyError,EOFError,UnicodeError):
+            return {'tasks':{},'levels':{},'npcs':{},'source_kind':'formal_sources_missing'}
+
+    def refresh_catalog(self):
+        token=current_catalog_token()
+        if token == self._catalog_token: return
+        self.catalog=self._load_catalog()
+        self._catalog_token=token
+        self.signature=None
+        self.current=None
+        self.quest_detail.text='官方資料已更新，請重新選擇任務'
+
     def __init__(self, d):
         super().__init__(d)
         from android_app.pages.ui_components import feature_card, status_line
 
-        self.catalog = load_catalog()
+        self.catalog = self._load_catalog()
+        self._catalog_token=current_catalog_token()
         self.settings_loaded = False
         default = expedition_defaults()
 
@@ -150,6 +168,7 @@ class Expedition(Page):
             rewards_text(quest))
 
     def refresh(self):
+        self.refresh_catalog()
         if not self.settings_loaded and "preferences" in self.d.data:
             self.load_settings((self.d.data["preferences"] or {}).get(
                 "expedition", expedition_defaults()))
@@ -160,6 +179,8 @@ class Expedition(Page):
             self.status.text = "有遠征操作結果未確認，請重新登入同步，切勿重複派遣"
         else:
             self.status.text = str(e.get("status") or "遠征已同步，等待手動啟動")
+        if not self.catalog.get('tasks'):
+            self.status.text = '官方遠征資料尚未下載或驗證，請重新同步資源；不會派遣'
         info = []
         for team in e.get("teams", {}).values():
             if not team.get("quest"):

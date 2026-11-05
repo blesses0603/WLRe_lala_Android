@@ -10,6 +10,8 @@ HAS_KIVY = importlib.util.find_spec('kivy') is not None
                      'Requires Kivy and a desktop display')
 class AndroidUI(unittest.TestCase):
     def setUp(self):
+        self.enterContext(patch('wlre.storage.server_lines.load',return_value=[
+            {'id':101,'name':'測試分流','host':'8.8.8.8','port':16988}]))
         from android_app.app import LaLaApp
         from android_app.sessions import Session
         from kivy.clock import Clock
@@ -24,6 +26,14 @@ class AndroidUI(unittest.TestCase):
         with patch.object(self.app.manager, 'start', return_value=self.session):
             self.app.connect_account()
         self.status, self.buttons, _, self.stop, _ = self.app.cards['fixture']
+
+    def test_changed_server_list_requires_explicit_new_selection(self):
+        rows=[{'id':201,'name':'新分流','host':'1.1.1.1','port':16988}]
+        with patch('wlre.storage.server_lines.load',return_value=rows):
+            self.app.refresh_server_catalog()
+        self.assertEqual(list(self.app.server.values),['新分流'])
+        self.assertEqual(self.app.server.text,'請選擇分流')
+        self.assertEqual(self.app.lookup['新分流']['host'],'1.1.1.1')
 
     def roles(self):
         self.app.manager.events.put(('fixture', 'roles', self.session.roles))

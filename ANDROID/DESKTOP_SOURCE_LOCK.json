@@ -1,14 +1,14 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "e82a34c1e9fb01d54cfc8c91eda7c627984925ae",
+  "desktop_source": "0a22961bae1911bbb6880611ec94a94e67e03c88",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
   "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
-    "size": 95924224,
-    "sha256": "351c17a76afcf4d9f2f7b8d4b3e0731cb03a0bab4cc80c7d12ab04a9eca8ec50"
+    "size": 95920128,
+    "sha256": "d6b74c3b4558560b64ae4f16883af9099d556a940f39be74775c0a31f3aab973"
   },
   "source_files": {
     "wlre/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -174,7 +174,9 @@
     "wlre/storage/server_lines.py": "f166cb87ec14a7d74e36b0e0113c90cb878afe3853032db9bd244a243fea0d44",
     "wlre/services/world/event_portals.py": "0bed2a5f1d2eb7b2127358b5664e5f265bc80b55efd08044194332137ed2865f",
     "wlre/storage/normalized_resources.py": "9fadde69313578fb16c84dac4f4de3efe8092650b234d1cf9658f9ed79180e60",
-    "wlre/services/official_source.py": "64f4ea9909aeb9bd61f5be2b2f07851a028eccefd6fc2d488262c9dd161554df"
+    "wlre/services/official_source.py": "64f4ea9909aeb9bd61f5be2b2f07851a028eccefd6fc2d488262c9dd161554df",
+    "wlre/configuration.py": "75826709bf77b44a1f3ef88967383942d5f2824b4ffa014270ba869d6ce35459",
+    "wlre/services/official_server_list.py": "e7c8aa83eb902cf110acbb2cd283abbab12a444b98e6c812e3a2fb900bc82265"
   },
   "desktop_checked_head": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",
@@ -212,8 +214,8 @@
       "sha256": "c0ca7ff5872aa7aa3a310f564518b503a2065026e062d816a28149acdd5b3715"
     },
     "wlre/services/world/launcher_catalog.py": {
-      "reason": "Android 專屬 Runtime 失敗階段與下載額度診斷（保留登入驗證）",
-      "sha256": "80c7943ebfc5db5f6b6196f4dc323070ca8d9d15a7483d1389159936681443c7"
+      "reason": "第二階段：可信程式設定與種子分離，伺服器清單改由官方 HTTPS 匯入；預設使用經實測的官方來源主機。保留原 Android 平台差異。",
+      "sha256": "7428b8b2760a17e8c9424ac41a5abe1a61dc7dd59fd6aac1959616235f243e7b"
     },
     "wlre/services/world/itemdata_v1.py": {
       "reason": "移植桌面 09f6707d449708dbc09e6ead8351c633e6e22191 的精確 ItemData 1296 SHA-256／完整版本核對及未知尾端 bytes 保留；Android 不引入尚未移植的 parser_diagnostics，並拒絕非字串版本。",
@@ -234,8 +236,44 @@
     "wlre/services/official_lua_index.py": {
       "reason": " 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。",
       "sha256": "fd696d6881a5885e2d346f0d61f5c5023ed156e27b2b4a01616b76708542679b"
+    },
+    "wlre/storage/defaults.py": {
+      "reason": "第二階段：可信程式設定與種子分離，伺服器清單改由官方 HTTPS 匯入；預設使用經實測的官方來源主機。保留原 Android 平台差異。",
+      "sha256": "f20326173515bcb339f86ca4c2c6cd8e0d61cfc487c4ea7fcca6aad1545ea63b"
+    },
+    "wlre/storage/server_lines.py": {
+      "reason": "第二階段：可信程式設定與種子分離，伺服器清單改由官方 HTTPS 匯入；預設使用經實測的官方來源主機。保留原 Android 平台差異。",
+      "sha256": "db3d00ec29b0b1f9bfa98347fb500100b84df4121a3c980fc179465e813e2dbc"
+    },
+    "wlre/network/protocol.py": {
+      "reason": "第二階段：可信程式設定與種子分離，伺服器清單改由官方 HTTPS 匯入；預設使用經實測的官方來源主機。保留原 Android 平台差異。",
+      "sha256": "175b4444ce5e444d0b1eb1d01cf8f83c27a42994611b6893ab93192512f6bbcc"
+    },
+    "wlre/services/resource_compatibility.py": {
+      "reason": "第二階段：可信程式設定與種子分離，伺服器清單改由官方 HTTPS 匯入；預設使用經實測的官方來源主機。保留原 Android 平台差異。",
+      "sha256": "9a553c4564e827080182de1bab7ddf94bb70ae9eb360644c859e76e61bd8af77"
+    },
+    "wlre/services/official_source.py": {
+      "reason": "第二階段：可信程式設定與種子分離，伺服器清單改由官方 HTTPS 匯入；預設使用經實測的官方來源主機。保留原 Android 平台差異。",
+      "sha256": "6ebc2b6474911b26c38d087b7fb1b891f61689bb21dcc8f8bbf7d0d1cd89165e"
+    },
+    "wlre/services/official_server_list.py": {
+      "reason": "使用 Android 已驗證的 CA opener；Android 尚未移植桌面 parser_diagnostics，其餘來源、版本、交易及快取檢查相同。",
+      "sha256": "7b15149f3179ef6f29c2a4af62593f5b6f5aa495cf8afd4948841f265beeb64a"
+    },
+    "wlre/storage/full_resource_seed.py": {
+      "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
+      "sha256": "1ab2a0e50eaa611969c690927ec392b92a1665220de0c1e662e2a55079f961ce"
+    },
+    "wlre/storage/resource_seed_manifest.py": {
+      "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
+      "sha256": "52b8b3b05b8158bbbbc9b8b7925df282cf7d58074efacc1fcde5fbe3c6f20b22"
+    },
+    "wlre/configuration.py": {
+      "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
+      "sha256": "75826709bf77b44a1f3ef88967383942d5f2824b4ffa014270ba869d6ce35459"
     }
   },
   "desktop_core_sync_ref": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_core_sync_note": "Event/Convey portal module and nine world runtime modules synchronized; desktop_source remains pinned for SQLite seed retrieval; five Android adaptations preserved."
+  "desktop_core_sync_note": "Official bootstrap migration: desktop_source pins the reduced 23-entry seed; publish that desktop commit before Android seed retrieval. Existing module-specific Android adaptations are preserved."
 }

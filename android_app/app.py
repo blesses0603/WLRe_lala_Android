@@ -320,7 +320,10 @@ class LaLaApp(App):
             return row(caption, control)
 
         from wlre.storage.server_lines import load
-        self.lines = load()
+        try:
+            self.lines = load()
+        except (OSError, ValueError):
+            self.lines = []
         self.lookup = {entry["name"]: entry for entry in self.lines}
         choices = list(self.lookup)
         self.server = style_button(Spinner(text=choices[0] if choices else '沒有伺服器',
@@ -328,6 +331,9 @@ class LaLaApp(App):
             size_hint_y=None, height=dp(48), font_size='14sp',
             shorten=True, shorten_from='right'))
         login.add_widget(field_row('分流', self.server))
+        from wlre.storage.server_lines import status_label
+        self.server_source = label(status_label(), 48)
+        login.add_widget(self.server_source)
         self.account = style_input(TextInput(hint_text='輸入遊戲帳號', multiline=False,
             input_type='text', size_hint_y=None, height=dp(48), font_size='15sp'))
         login.add_widget(field_row('帳號', self.account))
@@ -571,10 +577,32 @@ class LaLaApp(App):
             record = self.cards.pop(session_id, None)
             if record: self.list_box.remove_widget(record[4])
 
+    def refresh_server_catalog(self):
+        from wlre.storage.server_lines import load, status_label
+        try:
+            lines = load()
+        except (OSError, ValueError):
+            lines = []
+        self.lines = lines
+        self.lookup = {entry['name']: entry for entry in lines}
+        choices = list(self.lookup)
+        self.server.values = choices
+        if self.server.text not in choices:
+            self.server.text = '請選擇分流' if choices else '沒有伺服器'
+        if hasattr(self, 'server_source'):
+            self.server_source.text = status_label()
+
     def drain_events(self, *_):
         # Keep IPC event handling responsive (4 Hz), but avoid expensive
         # Android Debug.getMemoryInfo calls and card redraws on every tick.
         now = time.monotonic()
+        sync = getattr(self, 'catalog_sync', None)
+        if sync is not None and hasattr(self, 'server'):
+            snapshot = sync.snapshot()
+            if (snapshot.get('status') in ('ready', 'blocked', 'error')
+                    and snapshot.get('revision') != getattr(self, '_server_catalog_revision', None)):
+                self._server_catalog_revision = snapshot.get('revision')
+                self.refresh_server_catalog()
         if getattr(self.manager, 'background', False):
             resource = getattr(self.manager, 'resource_status', {})
             sync = self.catalog_sync

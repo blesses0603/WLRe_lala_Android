@@ -1,6 +1,6 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "8fc6affc4c4588aa8ad02d499b074714f64b3ffc",
+  "desktop_source": "391677d68ce6e592d48b18ebdb64619c3e583f0e",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
@@ -88,7 +88,7 @@
     "wlre/services/items/room_storage_transfer.py": "bd694ab98fbdf8556df55bea79ff027333c167f27a3568b14e794c772d46a63a",
     "wlre/services/lala_updater.py": "405c27ffe49ba2c82b5f596e5a8d54f7ac68abc55424b5550f38c5a1ab648cfc",
     "wlre/services/official_bundle_download.py": "91612e87485104fa3b9a42b2b79350b5a2bb67dba83cc38614a2554b36aa6120",
-    "wlre/services/official_incremental_sync.py": "6eb9b928c83ea883e8dab6bb3eaea22aa01aec45b8977080c21b68c1aa2d4cee",
+    "wlre/services/official_incremental_sync.py": "6935966fa076f663e460c798db3d30768f05c76408b53401dfe1e3ea432d65cb",
     "wlre/services/official_lua_index.py": "985a6b66a8bd1382eff93fa1a4c3358b88bca8914f1106d2ae5bc0bd49327e4c",
     "wlre/services/official_manifest_sync.py": "927b18e96a7eb1d6137a60e9a72ff439dcc35b2f17d5b22a9d8edf6af27fd845",
     "wlre/services/official_resource_sync.py": "d1ea4177c5935df451dd2c991ae700a8f46ce848c016f4c79be07759d9709aae",
@@ -194,7 +194,7 @@
     },
     "wlre/services/official_incremental_sync.py": {
       "reason": "使用可打包的 Manifest parser",
-      "sha256": "463ae2f4fcfd405787d6f9bcc0a8c741f307ba0ff24a968e7580badc486ccc90"
+      "sha256": "96da657f21b88475446457588803368d79c80589af478ee8a2387942ed6231a9"
     },
     "wlre/services/expedition/manager.py": {
       "reason": "原生模組採絕對匯入",

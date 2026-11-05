@@ -1,6 +1,6 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "095d5562d77a0667d1730bf3b06e36cf0d462e83",
+  "desktop_source": "910693764e2cee8385fb478145b428aef81a9275",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
@@ -102,7 +102,7 @@
     "wlre/services/world/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "wlre/services/world/auto_catalog.py": "ec498e4176d3376f24a248e48001e59af11e1c0ecd2b9f7f04e976c25ed0550e",
     "wlre/services/world/boundary_portals.py": "47ba6e52bbc9a7b7da67c64c3fd6fd43e576735231f410cfbbbf1a692c94ddb9",
-    "wlre/services/world/bundle_runtime_1275.py": "4fa409a69eee9c9babdc73c90643909caca40a7c90d034c89fcda3376ebaf0f7",
+    "wlre/services/world/bundle_runtime_1275.py": "448069a2c6c5f7f5f6f2142872b35d26dfb9b2c5e2cb01c67c175ae31177580a",
     "wlre/services/world/catalog_adapters.py": "9fad8efc2e6b45976f3d6c56ee91e8ed5ff3680182513456e920ccf8e550815f",
     "wlre/services/world/catalog_identity.py": "a620f441f2f7c497316db47f7f77560f04f2e5d5773f8d292285c6988a9724f3",
     "wlre/services/world/catalog_runtime.py": "ff7dd914a08b49947b1156eb77236422af3b09aecf25b3930286fd218ac445c7",
@@ -117,7 +117,7 @@
     "wlre/services/world/feature_resource_index.py": "a83f8bd276d2779bfc59d8a096f083f8e0250971dbc3a3e2c8e0a10db7ecb444",
     "wlre/services/world/formal_candidate_bridge.py": "226337f21708c2c5403b1e2f357ecb1148e568e3eac4b89759df202948d3ccf5",
     "wlre/services/world/game_data_1275.py": "1ffe434dd42f786f26831a10f089996d71823373c73e5b50e39c956eb35d214e",
-    "wlre/services/world/itemdata_v1.py": "97e321132cdc62456e319b19c868d678320850c53a19781a096dc2dd1d3a47d9",
+    "wlre/services/world/itemdata_v1.py": "fc420c7a197d6a50c8f2e775be8ede9964b12862a191c5da67d484a3dab387d0",
     "wlre/services/world/launcher_catalog.py": "d0e56cdedd876f7bc5cefff32c68859e6d9ace2a4715a6b971bdb4d1532922af",
     "wlre/services/world/map_names.py": "043f2a4e96b91cec83432fec30d54f94cfe63a86e024cb44439c0178023cb466",
     "wlre/services/world/movement.py": "082531ad722529baca79e2bcb03490a900063c8380ca06f3a4696f35c1700a39",
@@ -222,12 +222,12 @@
       "sha256": "7428b8b2760a17e8c9424ac41a5abe1a61dc7dd59fd6aac1959616235f243e7b"
     },
     "wlre/services/world/itemdata_v1.py": {
-      "reason": "移植桌面 09f6707d449708dbc09e6ead8351c633e6e22191 的精確 ItemData 1296 SHA-256／完整版本核對及未知尾端 bytes 保留；Android 不引入尚未移植的 parser_diagnostics，並拒絕非字串版本。",
-      "sha256": "2860ebf6a53492c82f5ab99b6da544d6fc9d4ed4ab65198c18409335cd32c72e"
+      "reason": "移植桌面 09f6707d449708dbc09e6ead8351c633e6e22191 的精確 ItemData 1296 SHA-256／完整版本核對及未知尾端 bytes 保留；Android 不引入尚未移植的 parser_diagnostics，並拒絕非字串版本。 官方 Lua 已驗證之 1296 欄位與 runtime-v2 物品快照；保留兩端既有診斷差異。",
+      "sha256": "edd6c9c0bf9af8565c9d715953288a13d2c924c9aa989c9f71325b057f7db9f7"
     },
     "wlre/services/world/bundle_runtime_1275.py": {
-      "reason": "將已驗證 DataPackage 完整版本傳給 ItemData parser；保留既有 Manifest、Bundle、跨表驗證及登入安全閘門。 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。",
-      "sha256": "558be66f868de9e1161c5ef1a247a7ef33e7f70dbf325ed51e3875dd8b65f7d5"
+      "reason": "將已驗證 DataPackage 完整版本傳給 ItemData parser；保留既有 Manifest、Bundle、跨表驗證及登入安全閘門。 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。 官方 Lua 已驗證之 1296 欄位與 runtime-v2 物品快照；保留兩端既有診斷差異。",
+      "sha256": "764bcc3132694fa59ad231132a98013aedc7e205d15031f1f5f71b6acff53ac3"
     },
     "wlre/services/world/catalog_adapters.py": {
       "reason": "ItemData adapter 傳遞 SourceContract 的完整 package_version，禁止 1296 bytes 配上其他版本。",

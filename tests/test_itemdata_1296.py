@@ -36,8 +36,9 @@ class ItemData1296Tests(unittest.TestCase):
         self.assertEqual(list(rows), [10, 11])
         for iid, tail in ((10, b'\x00\xff'), (11, b'\x12\x34')):
             self.assertEqual(bytes.fromhex(rows[iid]['unknown_tail_1296_hex']), tail)
-            self.assertEqual({k: v for k, v in rows[iid].items()
-                              if k != 'unknown_tail_1296_hex'}, legacy[iid])
+            self.assertEqual({k: rows[iid][k] for k in legacy[iid]}, legacy[iid])
+            self.assertEqual(rows[iid]['style_bank_set_sort_id'], int.from_bytes(tail, 'little'))
+            self.assertIn('icon_id', rows[iid])
         self.assertEqual(itemdata.parse_itemdata(self.raw), rows)
 
     def test_legacy_versions_keep_unchanged_dictionaries(self):

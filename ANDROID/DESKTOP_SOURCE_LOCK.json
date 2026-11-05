@@ -1,14 +1,14 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "69a1be0129c705f226bfb9ae4794f67a8576e1c2",
+  "desktop_source": "8fc6affc4c4588aa8ad02d499b074714f64b3ffc",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
   "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
-    "size": 71331840,
-    "sha256": "39039d9f084abbe9c49f9b7306e5a7cab06deeb69d11f1834340b524dc72614d"
+    "size": 68841472,
+    "sha256": "02343a060a74addd1dc0a20705dfa685148c06ff2066c15cf1254c16cd697cfe"
   },
   "source_files": {
     "wlre/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -145,7 +145,7 @@
     "wlre/services/world/portal_policy.py": "cd825e4db250afe9caace90a73c46d1a220691813955aaf8d3f263c2f2fd9d25",
     "wlre/services/world/portal_schema.py": "cb6815fb51a76b246af6d909e8402a2bd314cf6ab51e7024d31de60162562aef",
     "wlre/services/world/portal_travel.py": "dba0d0004dafe8dbd6be16e5ea215cd47ad010af531969c48f2aaaa8cb49c736",
-    "wlre/services/world/portals.py": "bb75e91afeff1610f3f41432c169604b2b8151806190fed86840a8b27816df7a",
+    "wlre/services/world/portals.py": "25ec0d2545a77e1dcf9dd2e83dd00fc99cdec813dc183d4e290fe3704a84a4a0",
     "wlre/services/world/preview_1275.py": "e6bd4979cf92470d3d8b3f390767832bb873127104e504f75dd4b43ac4aa1346",
     "wlre/services/world/resource_classification.py": "62516268671ba9c7f6757fb2bd825d848a35ea78f0658d046951c0551ded7a6d",
     "wlre/services/world/resource_database.py": "6cbed2423b7d8fd1fcf5bd9de19530851f951e88bf163fe03b465e20da29774c",
@@ -170,7 +170,7 @@
     "wlre/storage/login_memory.py": "c1a27c1b8ec23267ad762cefa0582f97491629ba72a2793ea1871bbc0fab9085",
     "wlre/storage/paths.py": "94d488d6e66e4b301916f69ac5a5aac452d1151477aba1e6dfb659487c38921f",
     "wlre/storage/resource_migration.py": "9cfe3f193a8440b004e2c7bb8ab9445500669160601617de994ea86db77dcb68",
-    "wlre/storage/resource_seed_manifest.py": "b977d66108ede519bc749167ab76628ecc94d62a2140ec8e62f275c83442fc72",
+    "wlre/storage/resource_seed_manifest.py": "1384214ed17c1c6a30c073d0e7a01a7063beecf08ce266db8d780c68763cd91d",
     "wlre/storage/server_lines.py": "f166cb87ec14a7d74e36b0e0113c90cb878afe3853032db9bd244a243fea0d44",
     "wlre/services/world/event_portals.py": "0bed2a5f1d2eb7b2127358b5664e5f265bc80b55efd08044194332137ed2865f",
     "wlre/storage/normalized_resources.py": "9fadde69313578fb16c84dac4f4de3efe8092650b234d1cf9658f9ed79180e60",
@@ -270,7 +270,7 @@
     },
     "wlre/storage/resource_seed_manifest.py": {
       "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
-      "sha256": "842082d7125b8829b9873cff9c92c6a9aec59547ebe3f36ad2c904c90b850529"
+      "sha256": "1384214ed17c1c6a30c073d0e7a01a7063beecf08ce266db8d780c68763cd91d"
     },
     "wlre/configuration.py": {
       "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",

@@ -29,15 +29,15 @@ class ManualEntryContracts(unittest.TestCase):
     def test_seven_live_icons_and_three_separate_actions(self):
         code = source("android_app/verification_ui.py")
         ast.parse(code)
-        self.assertIn("self.rail=_AdaptiveRail(", code)
-        self.assertIn("self.rail.set_states(", code)
+        self.assertNotIn("VerificationRail", code)
+        self.assertIn("step.update(view['steps'][key])", code)
         self.assertIn("self.rows[key]=item", code)
         self.assertIn("self.enter_login=NeonAction(", code)
         self.assertIn("self.enter_login.disabled=True", code)
         self.assertIn("self.enter_login.disabled = not view['approved']", code)
         self.assertIn("action_row.add_widget(self.retry)", code)
         self.assertIn("action_row.add_widget(self.service_button)", code)
-        self.assertIn("self.add_widget(controls)", code)
+        self.assertIn("inspection.add_widget(controls)", code)
         self.assertIn("controls.add_widget(self.enter_login)", code)
         self.assertNotIn("'◇','▤','▱','≡'", code)
 
@@ -87,20 +87,20 @@ class LiveDashboardContracts(unittest.TestCase):
             lambda: calls.append("enter"))
         self.assertTrue(panel.enter_login.disabled)
         self.assertEqual(len(panel.rows), 7)
-        self.assertEqual(panel.rail.states, ("pending",) * 7)
+        self.assertEqual(tuple(row._current for row in panel.rows.values()), ("pending",) * 7)
         token = [True, "a" * 64]
         worker = {"status": "ready", "ready": True, "catalog_token": token}
         phone = {"status": "ready", "ready": True, "catalog_token": token}
         panel.apply_state(worker, phone, connected=True, detail="已驗證",
                           login_ready=True)
         self.assertFalse(panel.enter_login.disabled)
-        self.assertEqual(panel.rail.states, ("passed",) * 7)
+        self.assertEqual(tuple(row._current for row in panel.rows.values()), ("passed",) * 7)
         panel.enter_login.dispatch("on_release")
         self.assertEqual(calls, ["enter"])
         panel.apply_state(worker, phone, connected=False, detail="失聯",
                           login_ready=True)
         self.assertTrue(panel.enter_login.disabled)
-        self.assertNotEqual(panel.rail.states, ("passed",) * 7)
+        self.assertNotEqual(tuple(row._current for row in panel.rows.values()), ("passed",) * 7)
 
 
 if __name__ == "__main__":

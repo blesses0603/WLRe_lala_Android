@@ -33,8 +33,9 @@ class VerificationLayoutTests(unittest.TestCase):
         for width,height in ((320,640),(360,780),(393,852),(430,932)):
             with self.subTest(width=width):
                 panel,_=self.make_panel(width,height)
-                self.assertAlmostEqual(panel.actions.y,panel.y)
-                self.assertGreaterEqual(panel.viewport.y,panel.actions.top-1)
+                self.assertGreaterEqual(panel.actions.y,panel.viewport.y)
+                self.assertLessEqual(panel.actions.top,panel.viewport.top)
+                self.assertGreaterEqual(panel.actions.y,panel.result_card.top-1)
                 self.assertAlmostEqual(panel.retry.y,panel.service_button.y)
                 self.assertAlmostEqual(panel.retry.height,panel.service_button.height)
                 self.assertLess(panel.retry.right,panel.service_button.x)
@@ -54,8 +55,9 @@ class VerificationLayoutTests(unittest.TestCase):
                 self.assertGreaterEqual(row.name_label.height,row.name_label.texture_size[1])
                 self.assertEqual(row.description.height,0)
                 self.assertEqual(row.description.opacity,0)
-                self.assertGreaterEqual(row.height,row.name_label.height+6)
+                self.assertGreaterEqual(row.height,row.name_label.height+4)
                 self.assertAlmostEqual(row.mark.center_y,row.center_y,delta=1)
+                self.assertAlmostEqual(row.name_label.center_y,row.center_y,delta=1)
             for label in panel.version_labels.values():
                 self.assertGreaterEqual(label.height,label.texture_size[1])
         finally:Metrics.fontscale=old_scale
@@ -79,8 +81,38 @@ class VerificationLayoutTests(unittest.TestCase):
                             self.assertGreaterEqual(widget.y,panel.viewport.y-1)
                             self.assertLessEqual(widget.top,panel.viewport.top+1)
                         self.assertGreaterEqual(panel.hero.y,panel.inspection.top-1)
-                        self.assertGreaterEqual(panel.inspection.y,panel.versions.top-1)
-                        self.assertGreaterEqual(panel.versions.y,panel.result_card.top-1)
+                        self.assertGreaterEqual(panel.steps_box.y,panel.versions.top-1)
+                        self.assertGreaterEqual(panel.versions.y,panel.actions.top-1)
+                        self.assertGreaterEqual(panel.actions.y,panel.result_card.top-1)
+        finally:Metrics.fontscale=old_scale
+
+    def test_all_real_states_keep_rows_and_manual_entry_in_frame(self):
+        from kivy.metrics import Metrics
+        old_scale=Metrics.fontscale
+        token=[True,'a'*64]
+        cases=[({}, {}, False, False),
+               ({'status':'checking'}, {}, True, False),
+               ({'status':'blocked','failure_code':'manifest_validation_failed'}, {}, True, False),
+               ({'status':'ready','ready':True,'catalog_token':token},
+                {'status':'ready','ready':True,'catalog_token':token}, True, True)]
+        try:
+            for scale in (1.0,1.3):
+                Metrics.fontscale=scale
+                for width,height in ((320,618),(360,758),(393,830),(430,910)):
+                    panel,_=self.make_panel(width,height)
+                    for service,local,connected,approved in cases:
+                        panel.apply_state(service,local,connected=connected,login_ready=approved,detail='完整診斷')
+                        self.settle(panel)
+                        self.assertEqual(panel.enter_login.disabled,not approved)
+                        for row in panel.rows.values():
+                            self.assertGreaterEqual(row.name_label.y,row.y)
+                            self.assertLessEqual(row.name_label.top,row.top)
+                            self.assertGreaterEqual(row.name_label.height,row.name_label.texture_size[1])
+                            self.assertGreaterEqual(row.state.height,row.state.texture_size[1])
+                        for label in (panel.status,panel.details_hint,panel.gate_tag,panel.caption):
+                            self.assertGreaterEqual(label.height,label.texture_size[1])
+                        for button in (panel.retry,panel.service_button,panel.enter_login):
+                            self.assertGreaterEqual(button.caption.height,button.caption.texture_size[1])
         finally:Metrics.fontscale=old_scale
 
     def test_complete_diagnostics_open_update_and_close(self):

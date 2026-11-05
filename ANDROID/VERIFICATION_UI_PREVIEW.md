@@ -10,8 +10,9 @@ changed. This is a UI-first candidate, not an Android-device acceptance result.
   941×1672 design image, retained unchanged as a texture atlas. The UI samples
   only decorative icon regions. It does not display the full screenshot or
   sample its example package versions, timestamps, successful rows or buttons.
-- `verification_header_art.png` is an image-generation derivative of that
-  supplied design, with text, status badges and UI icons removed. It is not an
+- `verification_header_art.png` was generated from the approved six-screen
+  concept, separately from the original icon atlas. It has no text, status
+  badges or UI icons. It is not an
   official game asset or a pixel-identical extraction. The girl and floating
   castle are decorative; current version and resource status are live labels.
 - Raster assets do not determine success. `verification_presentation.view_state`
@@ -19,11 +20,14 @@ changed. This is a UI-first candidate, not an Android-device acceptance result.
 - All pictograms, including the bottom actions, now use sampled raster images.
   The user requested retry and start/reconnect on the same row, with login below.
   The three original callbacks and the explicit manual-login action are retained.
-- The entry screen itself has no ScrollView. Seven checks, observed package
-  versions, current status and actions fit on the first screen. Small screens
-  use single-line checks; tap the status card for complete descriptions,
+- The approved concept uses one cyan frame, a character/castle header, a single
+  verification card and a footer status card, with no bottom navigation.
+  The entry screen itself has no ScrollView. Seven checks, observed package
+  versions, current status and actions fit on the first screen. Checks stay on
+  one line; tap the status card for complete descriptions,
   diagnostics and timestamps in a separate scrollable dialog.
-- Only a check whose true state is `checking` continuously rotates its bitmap 360 degrees. All
+- Only a check whose true state is `checking` continuously rotates its bitmap
+  360 degrees. All
   other states and action icons remain static. Animations stop on pause, stop,
   state changes, direct removal or ancestor/root removal from the Window.
 
@@ -68,7 +72,7 @@ background/resume or device performance.
   observers.
 - Initial/pending, checking, passed, blocked, disconnection and mismatched-token
   cases retain the existing fail-closed semantics.
-- Focused verification tests: 25 passed. Full Python suite: 1323 tests, passed with 8 platform/environment skips.
+- Focused verification tests: 26 passed. Full Python suite: 1324 tests, passed with 8 platform/environment skips.
 - Cloud screenshots used the available system Noto Sans CJK font as a local fallback; no font change is part of this patch.
 - No APK, Android-device or official-server validation is claimed.
 
@@ -77,9 +81,13 @@ background/resume or device performance.
 These are actual Kivy widget captures with explicitly labelled offline fixtures,
 not composited design mockups and not Android-device screenshots.
 
+![393×852 initial pending state](previews/verification-initial.png)
+
 ![393×852 checking](previews/verification-393.png)
 
 ![320×640 at 130% font size, blocked](previews/verification-320-font130.png)
+
+![393×852 passed fixture, still requiring an explicit login tap](previews/verification-passed.png)
 
 ![Actual rendered checking animation](previews/verification-checking.gif)
 

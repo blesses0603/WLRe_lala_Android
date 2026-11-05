@@ -8,14 +8,13 @@ from pathlib import Path
 
 from kivy.animation import Animation
 from kivy.app import App
-from kivy.graphics import Color, Ellipse, Line, Rectangle, RoundedRectangle, PushMatrix, PopMatrix, Rotate
+from kivy.graphics import Color, Rectangle, RoundedRectangle, PushMatrix, PopMatrix, Rotate
 from kivy.graphics.texture import Texture
 from kivy.core.image import Image as CoreImage
 from kivy.metrics import dp, Metrics
 from kivy.properties import NumericProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.behaviors import ButtonBehavior
-from kivy.uix.widget import Widget
 from kivy.uix.popup import Popup
 from kivy.uix.button import Button
 from kivy.uix.floatlayout import FloatLayout
@@ -23,10 +22,9 @@ from kivy.uix.image import Image
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
 
-from android_app.theme import ACCENT, MUTED, TEXT
+from android_app.theme import MUTED, TEXT
 from android_app.version import ANDROID_VERSION
 from android_app.verification_presentation import STEPS, view_state
-from android_app.verification_icons import VerificationRail
 from android_app.verification_icons import CYAN as ICON_CYAN, GREEN as ICON_GREEN
 from android_app.verification_icons import RED as ICON_RED, DIM as ICON_DIM
 
@@ -256,10 +254,10 @@ class CosmicHeader(FloatLayout):
             self._scene_source=CoreImage(str(art)) if art.is_file() else None
         except Exception:
             self._scene_source=None
-        crop_height=min(520,self._scene_source.height) if self._scene_source else 0
+        crop_height=self._scene_source.height if self._scene_source else 0
         scene_texture=(self._scene_source.texture.get_region(0,self._scene_source.height-crop_height,
                        self._scene_source.width,crop_height) if self._scene_source else None)
-        self.scene=Image(texture=scene_texture,fit_mode='fill',size_hint=(1,1))
+        self.scene=Image(texture=scene_texture,fit_mode='cover',size_hint=(1,1))
         self.add_widget(self.scene)
         # Temporary fallback is still raster artwork, never vector recreation.
         self.mascot=Image(texture=_reference_region((0,0,215,191)),fit_mode='contain',
@@ -277,18 +275,18 @@ class CosmicHeader(FloatLayout):
         self.set_verified(False);self._geometry()
     def _geometry(self,*_):
         narrow=self.width<dp(340)
-        left=self.x+self.width*.25
-        available=self.width*.71
+        left=self.x+self.width*.30
+        available=self.width*.67
         self.scene.pos,self.scene.size=self.pos,self.size
         self.mascot.pos=(self.x,self.y); self.mascot.size=(self.width*.24,self.height)
         self.castle.pos=(self.x+self.width*.56,self.y);self.castle.size=(self.width*.44,self.height)
         if self.height<dp(80):
             # Keep three measured text lanes even with Android's 130% font size.
-            self.headline.font_size='16sp'
-            self.subtitle.font_size=self.badge.font_size='8sp'
-            self.headline.pos,self.headline.size=(left,self.y+dp(34)),(available,dp(30))
-            self.subtitle.pos,self.subtitle.size=(left,self.y+dp(17)),(available,dp(17))
-            self.badge.pos,self.badge.size=(left,self.y),(available,dp(17))
+            self.headline.font_size='14sp'
+            self.subtitle.font_size='7.5sp';self.badge.font_size='7sp'
+            self.headline.pos,self.headline.size=(left,self.top-dp(28)),(available,dp(28))
+            self.subtitle.pos,self.subtitle.size=(left,self.y+dp(14)),(available,dp(15))
+            self.badge.pos,self.badge.size=(left,self.y),(available,dp(14))
         else:
             self.headline.font_size='18sp' if narrow else '21sp'
             self.subtitle.font_size=self.badge.font_size='10sp'
@@ -314,10 +312,10 @@ class CheckRow(BoxLayout):
     def __init__(self,key,title,description,symbol,**kwargs):
         super().__init__(orientation='horizontal',size_hint_y=None,
                          height=dp(40),spacing=dp(8),padding=[dp(10),dp(4)],**kwargs)
-        glow_panel(self,fill=_INNER,radius=11)
+        glow_panel(self,fill=(.055,.20,.285,1),radius=7)
         self.mark=ReferenceGlyph(symbol,edge=23,pos_hint={'center_y':.5})
         self.add_widget(self.mark)
-        words=BoxLayout(orientation='vertical',spacing=0)
+        self.words=words=BoxLayout(orientation='vertical',spacing=0,size_hint_y=None,pos_hint={'center_y':.5})
         self.name_label=txt(title,size='12sp',height=18,bold=True)
         self.description=txt(description,size='9sp',height=14,color=MUTED)
         # Names/status never ellipsize. Descriptions grow on narrow screens or
@@ -338,18 +336,23 @@ class CheckRow(BoxLayout):
 
     def set_compact(self,compact):
         self.compact=bool(compact)
-        self.name_label.font_size='11sp'
-        self.description.font_size='8.5sp'
-        self.padding=[dp(9),dp(3)]
-        self.description.opacity=0 if compact else 1
-        self.mark.size=(dp(20 if compact else 23),)*2
+        self.name_label.font_size='11sp' if compact else '13sp'
+        self.description.font_size='10sp'
+        self.padding=[dp(10),dp(2)]
+        self.spacing=dp(6)
+        self.description.opacity=0
+        self.mark.size=(dp(18 if compact else 22),)*2
+        self.state.font_size='9sp' if compact else '10sp'
+        self.state.width=dp(52 if compact else 58)
+        self.state_icon.size=(dp(14 if compact else 16),)*2
         self._fit_description()
 
     def _fit_description(self,*_):
         self.name_label.height=max(dp(16),self.name_label.texture_size[1])
-        self.description.height=0 if getattr(self,'compact',False) else max(dp(13),self.description.texture_size[1])
-        self.height=max(dp(27 if getattr(self,'compact',False) else 35),
-                        self.name_label.height+self.description.height+dp(6))
+        self.description.height=0
+        self.words.height=self.name_label.height
+        if self.size_hint_y is None:
+            self.height=max(dp(27),self.name_label.height+dp(4))
 
     def _align_icons(self,*_):
         self.mark.center_y=self.center_y
@@ -366,25 +369,6 @@ class CheckRow(BoxLayout):
         self.state_icon._paint()
 
 
-class _AdaptiveRail(VerificationRail):
-    """Connect actual row centres, including accessibility-driven wrapping."""
-    def __init__(self,**kwargs):
-        self.rows=[]
-        super().__init__(**kwargs)
-        self.width=dp(13)
-    def _paint(self,*_):
-        self.canvas.before.clear()
-        if not self.rows:return
-        ys=[row.center_y for row in self.rows]
-        x=self.center_x
-        with self.canvas.before:
-            Color(.18,.76,.88,.3)
-            Line(points=(x,ys[0],x,ys[-1]),width=dp(.7))
-            for y,state in zip(ys,self.states):
-                Color(*(ICON_GREEN if state=='passed' else ICON_RED if state=='blocked' else ICON_CYAN if state=='checking' else ICON_DIM))
-                Ellipse(pos=(x-dp(2.5),y-dp(2.5)),size=(dp(5),dp(5)))
-
-
 class _DetailsCard(ButtonBehavior,BoxLayout):
     """A full-size details target, separate from the frozen bottom actions."""
 
@@ -393,100 +377,79 @@ class VerificationDashboard(BoxLayout):
     """Single-screen overview with details on demand; the gate owns entry."""
     _ICONS=('cube','database','layers','document','bundle','gear','database')
     def __init__(self,retry,start_service,enter_login=None,**kwargs):
-        super().__init__(orientation='vertical',**kwargs)
+        super().__init__(orientation='vertical',padding=dp(10),**kwargs)
         with self.canvas.before:
             Color(*_SKY)
             background=Rectangle(pos=self.pos,size=self.size)
         self.bind(pos=lambda *_:setattr(background,'pos',self.pos),
                   size=lambda *_:setattr(background,'size',self.size))
-        # There is deliberately no ScrollView in the first screen. Detailed
-        # diagnostics open only after an explicit tap on the result card.
+        # One framed screen. Full diagnostics are opened explicitly, never
+        # pushed below a scrolling entry page or replaced with mock success.
         self.viewport=BoxLayout(orientation='vertical')
-        root=BoxLayout(orientation='vertical',padding=[dp(12),dp(3),dp(12),dp(9)],spacing=dp(8))
-        self.hero=CosmicHeader()
-        root.add_widget(self.hero)
-        self.inspection=inspection=BoxLayout(orientation='vertical',size_hint_y=None,
-                             padding=[dp(12),dp(8)],spacing=dp(6))
-        inspection.bind(minimum_height=inspection.setter('height'))
-        glow_panel(inspection,radius=19,bright=True)
-        self.inspection_title_row=title_row=BoxLayout(size_hint_y=None,height=dp(27),spacing=dp(8))
-        title_row.add_widget(ReferenceGlyph('layers',edge=22,pos_hint={'center_y':.5}))
-        self.inspection_title=txt('官方資料與資料庫檢查',size='16sp',height=27,bold=True)
+        glow_panel(self.viewport,fill=(.018,.070,.115,1),radius=22,bright=True)
+        root=BoxLayout(orientation='vertical',padding=dp(12),spacing=dp(10))
+        self.content_root=root
+        self.hero=CosmicHeader();root.add_widget(self.hero)
+        self.inspection=inspection=BoxLayout(orientation='vertical',padding=dp(10),spacing=dp(6))
+        glow_panel(inspection,fill=(.022,.105,.165,1),radius=15,bright=True)
+        self.inspection_title_row=title_row=BoxLayout(size_hint_y=None,height=dp(32),spacing=dp(8))
+        title_row.add_widget(ReferenceGlyph('layers',edge=25,pos_hint={'center_y':.5}))
+        self.inspection_title=txt('官方資源驗證',size='18sp',height=32,bold=True)
         title_row.add_widget(self.inspection_title)
-        inspection.add_widget(title_row)
-        self.caption=txt('核對官方來源與手機端資料。全部通過後，才能安全進入帳號登入。',size='11sp',color=MUTED)
-        track=BoxLayout(orientation='horizontal',size_hint_y=None,spacing=dp(6))
-        self.rail=_AdaptiveRail()
-        track.add_widget(self.rail)
-        self.steps_box=steps_box=BoxLayout(orientation='vertical',size_hint_y=None,spacing=dp(3))
-        steps_box.bind(minimum_height=steps_box.setter('height'))
-        steps_box.bind(height=lambda w,h:setattr(track,'height',h))
+        self.gate_tag=txt('啟動前檢查',size='9sp',height=32,color=MUTED)
+        self.gate_tag.size_hint_x=None;self.gate_tag.width=dp(67);self.gate_tag.halign='right'
+        title_row.add_widget(self.gate_tag);inspection.add_widget(title_row)
+        self.caption=txt('檢查官方資源與本機資料完整性。\n全部通過後，再手動進入帳號登入。',size='10.5sp',height=36,color=MUTED)
+        inspection.add_widget(self.caption)
+        self.steps_box=steps_box=BoxLayout(orientation='vertical',spacing=dp(5))
         self.rows={}
         for (key,name,description),symbol in zip(STEPS,self._ICONS):
             item=CheckRow(key,name,description,symbol)
-            steps_box.add_widget(item); self.rows[key]=item
-            item.bind(pos=self.rail._paint,size=self.rail._paint)
-        self.rail.rows=list(self.rows.values())
-        track.add_widget(steps_box);inspection.add_widget(track);root.add_widget(inspection)
+            item.size_hint_y=1
+            steps_box.add_widget(item);self.rows[key]=item
+        inspection.add_widget(steps_box)
 
-        self.versions=versions=BoxLayout(orientation='vertical',size_hint_y=None,
-                           padding=[dp(12),dp(5)],spacing=0)
-        versions.bind(minimum_height=versions.setter('height'))
-        glow_panel(versions,radius=16)
-        self.version_cards=cards=BoxLayout(size_hint_y=None,height=dp(40),spacing=dp(10))
-        self.version_labels={};self.version_captions={};version_cards=[]
-        def fit_versions(*_):
-            cards.height=max([dp(36)]+[card.minimum_height for card in version_cards])
+        self.versions=versions=BoxLayout(size_hint_y=None,height=dp(40),spacing=dp(10),padding=[dp(8),0])
+        self.version_cards=versions
+        self.version_labels={};self.version_captions={}
         for name in ('DataPackage','MainPackage'):
-            card=BoxLayout(orientation='vertical',spacing=0,size_hint_y=None)
-            card.bind(minimum_height=card.setter('height'));card.bind(minimum_height=fit_versions)
-            caption=grow(txt(name,size='10sp',height=17,color=MUTED),minimum=17)
-            value=grow(txt('尚未取得',size='12sp',height=20,color=_CYAN,bold=True),minimum=20)
+            card=BoxLayout(orientation='vertical',spacing=0)
+            caption=txt(name,size='9sp',height=17,color=MUTED)
+            value=txt('尚未取得',size='11sp',height=21,color=_CYAN,bold=True)
             card.add_widget(caption);card.add_widget(value)
             self.version_labels[name]=value;self.version_captions[name]=caption
-            cards.add_widget(card);version_cards.append(card)
-        versions.add_widget(cards);root.add_widget(versions)
+            versions.add_widget(card)
+        inspection.add_widget(versions)
 
-        self.result_card=result=_DetailsCard(orientation='vertical',size_hint_y=None,
-                         padding=[dp(12),dp(5)],spacing=1)
-        result.bind(minimum_height=lambda w,h:setattr(w,'height',max(dp(44),h)))
-        result.bind(on_release=lambda *_:self.open_details())
-        glow_panel(result,radius=16)
-        self.status_row=status_row=BoxLayout(size_hint_y=None,height=dp(24),spacing=dp(8))
-        status_row.add_widget(ReferenceGlyph('pulse',edge=20,pos_hint={'center_y':.5}))
-        self.status=txt('等待背景服務連線',size='12sp',color=_CYAN,height=24,bold=True)
-        status_row.add_widget(self.status);result.add_widget(status_row)
-        self.details_hint=txt('點此查看完整檢查結果與說明',size='9sp',height=16,color=MUTED)
-        result.add_widget(self.details_hint);root.add_widget(result)
-        # Keep exact details and time available without forcing a page scroll.
-        self.detail=txt('尚無檢查結果。',size='11sp',color=MUTED)
-        self.checked=txt('檢查時間：尚未取得',size='10sp',color=MUTED)
-        self._details_popup=None;self._details_label=None
-        self.spacer=Widget();root.add_widget(self.spacer)
-        self.viewport.add_widget(root);self.add_widget(self.viewport)
-        self.content_root=root
-        controls=BoxLayout(orientation='vertical',size_hint_y=None,
-                           padding=[dp(12),dp(8),dp(12),dp(12)],spacing=dp(6))
-        controls.bind(minimum_height=controls.setter('height'))
+        controls=BoxLayout(orientation='vertical',size_hint_y=None,height=dp(96),spacing=dp(6))
         self.action_row=action_row=BoxLayout(size_hint_y=None,height=dp(46),spacing=dp(8))
         self.retry=NeonAction('重新檢查',retry,primary=True,glyph='refresh')
         self.service_button=NeonAction('啟動／重連接',start_service,glyph='wifi')
         self.retry.compact_caption();self.service_button.compact_caption()
-        action_row.add_widget(self.retry)
-        action_row.add_widget(self.service_button)
+        action_row.add_widget(self.retry);action_row.add_widget(self.service_button)
         controls.add_widget(action_row)
         self.enter_login=NeonAction('進入帳號登入',enter_login or (lambda:None),primary=True,glyph='play')
-        self.enter_login.disabled=True
-        self.enter_login.height=dp(42)
-        controls.add_widget(self.enter_login)
-        self.add_widget(controls)
+        self.enter_login.disabled=True;self.enter_login.height=dp(44)
+        controls.add_widget(self.enter_login);inspection.add_widget(controls)
         self.actions=controls
 
+        self.result_card=result=_DetailsCard(orientation='vertical',size_hint_y=None,height=dp(54),padding=[dp(10),dp(5)],spacing=0)
+        result.bind(on_release=lambda *_:self.open_details())
+        glow_panel(result,fill=(.045,.16,.23,1),radius=9)
+        self.status_row=status_row=BoxLayout(size_hint_y=None,height=dp(25),spacing=dp(7))
+        status_row.add_widget(ReferenceGlyph('info',edge=18,pos_hint={'center_y':.5}))
+        self.status=txt('等待背景服務連線',size='11sp',color=_CYAN,height=25,bold=True)
+        status_row.add_widget(self.status);result.add_widget(status_row)
+        self.details_hint=txt('尚未通過驗證。點此查看完整檢查資訊。',size='9sp',height=18,color=MUTED)
+        result.add_widget(self.details_hint);inspection.add_widget(result)
+        self.detail=txt('尚無檢查結果。',size='11sp',color=MUTED)
+        self.checked=txt('檢查時間：尚未取得',size='10sp',color=MUTED)
+        self._details_popup=None;self._details_label=None
+        root.add_widget(inspection)
+        self.viewport.add_widget(root);self.add_widget(self.viewport)
         self._last_render=None
-        self._animation_app=None
-        self._animation_paused=False
-        self._animation_ancestors=[]
-        self.viewport.bind(size=self._adapt_layout)
+        self._animation_app=None;self._animation_paused=False;self._animation_ancestors=[]
+        self.bind(size=self._adapt_layout)
         self._adapt_layout()
 
     def on_parent(self,*_):
@@ -539,22 +502,43 @@ class VerificationDashboard(BoxLayout):
             self._animation_app=None
 
     def _adapt_layout(self,*_):
-        compact=(self.viewport.height<dp(610) or
-                 (Metrics.fontscale>1.15 and self.viewport.height<dp(720)))
+        compact=(self.height<dp(720) or (Metrics.fontscale>1.15 and self.height<dp(850)))
         self.compact=compact
-        self.hero.height=dp(64 if compact else 96)
-        self.content_root.spacing=dp(5 if compact else 8)
-        self.content_root.padding=[dp(12),dp(2),dp(12),dp(6 if compact else 9)]
-        self.inspection.padding=[dp(12),dp(6 if compact else 8)]
-        self.inspection.spacing=dp(5 if compact else 6)
-        self.inspection_title.font_size='14sp' if compact else '16sp'
-        self.inspection_title.height=dp(30 if Metrics.fontscale>1.15 else 24 if compact else 27)
-        self.inspection_title_row.height=self.inspection_title.height+dp(1)
-        self.status.font_size='11sp' if compact else '12sp'
-        self.details_hint.font_size='8sp' if compact else '9sp'
+        self.padding=dp(6 if compact else 10)
+        self.content_root.padding=dp(7 if compact else 12)
+        self.content_root.spacing=dp(5 if compact else 10)
+        self.hero.height=dp(56 if compact else 100)
+        self.inspection.padding=dp(6 if compact else 10)
+        self.inspection.spacing=dp(4 if compact else 6)
+        self.inspection_title.font_size='14sp' if compact else '18sp'
+        self.inspection_title.height=dp(28 if compact else 36)
+        self.inspection_title_row.height=self.inspection_title.height
+        self.gate_tag.font_size='8sp' if compact else '9sp'
+        self.gate_tag.width=dp(58 if compact else 67)
+        self.gate_tag.height=self.inspection_title.height
+        self.caption.text=('檢查完成後，請手動進入帳號登入。' if compact else
+                           '檢查官方資源與本機資料完整性。\n全部通過後，再手動進入帳號登入。')
+        self.caption.font_size='9sp' if compact else '10.5sp'
+        self.caption.height=dp(20 if compact else 38)
+        self.steps_box.spacing=dp(3 if compact else 5)
         for row in self.rows.values():row.set_compact(compact)
-        for caption in self.version_captions.values():caption.font_size='9sp' if compact else '10sp'
-        for value in self.version_labels.values():value.font_size='10sp' if compact else '12sp'
+        self.versions.height=dp(34 if compact else 40)
+        for caption in self.version_captions.values():
+            caption.font_size='8sp' if compact else '9sp';caption.height=dp(16 if compact else 18)
+        for value in self.version_labels.values():
+            value.font_size='9sp' if compact else '11sp';value.height=dp(18 if compact else 22)
+        self.action_row.height=dp(42 if compact else 46)
+        self.retry.height=self.service_button.height=self.action_row.height
+        self.retry.caption.font_size=self.service_button.caption.font_size='11sp' if compact else '12sp'
+        self.enter_login.height=dp(40 if compact else 44)
+        self.actions.height=self.action_row.height+self.enter_login.height+dp(6)
+        self.result_card.height=dp(44 if compact else 54)
+        self.result_card.padding=[dp(8 if compact else 10),dp(3 if compact else 5)]
+        self.status_row.height=dp(22 if compact else 25)
+        self.status.height=self.status_row.height
+        self.status.font_size='9.5sp' if compact else '11sp'
+        self.details_hint.font_size='8sp' if compact else '9sp'
+        self.details_hint.height=dp(16 if compact else 18)
 
     def _details_text(self):
         sections=[self.status.text,self.detail.text,self.checked.text,self.caption.text]
@@ -588,11 +572,12 @@ class VerificationDashboard(BoxLayout):
         self._last_render=revision
         self.hero.set_verified(view['approved'])
         self.enter_login.disabled = not view['approved']
-        self.rail.set_states([view['steps'][key] for key,_,_ in STEPS])
         for key,step in self.rows.items():step.update(view['steps'][key])
         self._sync_animations()
         for name,label in self.version_labels.items():
             label.text=view['versions'].get(name) or '尚未取得'
+        self.gate_tag.text='驗證完成' if view['approved'] else '檢查中' if view['kind']=='checking' else '尚未通過' if view['kind']=='blocked' else '啟動前檢查'
+        self.details_hint.text='點此查看完整檢查資訊。' if view['approved'] else '尚未通過驗證。點此查看完整檢查資訊。'
         self.status.text=view['headline']
         self.status.color=_GREEN if view['approved'] else _RED if view['kind']=='blocked' else _CYAN
         self.detail.text=detail

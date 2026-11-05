@@ -1,14 +1,14 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "09d77e058d2b119e5b80a59ad23442d8644a30b6",
+  "desktop_source": "c3fed57752c5ce3214057115c5e5b930bf9f1dbf",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
   "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
-    "size": 93212672,
-    "sha256": "d8d196bd60a32294d1eaecea492310235b637ca62dbabaf238682afa4bdb0e62"
+    "size": 93188096,
+    "sha256": "958797a19067248652d3cd8b80467196b97fae42425237b740f4866fd73baec6"
   },
   "source_files": {
     "wlre/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -31,7 +31,7 @@
     "wlre/network/commands.py": "07dc3f4b2e1d9db4b5b9fa464c9164b070e74518db8ad7aa8b6d764a476da702",
     "wlre/network/connection_health.py": "b395caa877f36c2e3097790ed49070d777564f337f3006f9b1903e0ee3efb856",
     "wlre/network/expedition.py": "aab0dba290aa3d869dbd417f6065c2eba9e5dc19366ba8f29406a7181904134e",
-    "wlre/network/instance_actions.py": "a777b356fa9300adedbb9be85fc30241cbeb3481fdad4da70b5f4f7159f3f547",
+    "wlre/network/instance_actions.py": "cbf5431708b54c0f39d5be567d5f5b4397a6cbf9e4264e62de487d872e67cb88",
     "wlre/network/instances.py": "af441d0c7e940ff63f49b1459f4d8ad7a29a1927c713210d8a4d2b9b16188295",
     "wlre/network/layouts.py": "ca5ce36f99ae1be11cc44dd9c5339635256b3d89ff7784539e573d3ee0e37d3d",
     "wlre/network/live_data.py": "897e789ea33f02e2056d48e936c7856bbfb5e580d9a7d2ecb05048437416efd0",
@@ -60,10 +60,10 @@
     "wlre/services/expedition_teams.py": "b196257993c0cab7da106f104d35ac6a54ce4247bef9ab0fdd4a2afdf3d50b08",
     "wlre/services/game_version_gate.py": "aec1deaf9ad63339551adb11728b6079beb87b3ae17aaaa97f4d06fc4774f0ef",
     "wlre/services/instance_activity.py": "ed15766ee26c9e884be02e4bb2dc8670acbb7133c7d3d0ecc03ff398cb9444a6",
-    "wlre/services/instance_browser.py": "86dad4b9578f3b75d1186c074a8e723e7559c96c9dfee8a45067df490c439aa5",
+    "wlre/services/instance_browser.py": "2454e45fc3a3d05b08c3212ce6b0409b1740ff8c375657d1c69d0ee447654ec2",
     "wlre/services/instance_catalog.py": "f22cb0faa1507307e2d5cb3432ffe9604d95962ce11f9f569f88edfedfdb4d83",
     "wlre/services/instance_combat.py": "93205bf4887d7f7a8fbfff08ae83e30e02cdb7f996c78c15bc2f18164d658737",
-    "wlre/services/instance_creation.py": "16dafa89bf27434c231ba0034b6a96f74aa5969f86f080c07c16f44dd49f3521",
+    "wlre/services/instance_creation.py": "21deec9d5814a0f37775bb168b09098d598f8e2e584aa99f4ae2ce82ceb51424",
     "wlre/services/instance_entry.py": "1c1a9bdd17fd85675293525f3de4219a904274df8739298963f6832b2c1ea924",
     "wlre/services/instance_rewards.py": "aa05f7c04f007036a91ced76be4d466283e567585217cbed5e2c1760f665466c",
     "wlre/services/instance_room_flow.py": "e7e1e2e62c414e9ca442413b80cf88c5162ced00ecaba04799656232e9eb8718",
@@ -112,7 +112,7 @@
     "wlre/services/world/daily_task_1275.py": "0a25ad80edab54070e1705b238d462f0ef85f081c5d570e45c8abf2a4273df45",
     "wlre/services/world/display_position.py": "200b61ffb7f969d6ef4fd67069c2b0dbac52776ae0625bde4957f45654e1c97c",
     "wlre/services/world/doors_1275.py": "76c0a03c12658bc183d46789e6007ee074ca47af3e890469e5362b72f9c25f13",
-    "wlre/services/world/dynamic_bundle_runtime.py": "652334cbb3dca370ea27262e10783bea5989922ea7d8156e121e86777684912d",
+    "wlre/services/world/dynamic_bundle_runtime.py": "5590ae72bb6e899560e1ffbdaac3885b03d2362b8679eb954a3802d1e1e98161",
     "wlre/services/world/eve_v115.py": "71617ac3b1d53a347d86245ce5231ad18a42ab7fd7bfd7a721b2665378189fb1",
     "wlre/services/world/feature_resource_index.py": "a83f8bd276d2779bfc59d8a096f083f8e0250971dbc3a3e2c8e0a10db7ecb444",
     "wlre/services/world/formal_candidate_bridge.py": "226337f21708c2c5403b1e2f357ecb1148e568e3eac4b89759df202948d3ccf5",
@@ -146,7 +146,7 @@
     "wlre/services/world/portal_schema.py": "cb6815fb51a76b246af6d909e8402a2bd314cf6ab51e7024d31de60162562aef",
     "wlre/services/world/portal_travel.py": "dba0d0004dafe8dbd6be16e5ea215cd47ad010af531969c48f2aaaa8cb49c736",
     "wlre/services/world/portals.py": "bb75e91afeff1610f3f41432c169604b2b8151806190fed86840a8b27816df7a",
-    "wlre/services/world/preview_1275.py": "719a06e7c4faf19698fe5de7506954c235246ca8106597582fecbf7f74f15d94",
+    "wlre/services/world/preview_1275.py": "7e8fde6436a403037a6a7436b4cc7b6cab4964c033b55362dfe13a77a98885b4",
     "wlre/services/world/resource_classification.py": "62516268671ba9c7f6757fb2bd825d848a35ea78f0658d046951c0551ded7a6d",
     "wlre/services/world/resource_database.py": "6cbed2423b7d8fd1fcf5bd9de19530851f951e88bf163fe03b465e20da29774c",
     "wlre/services/world/resource_gap_diagnostics.py": "5241d64f776dca74559c5b83813fcfdfccea3f8305d261a7a2aade79efcad11b",
@@ -166,7 +166,7 @@
     "wlre/storage/defaults.py": "298c3b6b9b812a9496fbe5e973b31363abd21eb2eefbe5032c0f719453cefaa4",
     "wlre/storage/expedition_settings.py": "4c88245fd838e47682caa9837512dd8b93a367700b77d8ad8ca3f194ea86ec0b",
     "wlre/storage/full_resource_seed.py": "60015cae04dd1b262273002d29ff5a6ecb98b3c051e3b5193a6ee35bc9b8174b",
-    "wlre/storage/initial_catalog.py": "d85e2d7386f3017c4095867806ae92ef97b60be0dc09f61795696d91dd6bb0a6",
+    "wlre/storage/initial_catalog.py": "ec42c15dfe1ffea6e7c8e25f77dff9610d532069a8a7080c3e2dfe173fab3773",
     "wlre/storage/login_memory.py": "c1a27c1b8ec23267ad762cefa0582f97491629ba72a2793ea1871bbc0fab9085",
     "wlre/storage/paths.py": "94d488d6e66e4b301916f69ac5a5aac452d1151477aba1e6dfb659487c38921f",
     "wlre/storage/resource_migration.py": "9cfe3f193a8440b004e2c7bb8ab9445500669160601617de994ea86db77dcb68",
@@ -176,7 +176,8 @@
     "wlre/storage/normalized_resources.py": "9fadde69313578fb16c84dac4f4de3efe8092650b234d1cf9658f9ed79180e60",
     "wlre/services/official_source.py": "64f4ea9909aeb9bd61f5be2b2f07851a028eccefd6fc2d488262c9dd161554df",
     "wlre/configuration.py": "75826709bf77b44a1f3ef88967383942d5f2824b4ffa014270ba869d6ce35459",
-    "wlre/services/official_server_list.py": "e7c8aa83eb902cf110acbb2cd283abbab12a444b98e6c812e3a2fb900bc82265"
+    "wlre/services/official_server_list.py": "e7c8aa83eb902cf110acbb2cd283abbab12a444b98e6c812e3a2fb900bc82265",
+    "wlre/services/world/instance_runtime.py": "fda023b43c105e42dc85d0e6d788736c83e0a63f5aa7b7f4c91a22225dec289c"
   },
   "desktop_checked_head": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",
@@ -223,7 +224,7 @@
     },
     "wlre/services/world/bundle_runtime_1275.py": {
       "reason": "將已驗證 DataPackage 完整版本傳給 ItemData parser；保留既有 Manifest、Bundle、跨表驗證及登入安全閘門。 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。",
-      "sha256": "4a5eb49f95d40775a361193074ee8cbd6c2d4e8832bd0e091cbcbe2dc4a9e768"
+      "sha256": "ef01922cb463879f64521a3470ce6d22c39c71c2d33dec89e110f80fc132542f"
     },
     "wlre/services/world/catalog_adapters.py": {
       "reason": "ItemData adapter 傳遞 SourceContract 的完整 package_version，禁止 1296 bytes 配上其他版本。",
@@ -267,7 +268,7 @@
     },
     "wlre/storage/resource_seed_manifest.py": {
       "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
-      "sha256": "c58129c4a6f5f760ba611400f1917c5cb7c0e1bb9873dd9437060e7cf90d36a2"
+      "sha256": "17e75cd1ad785ccb7b86e0ccb0c82b55bb79d875bcef7087b216acb559c04047"
     },
     "wlre/configuration.py": {
       "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",

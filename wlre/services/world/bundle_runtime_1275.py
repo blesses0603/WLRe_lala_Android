@@ -502,6 +502,17 @@ def load_verified_bundle_runtime(*, sync_root=None, _verified_context=None):
             },
         }
 
+        instances = None
+        instance_status = '副本需要當次官方動態資料'
+        if dynamic:
+            try:
+                from wlre.services.world.instance_runtime import load_verified_catalog as load_instances
+                instances = load_instances(verified_data, bundle_root, load_container,
+                                           root, identity, sources)
+                instance_status = '同版副本與協力事件已由 SQLite 載入'
+            except (OSError, ValueError, TypeError, KeyError, RuntimeError) as error:
+                instance_status = '副本資料未通過驗證：' + str(error)
+
         stage = '正式 Runtime 建立'
         from wlre.services.world.portal_coverage import audit_portal_coverage
         coverage = audit_portal_coverage(doors, scene_rows,
@@ -528,6 +539,7 @@ def load_verified_bundle_runtime(*, sync_root=None, _verified_context=None):
             portal_metadata_status=portal_metadata_status,
             portal_schema_report=portal_schema_report,
             portal_coverage=coverage,
+            instances=instances, instance_status=instance_status,
             doors=doors, expedition=expedition, revision=revision,
         )
         if dynamic:

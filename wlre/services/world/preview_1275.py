@@ -148,6 +148,8 @@ class Preview1275:
     portal_metadata_status: str = 'missing_stage_map'
     portal_schema_report: dict = field(default_factory=dict)
     portal_coverage: dict = field(default_factory=dict)
+    instances: dict | None = None
+    instance_status: str = '副本資料尚未同步'
     expedition: dict | None = None
     revision: int = 1275
     can_send_packets: bool = False

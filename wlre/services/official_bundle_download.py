@@ -20,7 +20,8 @@ from android_app.tls import verified_https_opener
 from wlre.storage.paths import data_root
 
 
-OFFICIAL_BUNDLE_HOST = 'wlreftp.chinesegamer.net'
+from wlre.services.official_source import selected_host
+OFFICIAL_BUNDLE_HOST = selected_host()
 BASE = 'https://' + OFFICIAL_BUNDLE_HOST + '/WLN/TW'
 MAX_BUNDLE_BYTES = 256 * 1024 * 1024
 CHUNK_BYTES = 64 * 1024

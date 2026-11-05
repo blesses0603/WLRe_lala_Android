@@ -172,18 +172,20 @@
     "wlre/storage/resource_migration.py": "9cfe3f193a8440b004e2c7bb8ab9445500669160601617de994ea86db77dcb68",
     "wlre/storage/resource_seed_manifest.py": "b977d66108ede519bc749167ab76628ecc94d62a2140ec8e62f275c83442fc72",
     "wlre/storage/server_lines.py": "f166cb87ec14a7d74e36b0e0113c90cb878afe3853032db9bd244a243fea0d44",
-    "wlre/services/world/event_portals.py": "0bed2a5f1d2eb7b2127358b5664e5f265bc80b55efd08044194332137ed2865f"
+    "wlre/services/world/event_portals.py": "0bed2a5f1d2eb7b2127358b5664e5f265bc80b55efd08044194332137ed2865f",
+    "wlre/storage/normalized_resources.py": "9fadde69313578fb16c84dac4f4de3efe8092650b234d1cf9658f9ed79180e60",
+    "wlre/services/official_source.py": "64f4ea9909aeb9bd61f5be2b2f07851a028eccefd6fc2d488262c9dd161554df"
   },
   "desktop_checked_head": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",
   "android_adaptations": {
     "wlre/services/official_manifest_sync.py": {
-      "reason": "使用可打包的 Manifest parser；Android v7.1.7 增加同源 HTTPS 數字查詢安全重試與網路錯誤階段標記；Android v7.1.8 明確使用已驗證的 Android TLS CA 處理器",
-      "sha256": "fe3eb9c15a67256387d60f582212c00fdc13be27f08f1106ec744e267040ecaa"
+      "reason": "使用可打包的 Manifest parser；Android v7.1.7 增加同源 HTTPS 數字查詢安全重試與網路錯誤階段標記；Android v7.1.8 明確使用已驗證的 Android TLS CA 處理器 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。",
+      "sha256": "ad01a66fadd4406cdce1450c6bead9dfa42b822cded15d212a9d539b1c3a5130"
     },
     "wlre/services/official_bundle_download.py": {
-      "reason": "Android v7.1.8 Bundle HTTPS 明確載入受信任的 Android TLS CA 處理器，保留無轉址與檔案完整性驗證；桌面原始碼 SHA-256 不變",
-      "sha256": "211de83d272ae130266739ffc26f675b1bc7058aa48b0a680b04f9adf24b48fe"
+      "reason": "Android v7.1.8 Bundle HTTPS 明確載入受信任的 Android TLS CA 處理器，保留無轉址與檔案完整性驗證；桌面原始碼 SHA-256 不變 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。",
+      "sha256": "324d311671060f5245c876cb6f25b0d0b607093202300bc35d95cd9267d48bc2"
     },
     "wlre/services/official_incremental_sync.py": {
       "reason": "使用可打包的 Manifest parser",
@@ -202,8 +204,8 @@
       "sha256": "ad02c556a41dcfc39e44a674d71d9ef56c7bdbc9f6b574e02adc36d0fb24780b"
     },
     "wlre/services/official_version.py": {
-      "reason": "Android 官方資源 HTTPS 以選定 CA 明確驗證並區分 SSL 憑證與握手錯誤；桌面版本核心來源 SHA 不變，僅追蹤平台差異",
-      "sha256": "24e35c21cad321af34f0eea1e231e189bc5dfa000b9dad7f6fa997fc504df012"
+      "reason": "Android 官方資源 HTTPS 以選定 CA 明確驗證並區分 SSL 憑證與握手錯誤；桌面版本核心來源 SHA 不變，僅追蹤平台差異 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。",
+      "sha256": "37dd981799ad297fe70af730c5abd8ddac17e0760b33be23a5f65b9daae21623"
     },
     "wlre/services/game_version_gate.py": {
       "reason": "Android 專屬 Runtime 失敗階段與下載額度診斷；額外區分目前官方 Manifest／Bundle／YooAsset 不相容錯誤（保留登入驗證及固定訊息）；Android v7.1.7 區分 Manifest .hash／.bytes 的固定安全網路失敗代碼",
@@ -218,8 +220,8 @@
       "sha256": "2860ebf6a53492c82f5ab99b6da544d6fc9d4ed4ab65198c18409335cd32c72e"
     },
     "wlre/services/world/bundle_runtime_1275.py": {
-      "reason": "將已驗證 DataPackage 完整版本傳給 ItemData parser；保留既有 Manifest、Bundle、跨表驗證及登入安全閘門。",
-      "sha256": "e2e02813d5b5e5724d6823f6112dfce55c50e3f18b8fed07cb3c2390627cd05a"
+      "reason": "將已驗證 DataPackage 完整版本傳給 ItemData parser；保留既有 Manifest、Bundle、跨表驗證及登入安全閘門。 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。",
+      "sha256": "4a5eb49f95d40775a361193074ee8cbd6c2d4e8832bd0e091cbcbe2dc4a9e768"
     },
     "wlre/services/world/catalog_adapters.py": {
       "reason": "ItemData adapter 傳遞 SourceContract 的完整 package_version，禁止 1296 bytes 配上其他版本。",
@@ -228,6 +230,10 @@
     "wlre/services/world/catalog_source_extractor.py": {
       "reason": "唯讀商店 ItemData 相依來源使用同一 SourceContract 的完整 package_version；未知尾端欄位不參與交易判斷。",
       "sha256": "d2ab3de688d8125d358888804b06b1523c79519192761bff818f9b58c7a77abf"
+    },
+    "wlre/services/official_lua_index.py": {
+      "reason": " 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。",
+      "sha256": "fd696d6881a5885e2d346f0d61f5c5023ed156e27b2b4a01616b76708542679b"
     }
   },
   "desktop_core_sync_ref": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",

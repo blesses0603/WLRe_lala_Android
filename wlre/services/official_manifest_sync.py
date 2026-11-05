@@ -22,7 +22,8 @@ from android_app.tls import verified_https_opener
 from wlre.storage.paths import data_root
 
 
-OFFICIAL_HOST = 'wlreftp.chinesegamer.net'
+from wlre.services.official_source import selected_host
+OFFICIAL_HOST = selected_host()
 BASE = 'https://' + OFFICIAL_HOST + '/WLN/TW'
 MAX_MANIFEST_BYTES = 8 * 1024 * 1024
 MAX_HASH_BYTES = 8
@@ -85,7 +86,7 @@ def _fetch(url, *, limit, opener, timeout):
 
     def read_one(target):
         with opener(Request(target, headers={
-                'Accept': 'application/octet-stream, text/plain',
+                'Accept': '*/*',  # Official mirror metadata uses a generic MIME type.
                 'Cache-Control': 'no-cache',
                 'Pragma': 'no-cache',
                 'User-Agent': 'WLRe-LaLa-ManifestSync/1',

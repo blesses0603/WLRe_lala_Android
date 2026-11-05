@@ -29,16 +29,16 @@ class ManualEntryContracts(unittest.TestCase):
     def test_seven_live_icons_and_three_separate_actions(self):
         code = source("android_app/verification_ui.py")
         ast.parse(code)
-        self.assertIn("self.rail=VerificationRail(", code)
+        self.assertIn("self.rail=_AdaptiveRail(", code)
         self.assertIn("self.rail.set_states(", code)
         self.assertIn("self.rows[key]=item", code)
         self.assertIn("self.enter_login=NeonAction(", code)
         self.assertIn("self.enter_login.disabled=True", code)
         self.assertIn("self.enter_login.disabled = not view['approved']", code)
-        self.assertIn("controls.add_widget(self.retry)", code)
-        self.assertIn("controls.add_widget(self.service_button)", code)
-        self.assertIn("root.add_widget(controls)", code)
-        self.assertIn("root.add_widget(self.enter_login)", code)
+        self.assertIn("action_row.add_widget(self.retry)", code)
+        self.assertIn("action_row.add_widget(self.service_button)", code)
+        self.assertIn("self.add_widget(controls)", code)
+        self.assertIn("controls.add_widget(self.enter_login)", code)
         self.assertNotIn("'◇','▤','▱','≡'", code)
 
     def test_gate_does_not_automatically_open_after_success(self):

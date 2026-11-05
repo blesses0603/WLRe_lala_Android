@@ -502,6 +502,16 @@ def load_verified_bundle_runtime(*, sync_root=None, _verified_context=None):
             },
         }
 
+        smallmaps = None
+        smallmap_status = '小地圖需要當次官方資料'
+        if dynamic:
+            try:
+                from wlre.services.world.smallmap_database import load_verified_images
+                smallmaps = load_verified_images(manifests['MainPackage'],bundle_root,root,identity)
+                smallmap_status = '官方小地圖已由同版圖像資料庫載入'
+            except (OSError,ValueError,TypeError,KeyError,RuntimeError,sqlite3.Error) as error:
+                smallmap_status = '小地圖未通過驗證：' + str(error)
+
         battle_talk = None
         battle_talk_status = '戰鬥台詞需要當次官方資料'
         if dynamic:
@@ -550,6 +560,7 @@ def load_verified_bundle_runtime(*, sync_root=None, _verified_context=None):
             portal_metadata_status=portal_metadata_status,
             portal_schema_report=portal_schema_report,
             portal_coverage=coverage,
+            smallmaps=smallmaps, smallmap_status=smallmap_status,
             battle_talk=battle_talk, battle_talk_status=battle_talk_status,
             instances=instances, instance_status=instance_status,
             doors=doors, expedition=expedition, revision=revision,

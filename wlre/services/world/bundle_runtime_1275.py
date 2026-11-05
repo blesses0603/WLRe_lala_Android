@@ -502,6 +502,17 @@ def load_verified_bundle_runtime(*, sync_root=None, _verified_context=None):
             },
         }
 
+        battle_talk = None
+        battle_talk_status = '戰鬥台詞需要當次官方資料'
+        if dynamic:
+            try:
+                from wlre.services.world.npc_battle_catalog import load_verified_catalog as load_battle
+                battle_talk = load_battle(verified_data, bundle_root, load_container,
+                                         root, identity, sources)
+                battle_talk_status = '戰鬥台詞與同版文字已由 SQLite 驗證'
+            except (OSError, ValueError, TypeError, KeyError, RuntimeError) as error:
+                battle_talk_status = '戰鬥台詞未通過驗證：' + str(error)
+
         instances = None
         instance_status = '副本需要當次官方動態資料'
         if dynamic:
@@ -539,6 +550,7 @@ def load_verified_bundle_runtime(*, sync_root=None, _verified_context=None):
             portal_metadata_status=portal_metadata_status,
             portal_schema_report=portal_schema_report,
             portal_coverage=coverage,
+            battle_talk=battle_talk, battle_talk_status=battle_talk_status,
             instances=instances, instance_status=instance_status,
             doors=doors, expedition=expedition, revision=revision,
         )

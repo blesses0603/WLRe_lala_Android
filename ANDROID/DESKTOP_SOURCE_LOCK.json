@@ -1,14 +1,14 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "f23ececf4605fbd376aedb05271217c997f2a1e0",
+  "desktop_source": "09d77e058d2b119e5b80a59ad23442d8644a30b6",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
   "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
-    "size": 93302784,
-    "sha256": "9f28bd2b800d373af294e5196c69a586d7ca3815278b578a0c595d7c6d0c6e53"
+    "size": 93212672,
+    "sha256": "d8d196bd60a32294d1eaecea492310235b637ca62dbabaf238682afa4bdb0e62"
   },
   "source_files": {
     "wlre/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -119,10 +119,10 @@
     "wlre/services/world/game_data_1275.py": "1ffe434dd42f786f26831a10f089996d71823373c73e5b50e39c956eb35d214e",
     "wlre/services/world/itemdata_v1.py": "97e321132cdc62456e319b19c868d678320850c53a19781a096dc2dd1d3a47d9",
     "wlre/services/world/launcher_catalog.py": "d0e56cdedd876f7bc5cefff32c68859e6d9ace2a4715a6b971bdb4d1532922af",
-    "wlre/services/world/map_names.py": "ea2b163b4987b3795330ca47f6d37d6771c864c04b9aae5fd94336d2298c41ff",
+    "wlre/services/world/map_names.py": "043f2a4e96b91cec83432fec30d54f94cfe63a86e024cb44439c0178023cb466",
     "wlre/services/world/movement.py": "082531ad722529baca79e2bcb03490a900063c8380ca06f3a4696f35c1700a39",
     "wlre/services/world/movement_display.py": "c5fbc0f0de0697b83e83fc2d2d55f878272be15da4644aaeb5c112b763df7f20",
-    "wlre/services/world/navigation.py": "3c7e489dbc660cb87eeb75dd99eb42583d44fb8509190548fe4cc4daa99d92a0",
+    "wlre/services/world/navigation.py": "0f58d010c8cd7ec732109ea5180ac7dc5e4d99f11591300be467d5cf62dfa24b",
     "wlre/services/world/npc_1275_eve.py": "909e349b46cdec19919123285448ec9b9e3dd45c799c6d86c2f895a3db38ed46",
     "wlre/services/world/npc_approach.py": "3ecb0cf3f4aec54714be2ef8d10c8cd0acdc6d453f7442b1dcdfb1418f453a67",
     "wlre/services/world/npc_asset_install.py": "14ee79689e99f746f12262561ecc1371b0d71b5c7ac9bf8c40c20f8450e1882c",
@@ -267,7 +267,7 @@
     },
     "wlre/storage/resource_seed_manifest.py": {
       "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
-      "sha256": "d070f8fdd60ae304ba2ea780d095dcc989bacd0b0f5dbb41d03d18888985a094"
+      "sha256": "c58129c4a6f5f760ba611400f1917c5cb7c0e1bb9873dd9437060e7cf90d36a2"
     },
     "wlre/configuration.py": {
       "reason": "第二階段啟動資料遷移，移除四項已遷移種子內容並保留剩餘資源驗證；對應本機桌面第二階段。",
@@ -275,5 +275,5 @@
     }
   },
   "desktop_core_sync_ref": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_core_sync_note": "Official bootstrap, crafting, expedition and NPC migration: desktop_source pins the reduced 17-entry seed; publish that desktop commit before Android seed retrieval. Existing Android adaptations are preserved."
+  "desktop_core_sync_note": "Official bootstrap, crafting, expedition, NPC and map-name migration: desktop_source pins the reduced 16-entry seed; publish that desktop commit before Android seed retrieval. Existing Android adaptations are preserved."
 }

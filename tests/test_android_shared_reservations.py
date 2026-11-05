@@ -35,7 +35,7 @@ def alchemy_case():
         if len(rows) == 2:
             break
     if len(rows) != 2:
-        raise AssertionError("official materials fixture missing")
+        raise AssertionError("synthetic materials fixture missing")
     for row in rows:
         state.inventory["items"][str(row["index"])] = row
     command = {"type": "start_alchemy", "runs": 2,
@@ -289,3 +289,10 @@ class ExpeditionWireCompatibility(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def setUpModule():
+    # Only synthetic items needed by the local hold/receipt fixtures.
+    fixture=patch('wlre.services.world.item_stack_rules.CurrentStackRules._items',
+                  return_value={sid:{'stackable':True} for sid in (10000,10001,10031,34014)})
+    fixture.start();unittest.addModuleCleanup(fixture.stop)

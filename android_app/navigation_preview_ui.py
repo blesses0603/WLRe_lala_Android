@@ -8,7 +8,7 @@ def open_navigation_preview(dashboard):
     job=PreviewJob();body=column();body.add_widget(label('官方資料庫導航預覽，不會移動角色。'))
     player=dashboard.state.get('player',{})
     fields=[field(body,name,value) for name,value in (
-        ('地圖 ID',player.get('scene',10000)),('起點 X',player.get('x',0)),('起點 Y',player.get('y',0)),
+        ('地圖 ID',player.get('scene',10001)),('起點 X',player.get('x',0)),('起點 Y',player.get('y',0)),
         ('終點 X',player.get('x',0)),('終點 Y',player.get('y',0)))]
     mode=select(body,'通行模式',('步行','海上','飛行'),'步行')
     smooth=check(body,'平面走廊平滑（斜坡會拒絕）',False)

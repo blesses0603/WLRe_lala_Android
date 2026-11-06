@@ -1,6 +1,6 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "983b157d9a13058800ad32c5a05004556d34d3ec",
+  "desktop_source": "ab67fef9411c1cfaec66a4dd77995ab99f14c160",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
@@ -195,7 +195,8 @@
     "wlre/services/world/navigation_sync.py": "c73a6f02585f42f3bdbac068884e9dea38e0d936768ea135f512259ac9029be1",
     "wlre/services/world/house_navigation.py": "4cf718b6663299b031f847cb0abaafaeeccb7f97cca345f6862ce0045425f66c",
     "wlre/services/world/navigation_funnel.py": "aad9643416880b0251613da86fbdac0c280a4012df261b7ee6cd90ab9d0f4870",
-    "wlre/services/world/navigation_preview_job.py": "f935a673b753e685b2a6fd3b28759c2041f00f634cd29fd885939091b55409b1"
+    "wlre/services/world/navigation_preview_job.py": "f935a673b753e685b2a6fd3b28759c2041f00f634cd29fd885939091b55409b1",
+    "wlre/services/world/navigation_shadow.py": "16bc67a217e5e854ec761d9a7674ff810dabf526b64e7cf78c470732924789ba"
   },
   "desktop_checked_head": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",

@@ -1,14 +1,14 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "041c36eab57682c5b3b110183aba074ae4ed752d",
+  "desktop_source": "422e7574bf7f3cf2a2ffc199925920aa3a202aee",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
   "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
-    "size": 17674240,
-    "sha256": "673756745584b41d9b34f7679caaa902610b3eb6af6f2296bd185a234ac1cf30"
+    "size": 16818176,
+    "sha256": "f4858041491e4e98545d814b9d7c26df0c43b7d47f85a5cd59b6ae8a5704a49f"
   },
   "source_files": {
     "wlre/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -71,7 +71,7 @@
     "wlre/services/instance_start.py": "98113cfa1c0a9e94a0a6508968342e16db763c8dd9e36060507427dd3259194f",
     "wlre/services/instances.py": "1900e4b52b7e96920f06ae10fae89078890a7870840a555a816c41e7255fb1d0",
     "wlre/services/items/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "wlre/services/items/alchemy.py": "ccc9ec201f0d3de0f9e6d75330b42819e49292f1e29f36c728728fe8eda17812",
+    "wlre/services/items/alchemy.py": "619b8a29617e16ed664b053f4526fceb27c56a3c8d1b3dcee01964140888ef23",
     "wlre/services/items/catalog.py": "0d77be0479fbd88663b0010f96d9b37da9221c37323060c4edec152bd896eacf",
     "wlre/services/items/combat_resources.py": "d045e1462dee84c83a4fdf01a9f45b4e6c4f52cc5daf55c451faf7e3723821f4",
     "wlre/services/items/crafting.py": "22f5e157a862527184a7d48327143031853adb53cffeec895a9552c2b2bc3f19",
@@ -170,7 +170,7 @@
     "wlre/storage/login_memory.py": "c1a27c1b8ec23267ad762cefa0582f97491629ba72a2793ea1871bbc0fab9085",
     "wlre/storage/paths.py": "94d488d6e66e4b301916f69ac5a5aac452d1151477aba1e6dfb659487c38921f",
     "wlre/storage/resource_migration.py": "9cfe3f193a8440b004e2c7bb8ab9445500669160601617de994ea86db77dcb68",
-    "wlre/storage/resource_seed_manifest.py": "fa7966f578330e7f30ecc07826d7df116cc530a053899aeb797370320bf8bc15",
+    "wlre/storage/resource_seed_manifest.py": "6cd340a10a94354ef0549a9bd688254cbe5b181d815c95e7b77f792c5dfcd5c5",
     "wlre/storage/server_lines.py": "f166cb87ec14a7d74e36b0e0113c90cb878afe3853032db9bd244a243fea0d44",
     "wlre/services/world/event_portals.py": "0bed2a5f1d2eb7b2127358b5664e5f265bc80b55efd08044194332137ed2865f",
     "wlre/storage/normalized_resources.py": "9fadde69313578fb16c84dac4f4de3efe8092650b234d1cf9658f9ed79180e60",
@@ -182,7 +182,8 @@
     "wlre/services/world/smallmap_database.py": "d8f78fbb07f8470e97181e91f962ac6370c0270bec679781409bba3aac90904d",
     "wlre/services/world/emoji_database.py": "38a91483b3519fc2b146805d41d4c3d0d9f3d4c8b771f6466c3fe4e46c1b8a14",
     "wlre/services/world/item_image_database.py": "bd0295fd02a21e158d809236e5016915b42891535fa0a067cefe5cc8f04030a5",
-    "wlre/services/world/item_stack_rules.py": "2ff5e55ae6ec4a1362ea9e2884f132f4af61cabae782a2024f4037f7429cd77c"
+    "wlre/services/world/item_stack_rules.py": "2ff5e55ae6ec4a1362ea9e2884f132f4af61cabae782a2024f4037f7429cd77c",
+    "wlre/services/world/alchemy_metadata.py": "60c32cda76cd60452192187839854ae22ed7cae2ffd2e210831e8a6a2583a8dd"
   },
   "desktop_checked_head": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",

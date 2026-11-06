@@ -292,6 +292,8 @@ if __name__ == "__main__":
 
 
 def setUpModule():
+    from alchemy_runtime_fixtures import install
+    install()
     # Only synthetic items needed by the local hold/receipt fixtures.
     fixture=patch('wlre.services.world.item_stack_rules.CurrentStackRules._items',
                   return_value={sid:{'stackable':True} for sid in (10000,10001,10031,34014)})

@@ -1,14 +1,14 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "422e7574bf7f3cf2a2ffc199925920aa3a202aee",
+  "desktop_source": "8cec998da148898d105f907f8746656647a121e4",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
   "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
-    "size": 16818176,
-    "sha256": "f4858041491e4e98545d814b9d7c26df0c43b7d47f85a5cd59b6ae8a5704a49f"
+    "size": 16166912,
+    "sha256": "2b6296c862f96b80f4f94aa9caf6218f2bc1499a58ef13bb0aadecae1ed2b224"
   },
   "source_files": {
     "wlre/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -46,8 +46,8 @@
     "wlre/services/battle/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "wlre/services/battle/attribute_points.py": "0d6f6b9f555922dd56c6cbe76a2ff5e683e2526584d73793eb7ea3b7f2a231b0",
     "wlre/services/battle/auto_battle.py": "4f1000104003b41b568e2abfce2f6553aaa09e26d5ba2bad92a74b1460dc192b",
-    "wlre/services/battle/battle_commands.py": "92d4c8e2e18c1d69ce7ccde62e956f950900e3403b2556e33005b017dc08976d",
-    "wlre/services/battle/combat.py": "f785618bd1e1567364f2239f792ea57dc15069c1e34f39966bc6f073be8236b6",
+    "wlre/services/battle/battle_commands.py": "417b37104b6c7a43507f5cfee11a9eddfc6510c5af5155e7a3d04de785acc182",
+    "wlre/services/battle/combat.py": "47d5b407aab34218761a7df66efc2ef4353ffb14190ddc29974f2dca784e87f8",
     "wlre/services/battle/companions.py": "6f80afbcd1b4639b5b2a9c07c78f79b079ec55464e1f96b3ec565ae9cd43ad82",
     "wlre/services/battle/party.py": "a5205fe2fd7ac4ee994420d0ea11a84e4914eb5960b72bfef92fc2278bd50d32",
     "wlre/services/battle/party_guard.py": "007c3a71386e431e7b2b7711a15a589e5ed2b5e1c9b8ea86b07c14bc64ed068e",
@@ -102,7 +102,7 @@
     "wlre/services/world/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "wlre/services/world/auto_catalog.py": "ec498e4176d3376f24a248e48001e59af11e1c0ecd2b9f7f04e976c25ed0550e",
     "wlre/services/world/boundary_portals.py": "47ba6e52bbc9a7b7da67c64c3fd6fd43e576735231f410cfbbbf1a692c94ddb9",
-    "wlre/services/world/bundle_runtime_1275.py": "83d19225cb1a9573c9c232a4e4200dcd8452e6e394709eff58b01d96a36610ac",
+    "wlre/services/world/bundle_runtime_1275.py": "ddb2cd09bff43a55684d5bb73e5968c92dfeb30f67c67880d9b2db4c1b8b3a8d",
     "wlre/services/world/catalog_adapters.py": "9fad8efc2e6b45976f3d6c56ee91e8ed5ff3680182513456e920ccf8e550815f",
     "wlre/services/world/catalog_identity.py": "a620f441f2f7c497316db47f7f77560f04f2e5d5773f8d292285c6988a9724f3",
     "wlre/services/world/catalog_runtime.py": "ff7dd914a08b49947b1156eb77236422af3b09aecf25b3930286fd218ac445c7",
@@ -146,7 +146,7 @@
     "wlre/services/world/portal_schema.py": "cb6815fb51a76b246af6d909e8402a2bd314cf6ab51e7024d31de60162562aef",
     "wlre/services/world/portal_travel.py": "dba0d0004dafe8dbd6be16e5ea215cd47ad010af531969c48f2aaaa8cb49c736",
     "wlre/services/world/portals.py": "25ec0d2545a77e1dcf9dd2e83dd00fc99cdec813dc183d4e290fe3704a84a4a0",
-    "wlre/services/world/preview_1275.py": "d2a0f2b9039ae2c3bcf5bdca9089af3a89650d8a3a41412bb9573cbbae713d9d",
+    "wlre/services/world/preview_1275.py": "a217a98eb2259cf2e36a6abe362a98ffa643621a9767f6ed49e5fc0df6a003dd",
     "wlre/services/world/resource_classification.py": "62516268671ba9c7f6757fb2bd825d848a35ea78f0658d046951c0551ded7a6d",
     "wlre/services/world/resource_database.py": "6cbed2423b7d8fd1fcf5bd9de19530851f951e88bf163fe03b465e20da29774c",
     "wlre/services/world/resource_gap_diagnostics.py": "5241d64f776dca74559c5b83813fcfdfccea3f8305d261a7a2aade79efcad11b",
@@ -170,7 +170,7 @@
     "wlre/storage/login_memory.py": "c1a27c1b8ec23267ad762cefa0582f97491629ba72a2793ea1871bbc0fab9085",
     "wlre/storage/paths.py": "94d488d6e66e4b301916f69ac5a5aac452d1151477aba1e6dfb659487c38921f",
     "wlre/storage/resource_migration.py": "9cfe3f193a8440b004e2c7bb8ab9445500669160601617de994ea86db77dcb68",
-    "wlre/storage/resource_seed_manifest.py": "6cd340a10a94354ef0549a9bd688254cbe5b181d815c95e7b77f792c5dfcd5c5",
+    "wlre/storage/resource_seed_manifest.py": "6a11b90462638cf6f74566bcb583df49f089b86bf8b3e0bb185785b59b5b928b",
     "wlre/storage/server_lines.py": "f166cb87ec14a7d74e36b0e0113c90cb878afe3853032db9bd244a243fea0d44",
     "wlre/services/world/event_portals.py": "0bed2a5f1d2eb7b2127358b5664e5f265bc80b55efd08044194332137ed2865f",
     "wlre/storage/normalized_resources.py": "9fadde69313578fb16c84dac4f4de3efe8092650b234d1cf9658f9ed79180e60",
@@ -183,7 +183,8 @@
     "wlre/services/world/emoji_database.py": "38a91483b3519fc2b146805d41d4c3d0d9f3d4c8b771f6466c3fe4e46c1b8a14",
     "wlre/services/world/item_image_database.py": "bd0295fd02a21e158d809236e5016915b42891535fa0a067cefe5cc8f04030a5",
     "wlre/services/world/item_stack_rules.py": "2ff5e55ae6ec4a1362ea9e2884f132f4af61cabae782a2024f4037f7429cd77c",
-    "wlre/services/world/alchemy_metadata.py": "60c32cda76cd60452192187839854ae22ed7cae2ffd2e210831e8a6a2583a8dd"
+    "wlre/services/world/alchemy_metadata.py": "60c32cda76cd60452192187839854ae22ed7cae2ffd2e210831e8a6a2583a8dd",
+    "wlre/services/world/normal_attack_catalog.py": "05e4cf4ff9f86470c04552cb4dc3d4a8acdbfdda2eb9e4c98ab59a6b66d2e13a"
   },
   "desktop_checked_head": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",
@@ -230,7 +231,7 @@
     },
     "wlre/services/world/bundle_runtime_1275.py": {
       "reason": "將已驗證 DataPackage 完整版本傳給 ItemData parser；保留既有 Manifest、Bundle、跨表驗證及登入安全閘門。 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。 官方 Lua 已驗證之 1296 欄位與 runtime-v2 物品快照；保留兩端既有診斷差異。",
-      "sha256": "5f3869d4a1bd3a72eff0b207793a1d8218e7b99387840113b61abb1347436ae4"
+      "sha256": "2a50b651fc0cbcf7339987c8dc54b31d502ea0146f535035c77659d58241bf9c"
     },
     "wlre/services/world/catalog_adapters.py": {
       "reason": "ItemData adapter 傳遞 SourceContract 的完整 package_version，禁止 1296 bytes 配上其他版本。",
@@ -286,11 +287,15 @@
     },
     "wlre/services/world/preview_1275.py": {
       "reason": "Android 保留既有 Runtime 功能範圍；表情來源、版本、交易與校驗流程相同。",
-      "sha256": "8adda43ad927662f537202fc76b7e28c7a4a63b321427876d3cea0deed682e66"
+      "sha256": "4341ec403fd2b5c7c5c18d19afe698e4ed93d07fc8ddfedb1c16b76a56580423"
     },
     "wlre/services/world/emoji_database.py": {
       "reason": "Android 未包含桌面 parser_diagnostics decorator/checkpoint；表情解析、資料庫及校驗相同。",
       "sha256": "b79fa0c7232871f194dd931b420fb13739f39e44903833c535ef0273df76d8b9"
+    },
+    "wlre/services/world/normal_attack_catalog.py": {
+      "reason": "共用已驗證 NPC 與 ItemData 格式；Android 保留既有不含桌面診斷裝飾器的配置。",
+      "sha256": "4440de4a6dc5ef297df3c20984d0193cee067f552769828fd279c7ccda5b03dc"
     }
   },
   "desktop_core_sync_ref": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",

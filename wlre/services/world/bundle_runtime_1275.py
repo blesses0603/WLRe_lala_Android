@@ -502,6 +502,17 @@ def load_verified_bundle_runtime(*, sync_root=None, _verified_context=None):
             },
         }
 
+        normal_catalog = None
+        normal_status = '官方普攻資料尚未同步'
+        if dynamic:
+            try:
+                from wlre.services.world.normal_attack_catalog import build_catalog
+                normal_catalog = stored('normal_attacks', ('NpcData_C','ItemData_C'),
+                    lambda: build_catalog(sources['NpcData_C'],sources['ItemData_C']))
+                normal_status = '官方普攻與捕捉資料已由同版資料庫載入'
+            except (OSError,ValueError,TypeError,KeyError,RuntimeError,sqlite3.Error) as error:
+                normal_status = '官方普攻資料未通過驗證：' + str(error)
+
         item_images = None
         item_image_status = '物品圖示需要當次官方資料'
         if dynamic:
@@ -580,6 +591,7 @@ def load_verified_bundle_runtime(*, sync_root=None, _verified_context=None):
             portal_metadata_status=portal_metadata_status,
             portal_schema_report=portal_schema_report,
             portal_coverage=coverage,
+            normal_attack_catalog=normal_catalog,normal_attack_status=normal_status,
             item_images=item_images,item_image_status=item_image_status,
             emoji_catalog=emoji_catalog, emoji_status=emoji_status,
             smallmaps=smallmaps, smallmap_status=smallmap_status,

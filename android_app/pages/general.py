@@ -44,6 +44,8 @@ class Overview(Page):
         profile.add_widget(self.sp_meter)
         self.info = status_line()
         profile.add_widget(self.info)
+        from android_app.navigation_preview_ui import open_navigation_preview
+        profile.add_widget(button('官方導航預覽',lambda:open_navigation_preview(d)))
         self.add_widget(profile)
 
         automation = feature_card('自動化控制', '依遊戲核心狀態切換戰鬥、徘徊與遠征')

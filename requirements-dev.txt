@@ -6,3 +6,5 @@ pyjnius==1.7.0
 
 # Same TextAsset decoder as desktop (host regression only).
 UnityPy==1.25.4
+
+pycryptodome==3.23.0

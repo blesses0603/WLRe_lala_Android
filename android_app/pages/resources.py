@@ -245,7 +245,8 @@ class Resources(Page):
         bucket = 'garage' if self.storage_section.text == '儲藏室' else 'materials'
         inventory = (storage.get(bucket) or {}) if read_only else actual_inventory
         from wlre.services.world.item_image_database import source_token, current_catalog
-        key = (source_token(),self._view_key(state, inventory))
+        from wlre.services.items.live_combat_catalog import source_token as combat_token
+        key = (source_token(),combat_token(),self._view_key(state, inventory))
         if key == self.key:
             return
 
@@ -267,7 +268,7 @@ class Resources(Page):
         self._cancel_render()
         self.grid.clear_widgets()
         self.rows.clear_widgets()
-        self.key = (source_token(),self._view_key(state, inventory))
+        self.key = (source_token(),combat_token(),self._view_key(state, inventory))
         self._read_only = read_only
         self._is_inventory = is_inventory
         self._use_grid = use_grid
@@ -289,6 +290,7 @@ class Resources(Page):
             source = '已確認特技'
         if is_inventory:
             source += ' · ' + ('官方圖示已同步' if current_catalog() is not None else '官方圖示尚未同步')
+        source += ' · ' + ('官方戰鬥資料已同步' if combat_token() is not None else '官方戰鬥資料尚未同步')
         self._summary_text = source + (
             '\n{}/{} 頁 · {} 項{}'.format(
                 self.offset + 1, pages, len(entries),

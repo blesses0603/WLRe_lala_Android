@@ -1,14 +1,14 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "8cec998da148898d105f907f8746656647a121e4",
+  "desktop_source": "fc9ed6587e9ab51df3354476a0c8e80d6c314eaa",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
   "planned_android_version": "7.1.2",
   "seed": {
     "path": "wlre/resources/resource_catalog_seed.sqlite3",
-    "size": 16166912,
-    "sha256": "2b6296c862f96b80f4f94aa9caf6218f2bc1499a58ef13bb0aadecae1ed2b224"
+    "size": 12050432,
+    "sha256": "ddca8cb85211e6554f86bf45ad879a2ef5b4c021e14c5f3bd7e3c1db15a7d323"
   },
   "source_files": {
     "wlre/core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -45,7 +45,7 @@
     "wlre/services/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "wlre/services/battle/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "wlre/services/battle/attribute_points.py": "0d6f6b9f555922dd56c6cbe76a2ff5e683e2526584d73793eb7ea3b7f2a231b0",
-    "wlre/services/battle/auto_battle.py": "4f1000104003b41b568e2abfce2f6553aaa09e26d5ba2bad92a74b1460dc192b",
+    "wlre/services/battle/auto_battle.py": "5f7700af1e3bf43ac4351e3cbe9c481e2bca67226f74da7ffb4cf185d538e994",
     "wlre/services/battle/battle_commands.py": "417b37104b6c7a43507f5cfee11a9eddfc6510c5af5155e7a3d04de785acc182",
     "wlre/services/battle/combat.py": "47d5b407aab34218761a7df66efc2ef4353ffb14190ddc29974f2dca784e87f8",
     "wlre/services/battle/companions.py": "6f80afbcd1b4639b5b2a9c07c78f79b079ec55464e1f96b3ec565ae9cd43ad82",
@@ -72,15 +72,15 @@
     "wlre/services/instances.py": "1900e4b52b7e96920f06ae10fae89078890a7870840a555a816c41e7255fb1d0",
     "wlre/services/items/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "wlre/services/items/alchemy.py": "619b8a29617e16ed664b053f4526fceb27c56a3c8d1b3dcee01964140888ef23",
-    "wlre/services/items/catalog.py": "0d77be0479fbd88663b0010f96d9b37da9221c37323060c4edec152bd896eacf",
-    "wlre/services/items/combat_resources.py": "d045e1462dee84c83a4fdf01a9f45b4e6c4f52cc5daf55c451faf7e3723821f4",
+    "wlre/services/items/catalog.py": "a602c5dcd90d87c1cf761f0f7de54983acd610b73c4e2714b44adafbdcf0b6dc",
+    "wlre/services/items/combat_resources.py": "47025368326c7581615da4f527ca523a08bc4566f03135cc04d02d1b0c662844",
     "wlre/services/items/crafting.py": "22f5e157a862527184a7d48327143031853adb53cffeec895a9552c2b2bc3f19",
     "wlre/services/items/crafting_browser_model.py": "8e1f7b9e5b29533817242456938356199ad432c9d14d7909de365d88062ce91c",
     "wlre/services/items/crafting_official_v1286.py": "67f465c3e5e50ab818a61b2edf58424caa0cc103eacbc39618857997095dc5a6",
     "wlre/services/items/crafting_plan.py": "85f0a0b32a83c2cb84c77872ae6bfcd1e86c67c8356e2337d2b6a780b747cf83",
     "wlre/services/items/field_supply.py": "ea8b3b256fbc3949c858f9bb8f27f05244a5ce9989750ccab62c5bed690e4447",
     "wlre/services/items/inventory.py": "29f02ebdbf63f77238d10d2d174a65e82ff8f2175ef95495ec91f9a5dc1a5a07",
-    "wlre/services/items/maintenance.py": "2c50b8f2843e2f9cf20aceae9e56242fc1cf312e672f18d65d99e06c1d1611d2",
+    "wlre/services/items/maintenance.py": "691f9e4b94cdccc6fd0934ebb446633a8f7efb5939a6618b94c58d4be728c95b",
     "wlre/services/items/post_battle_maintenance.py": "1b39399cdd9a31371d97aa78b01e6aab2fb81e9b9c6dfea57c87bbaf921ecb50",
     "wlre/services/items/recovery.py": "242c304c1080f9b6cc44819ca3fcb1cb7b33c3be94d6a4e60d409a3d7e32e854",
     "wlre/services/items/reservations.py": "af6601fbbc8a5dc16ac9fbae2783bb79a91f85aaad6d7f29f1c980cdbee7c9fd",
@@ -102,7 +102,7 @@
     "wlre/services/world/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "wlre/services/world/auto_catalog.py": "ec498e4176d3376f24a248e48001e59af11e1c0ecd2b9f7f04e976c25ed0550e",
     "wlre/services/world/boundary_portals.py": "47ba6e52bbc9a7b7da67c64c3fd6fd43e576735231f410cfbbbf1a692c94ddb9",
-    "wlre/services/world/bundle_runtime_1275.py": "ddb2cd09bff43a55684d5bb73e5968c92dfeb30f67c67880d9b2db4c1b8b3a8d",
+    "wlre/services/world/bundle_runtime_1275.py": "dc0d2357fed75dc6d29eb34e2cc44d4b1de5acb85c50bbd6288ca8e27bfe23c6",
     "wlre/services/world/catalog_adapters.py": "9fad8efc2e6b45976f3d6c56ee91e8ed5ff3680182513456e920ccf8e550815f",
     "wlre/services/world/catalog_identity.py": "a620f441f2f7c497316db47f7f77560f04f2e5d5773f8d292285c6988a9724f3",
     "wlre/services/world/catalog_runtime.py": "ff7dd914a08b49947b1156eb77236422af3b09aecf25b3930286fd218ac445c7",
@@ -112,12 +112,12 @@
     "wlre/services/world/daily_task_1275.py": "0a25ad80edab54070e1705b238d462f0ef85f081c5d570e45c8abf2a4273df45",
     "wlre/services/world/display_position.py": "200b61ffb7f969d6ef4fd67069c2b0dbac52776ae0625bde4957f45654e1c97c",
     "wlre/services/world/doors_1275.py": "76c0a03c12658bc183d46789e6007ee074ca47af3e890469e5362b72f9c25f13",
-    "wlre/services/world/dynamic_bundle_runtime.py": "12db84c0cb922af40c77dca2e8554f8608efcf5d1e8928858e84a2d677aaa586",
+    "wlre/services/world/dynamic_bundle_runtime.py": "95757152628025b0edde0ef7e250c56838449df1d3cc79a1ea19149e9c35a545",
     "wlre/services/world/eve_v115.py": "71617ac3b1d53a347d86245ce5231ad18a42ab7fd7bfd7a721b2665378189fb1",
     "wlre/services/world/feature_resource_index.py": "a83f8bd276d2779bfc59d8a096f083f8e0250971dbc3a3e2c8e0a10db7ecb444",
     "wlre/services/world/formal_candidate_bridge.py": "226337f21708c2c5403b1e2f357ecb1148e568e3eac4b89759df202948d3ccf5",
     "wlre/services/world/game_data_1275.py": "1ffe434dd42f786f26831a10f089996d71823373c73e5b50e39c956eb35d214e",
-    "wlre/services/world/itemdata_v1.py": "f20f3020445196734712b579fa3a6952ee0d9bbe30a77dd7cbd778bf5432e811",
+    "wlre/services/world/itemdata_v1.py": "8ee7e6964e53c3f188ddf9ab761d14e58a238fb01397e4b82369779ca1b549d2",
     "wlre/services/world/launcher_catalog.py": "d0e56cdedd876f7bc5cefff32c68859e6d9ace2a4715a6b971bdb4d1532922af",
     "wlre/services/world/map_names.py": "043f2a4e96b91cec83432fec30d54f94cfe63a86e024cb44439c0178023cb466",
     "wlre/services/world/movement.py": "082531ad722529baca79e2bcb03490a900063c8380ca06f3a4696f35c1700a39",
@@ -146,7 +146,7 @@
     "wlre/services/world/portal_schema.py": "cb6815fb51a76b246af6d909e8402a2bd314cf6ab51e7024d31de60162562aef",
     "wlre/services/world/portal_travel.py": "dba0d0004dafe8dbd6be16e5ea215cd47ad010af531969c48f2aaaa8cb49c736",
     "wlre/services/world/portals.py": "25ec0d2545a77e1dcf9dd2e83dd00fc99cdec813dc183d4e290fe3704a84a4a0",
-    "wlre/services/world/preview_1275.py": "a217a98eb2259cf2e36a6abe362a98ffa643621a9767f6ed49e5fc0df6a003dd",
+    "wlre/services/world/preview_1275.py": "3438f9c9fb98d8e9024920d2f909259de94ef30f5fa8769da96455470478ecd8",
     "wlre/services/world/resource_classification.py": "62516268671ba9c7f6757fb2bd825d848a35ea78f0658d046951c0551ded7a6d",
     "wlre/services/world/resource_database.py": "6cbed2423b7d8fd1fcf5bd9de19530851f951e88bf163fe03b465e20da29774c",
     "wlre/services/world/resource_gap_diagnostics.py": "5241d64f776dca74559c5b83813fcfdfccea3f8305d261a7a2aade79efcad11b",
@@ -170,7 +170,7 @@
     "wlre/storage/login_memory.py": "c1a27c1b8ec23267ad762cefa0582f97491629ba72a2793ea1871bbc0fab9085",
     "wlre/storage/paths.py": "94d488d6e66e4b301916f69ac5a5aac452d1151477aba1e6dfb659487c38921f",
     "wlre/storage/resource_migration.py": "9cfe3f193a8440b004e2c7bb8ab9445500669160601617de994ea86db77dcb68",
-    "wlre/storage/resource_seed_manifest.py": "6a11b90462638cf6f74566bcb583df49f089b86bf8b3e0bb185785b59b5b928b",
+    "wlre/storage/resource_seed_manifest.py": "78b3499ab47305d4ae3372a74ac62e09f16744f5fec36ce475275b5cbdcb03bc",
     "wlre/storage/server_lines.py": "f166cb87ec14a7d74e36b0e0113c90cb878afe3853032db9bd244a243fea0d44",
     "wlre/services/world/event_portals.py": "0bed2a5f1d2eb7b2127358b5664e5f265bc80b55efd08044194332137ed2865f",
     "wlre/storage/normalized_resources.py": "9fadde69313578fb16c84dac4f4de3efe8092650b234d1cf9658f9ed79180e60",
@@ -184,7 +184,11 @@
     "wlre/services/world/item_image_database.py": "bd0295fd02a21e158d809236e5016915b42891535fa0a067cefe5cc8f04030a5",
     "wlre/services/world/item_stack_rules.py": "2ff5e55ae6ec4a1362ea9e2884f132f4af61cabae782a2024f4037f7429cd77c",
     "wlre/services/world/alchemy_metadata.py": "60c32cda76cd60452192187839854ae22ed7cae2ffd2e210831e8a6a2583a8dd",
-    "wlre/services/world/normal_attack_catalog.py": "05e4cf4ff9f86470c04552cb4dc3d4a8acdbfdda2eb9e4c98ab59a6b66d2e13a"
+    "wlre/services/world/normal_attack_catalog.py": "05e4cf4ff9f86470c04552cb4dc3d4a8acdbfdda2eb9e4c98ab59a6b66d2e13a",
+    "wlre/services/items/live_combat_catalog.py": "f5147a8abeb26df265dac682532a2ca1e7749635b076ab1e2ff3e058904397ad",
+    "wlre/services/world/combat_catalog.py": "e98e712296c06611b6578aea7146588d8125bafc5864b9d535474977ffe0a327",
+    "wlre/services/world/official_combat_sources.py": "159d3f253aa2ad3b85f78550fb7557ee9171fef0ace263cc26aa3da1ead619a1",
+    "wlre/services/world/official_lua_codec.py": "d5722eb7d0a4555843cc42108f07b07ee5deb040e50abb5579f9bfc6a5423034"
   },
   "desktop_checked_head": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",
@@ -227,11 +231,11 @@
     },
     "wlre/services/world/itemdata_v1.py": {
       "reason": "移植桌面 09f6707d449708dbc09e6ead8351c633e6e22191 的精確 ItemData 1296 SHA-256／完整版本核對及未知尾端 bytes 保留；Android 不引入尚未移植的 parser_diagnostics，並拒絕非字串版本。 官方 Lua 已驗證之 1296 欄位與 runtime-v2 物品快照；保留兩端既有診斷差異。",
-      "sha256": "5df4ed9939edd9e05de9f8590de5a8f8aebd31f8bb83a6f5143cd16bd61e5aff"
+      "sha256": "58af8bf4bd4b97e93b4f36822ccb982f22795c80bb71c81046cff26cb1028a28"
     },
     "wlre/services/world/bundle_runtime_1275.py": {
       "reason": "將已驗證 DataPackage 完整版本傳給 ItemData parser；保留既有 Manifest、Bundle、跨表驗證及登入安全閘門。 新增與桌面相同的已驗證來源規範資料庫或官方主機選擇；保留 Android 原有差異。 官方 Lua 已驗證之 1296 欄位與 runtime-v2 物品快照；保留兩端既有診斷差異。",
-      "sha256": "2a50b651fc0cbcf7339987c8dc54b31d502ea0146f535035c77659d58241bf9c"
+      "sha256": "45bd8349b88d464ec62946787e01704105d9448b97ca60a80191f2738800bb51"
     },
     "wlre/services/world/catalog_adapters.py": {
       "reason": "ItemData adapter 傳遞 SourceContract 的完整 package_version，禁止 1296 bytes 配上其他版本。",
@@ -283,11 +287,11 @@
     },
     "wlre/services/world/dynamic_bundle_runtime.py": {
       "reason": "Android 保留既有 Runtime 功能範圍；表情來源、版本、交易與校驗流程相同。",
-      "sha256": "f145c287b1481da234d25b808c36c7cabaf015848722f362992b226ba60dc067"
+      "sha256": "4d375d6318827977217275849381389a9a21fc149bf11e3ef29fc48911913301"
     },
     "wlre/services/world/preview_1275.py": {
       "reason": "Android 保留既有 Runtime 功能範圍；表情來源、版本、交易與校驗流程相同。",
-      "sha256": "4341ec403fd2b5c7c5c18d19afe698e4ed93d07fc8ddfedb1c16b76a56580423"
+      "sha256": "06ece9e075b0064552f8b67bc6a4e32729bf967d837b3b7201ad447fc0c830f5"
     },
     "wlre/services/world/emoji_database.py": {
       "reason": "Android 未包含桌面 parser_diagnostics decorator/checkpoint；表情解析、資料庫及校驗相同。",
@@ -296,6 +300,10 @@
     "wlre/services/world/normal_attack_catalog.py": {
       "reason": "共用已驗證 NPC 與 ItemData 格式；Android 保留既有不含桌面診斷裝飾器的配置。",
       "sha256": "4440de4a6dc5ef297df3c20984d0193cee067f552769828fd279c7ccda5b03dc"
+    },
+    "wlre/services/world/combat_catalog.py": {
+      "reason": "共用已驗證戰鬥資料；Android 保留既有不含桌面診斷裝飾器的配置。",
+      "sha256": "5857862369aa6e4ed724a2c80b9ea999f1bdad6223974021c033a219b521f010"
     }
   },
   "desktop_core_sync_ref": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",

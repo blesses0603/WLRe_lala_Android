@@ -300,4 +300,10 @@ class MobilePages(unittest.TestCase):
         self.assertEqual(numeric.input_filter, 'int')
 
 
-from alchemy_runtime_fixtures import install as setUpModule
+from alchemy_runtime_fixtures import install as _previous_setUpModule
+
+
+def setUpModule():
+    from combat_runtime_fixtures import install
+    install()
+    _previous_setUpModule()

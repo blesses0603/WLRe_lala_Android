@@ -287,14 +287,17 @@ class ExpeditionWireCompatibility(unittest.TestCase):
         self.assertFalse(any("packet_main" in e for e in events))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 def setUpModule():
+    from combat_runtime_fixtures import install as install_combat
+    install_combat()
     from alchemy_runtime_fixtures import install
     install()
     # Only synthetic items needed by the local hold/receipt fixtures.
     fixture=patch('wlre.services.world.item_stack_rules.CurrentStackRules._items',
                   return_value={sid:{'stackable':True} for sid in (10000,10001,10031,34014)})
     fixture.start();unittest.addModuleCleanup(fixture.stop)
+
+if __name__ == "__main__":
+    unittest.main()

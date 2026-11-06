@@ -1,6 +1,6 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "4f46af155ca1567f83406868b58f10d958a00e84",
+  "desktop_source": "1f382c55df7f70233d7113eb0882dbcb10667a73",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
@@ -23,7 +23,7 @@
     "wlre/core/state_events.py": "8209d2596e262760f9d6ec979062d0ecd76cedc6f1762d6eedfcd49a5638d3a9",
     "wlre/core/state_ownership.py": "1add414b04245cf654562bfccd684ccd538ec288a7657cdc2a4ae5ef0f23dddb",
     "wlre/core/state_session_events.py": "6c13fe9cbb07202c8f736324f16075a7b4d7bf53dd5e353348d0c957e550eb03",
-    "wlre/core/state_world_events.py": "bd35dfc2b6a9050bc6d6cb4235099d39721e8c923b04283fda1698236b5b0171",
+    "wlre/core/state_world_events.py": "25bb617abc4da259c8b590d7084f1fe22b53adb63b7ade07a3f0cf5b8dec788a",
     "wlre/network/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "wlre/network/automatic_flows.py": "d5582fe4587383403d94261909022d96f38dccc68fc590650e00c830b96f4998",
     "wlre/network/client.py": "f6119fc5445b240bffc688070ae77966c87601c72d8357785eb00926dc930aaa",
@@ -37,7 +37,7 @@
     "wlre/network/live_data.py": "897e789ea33f02e2056d48e936c7856bbfb5e580d9a7d2ecb05048437416efd0",
     "wlre/network/npc_dialogue.py": "a3d1d5d58c93afff515705e9e3a1398f0f358e7aafa604d64ee3775ed07ce9dc",
     "wlre/network/outbound_observations.py": "51b10f62fbf6b929f47769ad8837b326e5d51ced59bbcc3ca3bfe0b8c5df51a8",
-    "wlre/network/protocol.py": "dcfd5dbe7b27939f9a8b00cb2cab5addc74fbfd279fd7133cbb17ee5e2225c65",
+    "wlre/network/protocol.py": "22afebf875c3cc86daaff7f9bce78078a9af7c408eb32cedc36e88a531b161d3",
     "wlre/network/service_scheduler.py": "7ca469b60cfdb02371e63520f8d5b1fee2feb70e394312765aa4c0ec5f158bb3",
     "wlre/network/social_protocol.py": "86b27482096a53d382308e7fe3be5f4eff6a69071c4c0e152972869a0d3bed36",
     "wlre/network/state_updates.py": "06e1d510ecb2a7b22202f10ded4953fc5b6b814271cd51b10d2fa4c2d83104cc",
@@ -189,10 +189,11 @@
     "wlre/services/world/combat_catalog.py": "e98e712296c06611b6578aea7146588d8125bafc5864b9d535474977ffe0a327",
     "wlre/services/world/official_combat_sources.py": "159d3f253aa2ad3b85f78550fb7557ee9171fef0ace263cc26aa3da1ead619a1",
     "wlre/services/world/official_lua_codec.py": "d5722eb7d0a4555843cc42108f07b07ee5deb040e50abb5579f9bfc6a5423034",
-    "wlre/services/world/astar_cache.py": "5200e3a6e593939d91dd8983fcae58bb16374f4455fae01e4f43203eca69ed54",
-    "wlre/services/world/navigation_database.py": "751e70fb6ac231bd8629040fcadb3608aae9101718e353ee3bb542f8f0ae7ca7",
-    "wlre/services/world/navigation_preview.py": "d7187dc6c7d809ed0e310d7b07854bf520a63e437f858d5351c6707bb94dd1b8",
-    "wlre/services/world/navigation_sync.py": "581e8c6d2f9aabc19d8429cab1121abd93cb54fb25b27e20d06402bcf13cb342"
+    "wlre/services/world/astar_cache.py": "9447661574ca704b5871ec1530286fce9a045a807d59c55e5c3424636d0c9791",
+    "wlre/services/world/navigation_database.py": "b01fda8632995e81eb7c0b99ccaf8610123eebbd3cd2e0e5859aebc78cfebc17",
+    "wlre/services/world/navigation_preview.py": "0ec216786a7f22d796de3e6086d914d746095c848eb03bd84a90103fd369ed57",
+    "wlre/services/world/navigation_sync.py": "581e8c6d2f9aabc19d8429cab1121abd93cb54fb25b27e20d06402bcf13cb342",
+    "wlre/services/world/house_navigation.py": "01ec496e417dc63d7252fa4a53f2c4a1ad7af6023370e16d88986788d77c2dba"
   },
   "desktop_checked_head": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",
@@ -263,7 +264,7 @@
     },
     "wlre/network/protocol.py": {
       "reason": "第二階段：可信程式設定與種子分離，伺服器清單改由官方 HTTPS 匯入；預設使用經實測的官方來源主機。保留原 Android 平台差異。",
-      "sha256": "175b4444ce5e444d0b1eb1d01cf8f83c27a42994611b6893ab93192512f6bbcc"
+      "sha256": "82edd496bc1819377d0205877d0c1ee2b89b827656ef8fffe4d74d459b3356da"
     },
     "wlre/services/resource_compatibility.py": {
       "reason": "第二階段：可信程式設定與種子分離，伺服器清單改由官方 HTTPS 匯入；預設使用經實測的官方來源主機。保留原 Android 平台差異。",

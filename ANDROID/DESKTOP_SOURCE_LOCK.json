@@ -1,6 +1,6 @@
 {
   "desktop_main": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
-  "desktop_source": "fc9ed6587e9ab51df3354476a0c8e80d6c314eaa",
+  "desktop_source": "4f46af155ca1567f83406868b58f10d958a00e84",
   "desktop_pr": 65,
   "android_base": "e1767b33ac4e83dc60bd34539c3d2889380b861d",
   "desktop_version": "7.1.1",
@@ -188,7 +188,11 @@
     "wlre/services/items/live_combat_catalog.py": "f5147a8abeb26df265dac682532a2ca1e7749635b076ab1e2ff3e058904397ad",
     "wlre/services/world/combat_catalog.py": "e98e712296c06611b6578aea7146588d8125bafc5864b9d535474977ffe0a327",
     "wlre/services/world/official_combat_sources.py": "159d3f253aa2ad3b85f78550fb7557ee9171fef0ace263cc26aa3da1ead619a1",
-    "wlre/services/world/official_lua_codec.py": "d5722eb7d0a4555843cc42108f07b07ee5deb040e50abb5579f9bfc6a5423034"
+    "wlre/services/world/official_lua_codec.py": "d5722eb7d0a4555843cc42108f07b07ee5deb040e50abb5579f9bfc6a5423034",
+    "wlre/services/world/astar_cache.py": "5200e3a6e593939d91dd8983fcae58bb16374f4455fae01e4f43203eca69ed54",
+    "wlre/services/world/navigation_database.py": "751e70fb6ac231bd8629040fcadb3608aae9101718e353ee3bb542f8f0ae7ca7",
+    "wlre/services/world/navigation_preview.py": "d7187dc6c7d809ed0e310d7b07854bf520a63e437f858d5351c6707bb94dd1b8",
+    "wlre/services/world/navigation_sync.py": "581e8c6d2f9aabc19d8429cab1121abd93cb54fb25b27e20d06402bcf13cb342"
   },
   "desktop_checked_head": "7c31aa266f22bc79cb9cd279463c2ac1f1ee6397",
   "desktop_checked_head_note": "相較 core 來源只修改桌面 test_dashboard_layout.py，不影響本次共用核心",

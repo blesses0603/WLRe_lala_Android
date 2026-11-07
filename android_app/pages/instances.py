@@ -1,11 +1,11 @@
-"""1262 官方副本／協力資料與受伺服器確認的安全房間操作。"""
+"""當次官方副本／協力資料與受伺服器確認的安全房間操作。"""
 from android_app.pages.general import Page
 from android_app.widgets import label, button, row, select, pick, field, column, dialog
-from wlre.services.instance_browser import entries_for, official_catalog
+from wlre.services.instance_browser import entries_for, official_catalog, catalog_token, selection_fields
 
 
 def catalog_rows(mode):
-    """僅根據桌面版已驗證 1262 資料表建立手機顯示清單。"""
+    """僅根據桌面版當次已驗證 資料表建立手機顯示清單。"""
     return entries_for(mode)
 
 
@@ -32,7 +32,7 @@ def describe_entry(entry):
                  for award in awards[:16] if isinstance(award, list) and len(award) == 4)
     if not awards:
         lines.append("此筆未列出獎勵，不代表沒有獎勵")
-    lines.append("※ 這是離線資料表，不是即時房間、可進場狀態或領獎資格。")
+    lines.append("※ 這是官方資料庫快取，不是即時房間、可進場狀態或領獎資格。")
     return "\n".join(lines)
 
 
@@ -42,7 +42,7 @@ class InstanceCatalog(Page):
         from android_app.pages.ui_components import feature_card, status_line
 
         library = feature_card(
-            '官方副本／協力資料', '1262 官方資料僅作靜態查閱，不代表可立即進場')
+            '官方副本／協力資料', '當次官方資料僅作靜態查閱，不代表可立即進場')
         library.add_widget(status_line(
             '房間操作只發送一次並等待伺服器回覆；'
             '協力可能消耗門票或點數。付費寶箱禁止自動購買。'))
@@ -86,12 +86,13 @@ class InstanceCatalog(Page):
         self.add_widget(reward)
 
         details = feature_card('選取副本／房間資訊',
-                               '只展示伺服器資料或已驗證的官方離線資料')
+                               '只展示伺服器資料或已驗證的官方資料庫快取')
         self.details = status_line(
             '請選擇副本；此操作不會連線或消耗資源。')
         details.add_widget(self.details)
         self.add_widget(details)
         self.mode.bind(text=lambda *_: self.render())
+        self._catalog_token = catalog_token()
         self.next_query = 0
         self.render()
 
@@ -102,8 +103,12 @@ class InstanceCatalog(Page):
         try:
             rows = self.rows()
         except (OSError, ValueError, KeyError, TypeError) as exc:
-            self.info.text = "無法讀取已驗證的 1262 資料表：" + type(exc).__name__
-            self.details.text = "此頁不可操作；請確認安裝包有完整官方資料。"
+            self.info.text = "無法讀取當次已驗證 資料表：" + type(exc).__name__
+            self.details.text = "此頁不可操作；請等待官方資料同步完成。"
+            return
+        if not rows and catalog_token() is None:
+            self.info.text = '等待官方副本資料完成同步'
+            self.details.text = '資料完成驗證前不提供創房選項'
             return
         self.info.text = "本類已核對 {} 筆；僅代表靜態資料，不代表伺服器有空房。".format(len(rows))
         self.details.text = "請選擇副本；此操作不會連線或消耗資源。"
@@ -122,8 +127,14 @@ class InstanceCatalog(Page):
             return
         # Capture the exact chosen category instead of reading a later Spinner value.
         rows = self.rows()
-        pick("官方副本清單（僅查詢本機）", choices,
-             lambda index: setattr(self.details, "text", describe_entry(rows[index])))
+        token = catalog_token()
+        def chosen(index):
+            if token != catalog_token():
+                self.render()
+                self.d.message.text = '官方資料已更新，請重新選擇'
+                return
+            self.details.text = describe_entry(rows[index])
+        pick("官方副本清單（資料庫快取）", choices, chosen)
 
     def current_mode(self):
         return 'coop' if self.mode.text == '協力副本' else 'main'
@@ -166,7 +177,8 @@ class InstanceCatalog(Page):
 
     def create_room(self):
         mode = self.current_mode()
-        rows = [item for item in self.rows() if mode == 'coop' or item.get('kind') == 1]
+        rows = [item for item in self.rows() if item.get('creation_supported')
+                and (mode == 'coop' or item.get('kind') == 1)]
         if not self.d.live or not rows:
             self.d.message.text = '請先登入且具有可用的官方副本資料'
             return
@@ -181,10 +193,11 @@ class InstanceCatalog(Page):
         privacy = select(body, '房間類型', ['公開', '私人'])
         password = field(body, '私人房間密碼（4 位 ASCII 數字）')
         password.password = True  # Kivy masks entered private-room credentials.
-        capacity = select(body, '協力房間人數', [str(i) for i in range(1, 9)]) if mode == 'coop' else None
+        capacity = select(body, '協力房間人數', [str(i) for i in range(entry['min_members'], entry['max_members'] + 1)]) if mode == 'coop' else None
         def submit():
             public = privacy.text == '公開'
-            cmd = {'public': public, 'password': '' if public else password.text.strip()}
+            cmd = {**selection_fields(entry), 'public': public,
+                   'password': '' if public else password.text.strip()}
             if mode == 'main':
                 cmd['map_id'] = entry['map_id']
             else:
@@ -280,6 +293,10 @@ class InstanceCatalog(Page):
                    enabled=not enabled)
 
     def refresh(self):
+        token = catalog_token()
+        if token != self._catalog_token:
+            self._catalog_token = token
+            self.render()
         import time
         now = time.monotonic()
         if (self.d.live and self.d.page_name == '副本資料' and now >= self.next_query
@@ -289,7 +306,7 @@ class InstanceCatalog(Page):
             self.query_rooms()
         data = (self.state.get('instances') or {}).get(self.current_mode()) or {}
         if not self.d.live:
-            self.live_info.text = '離線／等待登入：僅能查看官方離線副本資料'
+            self.live_info.text = '離線／等待登入：僅能查看官方副本快取'
         elif not data.get('ready'):
             self.live_info.text = '房間未同步；請手動查詢，系統不會自動重送'
         else:

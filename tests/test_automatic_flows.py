@@ -44,7 +44,9 @@ class AutomaticFlowTests(unittest.TestCase):
         class Converter:
 
             def route(self, repository, scene, start, end, start_height=None):
-                return repository.load(scene).route(start, end)
+                # Synthetic authorization exercises scheduling only.
+                return {**repository.load(scene).route(start, end),
+                        'can_send_packets': True, 'live_movement_verified': True}
 
             def to_packet(self, scene, x, z):
                 return (x, z)

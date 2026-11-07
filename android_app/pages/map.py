@@ -3,7 +3,6 @@ from kivy.graphics import Color, Rectangle, Ellipse, Line
 from kivy.uix.widget import Widget
 from android_app.pages.general import Page
 from android_app.widgets import label, button, row, field, pick
-from android_app.assets import texture
 from wlre.services.world.smallmaps import SmallMaps
 from wlre.services.world.portals import Portals
 from wlre.services.world.portal_policy import allowed_rows
@@ -215,7 +214,8 @@ class MapPage(Page):
         scene=self.state.get('player',{}).get('scene')
         self.title.text='小地圖｜'+(map_label(scene) if scene is not None else '等待角色位置')
         from wlre.services.world.dynamic_bundle_runtime import current_catalog_token
-        token=current_catalog_token()
+        from wlre.services.world.dynamic_bundle_runtime import current_runtime
+        token=(current_catalog_token(),id(getattr(current_runtime(),'smallmaps',None)))
         if scene!=self.scene or token!=self.token:
             self.token=token;self.maps=SmallMaps();self.portals=Portals()
             self.scene=scene;self.portal=None;self.image.selected=None;self.x_input.text=self.y_input.text=''
@@ -225,8 +225,12 @@ class MapPage(Page):
             if scene is not None:
                 try:
                     projection,model=self.maps.projection(scene)
-                    entry=self.maps.entries.get(parse_map_id(model))
-                    if entry:self.image.texture=texture('smallmaps.zip',entry);self.image.projection=projection
+                    raw=self.maps.png_bytes(model)
+                    if raw:
+                        import io
+                        from kivy.core.image import Image as CoreImage
+                        self.image.texture=CoreImage(io.BytesIO(raw),ext='png',nocache=True).texture
+                        self.image.projection=projection
                 except (ValueError,KeyError,OSError):pass
             self.image.portals=allowed_rows(self.portals,scene,self.maps,recovery=self.image.texture is None)
             if not self.image.texture:self.note.text='此圖沒有可顯示的原始小地圖；可從 NPC／出口選擇已確認的返回出口。'

@@ -36,26 +36,23 @@ class BagLoadOffline(unittest.TestCase):
 @unittest.skipUnless(HAS_KIVY and (os.environ.get("DISPLAY") or os.name == "nt"),
                      "Requires Kivy with graphical display")
 class BagLoadLive(unittest.TestCase):
-    def test_prefetch_decodes_distinct_items_with_one_zip_read(self):
+    def test_prefetch_decodes_distinct_items_from_database_once(self):
         from android_app import assets
-        memory = io.BytesIO()
-        with zipfile.ZipFile(memory, "w") as writer:
-            writer.writestr("a.png", b"a")
-            writer.writestr("b.png", b"b")
-            writer.writestr("s1000.png", b"default")
-        with patch.dict(assets._CACHE, {}, clear=True), \
-             patch("android_app.assets._item_entry",
-                   side_effect=lambda sid: {1: "a.png", 2: "b.png"}[sid]), \
-             patch("wlre.storage.bundled_database.load_bundled_bytes",
-                   return_value=memory.getvalue()) as loader, \
-             patch("android_app.assets.CoreImage",
-                   side_effect=lambda value, ext: SimpleNamespace(
-                       texture=value.getvalue())) as image:
-            self.assertEqual(assets.prefetch_item_icons([1, 2, 1]), 2)
-            self.assertEqual(loader.call_count, 1)
-            self.assertEqual(image.call_count, 2)
-            self.assertEqual(assets.prefetch_item_icons([2, 1]), 0)
-            self.assertEqual(loader.call_count, 1)
+        from unittest.mock import Mock
+        catalog=SimpleNamespace(catalog_key='test',icon=lambda sid:sid,png=Mock(side_effect=lambda sid:bytes([sid])))
+        runtime=SimpleNamespace(item_images=catalog)
+        with patch.dict(assets._CACHE,{},clear=True),patch(
+                'wlre.services.world.dynamic_bundle_runtime.current_runtime',return_value=runtime),patch(
+                'wlre.storage.bundled_database.load_bundled_bytes',side_effect=AssertionError('no seed')),patch(
+                'android_app.assets.CoreImage',side_effect=lambda value,**kw:SimpleNamespace(texture=value.getvalue())) as image:
+            self.assertEqual(assets.prefetch_item_icons([1,2,1]),2)
+            self.assertEqual(catalog.png.call_count,2)
+            self.assertEqual(image.call_count,2)
+            self.assertEqual(assets.prefetch_item_icons([2,1]),0)
+            self.assertEqual(catalog.png.call_count,2)
+            runtime.item_images=None
+            self.assertIsNone(assets.item_texture(1))
+            self.assertFalse(assets._CACHE)
 
     def test_bag_builds_in_chunks_and_ignores_unrelated_state(self):
         from kivy.uix.widget import Widget

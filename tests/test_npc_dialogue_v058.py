@@ -142,6 +142,10 @@ from unittest.mock import patch as _legacy_patch
 _legacy_context = None
 
 def setUpModule():
+    global _official_context
+    from npc_runtime_fixtures import runtime
+    _official_context = _legacy_patch('wlre.services.world.runtime_1275.active_runtime',return_value=runtime())
+    _official_context.start()
     global _legacy_context
     _legacy_context = _legacy_patch('wlre.services.world.runtime_1275.baseline_revision', return_value='1262')
     _legacy_context.start()
@@ -149,6 +153,7 @@ def setUpModule():
     item_catalog.cache_clear()
 
 def tearDownModule():
+    _official_context.stop()
     from wlre.services.world.npc_item_data import item_catalog
     item_catalog.cache_clear()
     _legacy_context.stop()

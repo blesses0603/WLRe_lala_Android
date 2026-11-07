@@ -59,6 +59,8 @@ class MobileFeatures(unittest.TestCase):
         self.assertEqual(self.manager.session_detail(session.session_id)['chat'][-1]['target_id'],456)
 
     def test_preferences_are_private_and_scoped_without_auto_start(self):
+        from crafting_fixtures import recipes
+        self.enterContext(patch.dict(RECIPES,recipes(),clear=True))
         with tempfile.TemporaryDirectory() as base:
             self.manager.settings_base=base
             session=self.start()
@@ -126,6 +128,8 @@ class MobilePages(unittest.TestCase):
         self.assertEqual(self.session.ai_settings['profiles']['player']['orderAction'][0]['id'],60021)
         self.assertTrue(self.session.commands.empty())
     def test_recipe_and_plan_preview_do_not_send(self):
+        from crafting_fixtures import recipes
+        self.enterContext(patch.dict(RECIPES,recipes(),clear=True))
         from android_app.dashboard import Dashboard
         d=Dashboard(self.app,'fixture');self.addCleanup(d.dismissed)
         d.data=self.app.manager.session_detail('fixture');d.show('製作')
@@ -243,6 +247,12 @@ class MobilePages(unittest.TestCase):
         self.assertIn("結果未知", d.message.text)
 
     def test_chat_emoji_selection_preserves_draft_and_sends_token(self):
+        from tests.emoji_fixtures import catalog
+        from types import SimpleNamespace
+        folder=tempfile.TemporaryDirectory();self.addCleanup(folder.cleanup)
+        current=SimpleNamespace(emoji_catalog=catalog(Path(folder.name)/'emoji.sqlite3'),catalog_identity=SimpleNamespace(key='test'))
+        source=patch('wlre.services.world.dynamic_bundle_runtime.current_runtime',return_value=current)
+        source.start();self.addCleanup(source.stop)
         from android_app.dashboard import Dashboard
         from kivy.uix.button import Button
         from kivy.uix.image import Image
@@ -289,3 +299,11 @@ class MobilePages(unittest.TestCase):
         self.assertEqual(numeric.input_type, 'number')
         self.assertEqual(numeric.input_filter, 'int')
 
+
+from alchemy_runtime_fixtures import install as _previous_setUpModule
+
+
+def setUpModule():
+    from combat_runtime_fixtures import install
+    install()
+    _previous_setUpModule()

@@ -14,14 +14,17 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 LINK = re.compile(r"!?(?:\[[^\]]*\])\(([^)]+)\)")
-VERSION = re.compile(r"^__version__\s*=\s*(['\"])([^'\"]+)\1", re.MULTILINE)
+try:
+    from .android_release_version import source_version
+except ImportError:  # Direct script invocation.
+    from android_release_version import source_version
 
 
 def markdown_files(root=ROOT):
     """Authored Markdown, including attribution beside resources; avoid build output."""
     return [
         root / "README.md",
-        root / "版本歷史.md",
+        root / "CHANGELOG.md",
         *sorted((root / "docs").rglob("*.md")),
         *sorted((root / "wlre/resources").rglob("*.md")),
     ]
@@ -78,11 +81,9 @@ def duplicate_tracked_blobs(root=ROOT):
 
 
 def application_version(root=ROOT):
-    text = (root / "wlre" / "__init__.py").read_text(encoding="utf-8")
-    match = VERSION.search(text)
-    if not match:
-        raise ValueError("wlre/__init__.py lacks a literal __version__")
-    return match.group(2)
+    # Android core re-exports this version; validate the APK declaration too.
+    return source_version(root / "buildozer.spec", root / "android_app/version.py")[1:]
+
 
 
 def audit(root=ROOT):

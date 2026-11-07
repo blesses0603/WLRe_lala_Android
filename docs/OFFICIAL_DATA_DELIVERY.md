@@ -70,3 +70,20 @@ python -m tools.review_navigation_shadow_samples --snapshot /path/to/snapshot --
 - 先測兩端顯示、同步、斷線、版本失效、前背景切換及小屋進出；預覽階段確認沒有移動指令。
 - 官方客戶端可視畫面比對能驗證路線與停點的外部行為，但錄影不能揭露所有執行期參數或精確 vectorPath；目前沒有已驗證的完整執行期匯出方式。
 - 新導航實際送包要另有具體、有限範圍的測試設計、必要證據與操作授權；明確起終點、步行／海／空模式、距離上限、即時停止與版本失效處理。不要求帳密，不繞過現有防護。
+
+
+## Android 文件稽核修正（本機追加）
+
+Android 已有 `CHANGELOG.md`，先前 `audit_repository.py` 誤用桌面
+`版本歷史.md` 名稱；現改查既有 Android 檔案，沒有建立新歷史或修改版號。
+完整稽核另發現 `wlre/__init__.py` 會從 `android_app.version` 匯入版本，
+不能用桌面的字面 `__version__` regex。現沿用既有 `source_version`，
+讀取 `ANDROID_VERSION` 並與 `buildozer.spec` 交叉驗證，不執行版本檔程式。
+PR diagnostics 加入這項唯讀 strict-git 稽核；遠端尚未執行。
+
+本機模組與直接腳本兩種呼叫皆通過：31 份 Markdown、20 個本地連結、
+沒有斷鏈或非空重複 tracked blob，版本維持 7.1.21。
+新增／既有版本測試共 14 項通過；測試包含缺少 CHANGELOG、歷史頁斷鏈、
+APK 與 Python 版本不符時必須失敗。共用核心仍為 188 檔一致。
+presplash／封裝安全測試另有 21 項通過；安全 preflight、presplash spec 與 Python compileall 亦通過。
+這不取代 APK、手機或有 display／IPC 環境的剩餘驗收，移動防護不變。
